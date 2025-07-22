@@ -7,3 +7,11 @@ spring:
     password:
   liquibase:
     change-log: classpath:/db/changelog/db.changelog-master.yaml
+
+server:
+  port: 8080
+
+livekit:
+  url: wss://debbly.duckdns.org
+  api-key:
+  api-secret:

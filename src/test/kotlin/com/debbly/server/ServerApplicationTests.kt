@@ -24,6 +24,8 @@ class ServerApplicationTests {
         val response: Response<LivekitModels.Room> = call.execute()
         val room: LivekitModels.Room? = response.body()
 
+
+
         System.out.println(JsonFormat.printer().print(room))
     }
 
