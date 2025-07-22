@@ -2,8 +2,8 @@ spring:
   application:
     name: server
   datasource:
-    url: jdbc:postgresql://localhost:5432/postgres
-    username: postgres
+    url: jdbc:postgresql://debbly-db.cluster-cfwauugwq6ho.us-west-2.rds.amazonaws.com:5432/postgres
+    username: dbuser
     password:
   liquibase:
     change-log: classpath:/db/changelog/db.changelog-master.yaml
