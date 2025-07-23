@@ -3,8 +3,8 @@ spring:
     name: server
   datasource:
     url: jdbc:postgresql://debbly-db.cluster-cfwauugwq6ho.us-west-2.rds.amazonaws.com:5432/postgres
-    username: dbuser
-    password:
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
   liquibase:
     change-log: classpath:/db/changelog/db.changelog-master.yaml
 
@@ -13,5 +13,5 @@ server:
 
 livekit:
   url: wss://debbly.duckdns.org
-  api-key:
-  api-secret:
+  api-key: ${LIVEKIT_API_KEY}
+  api-secret: ${LIVEKIT_API_SECRET}
