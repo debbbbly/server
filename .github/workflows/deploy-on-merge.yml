@@ -3,6 +3,7 @@ name: Build and Push Docker to ECR
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 env:
   AWS_REGION: us-west-2
