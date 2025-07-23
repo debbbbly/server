@@ -9,6 +9,6 @@ class LiveKitController(private val liveKitService: LiveKitService) {
 
     @GetMapping("/livekit/token")
     fun getToken(@RequestParam userId: String, @RequestParam roomName: String): String {
-        return liveKitService.getToken(userId, roomName)
+        return "Token: ${liveKitService.getToken(userId, roomName)}"
     }
 }
