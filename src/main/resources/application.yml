@@ -1,8 +1,13 @@
 spring:
   application:
     name: server
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://cognito-idp.us-west-2.amazonaws.com/us-west-2_j6qBaKisl
   datasource:
-    url: jdbc:postgresql://debbly-db.cluster-cfwauugwq6ho.us-west-2.rds.amazonaws.com:5432/postgres
+    url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   liquibase:
@@ -15,4 +20,11 @@ livekit:
   url: wss://debbly.duckdns.org
   api-key: ${LIVEKIT_API_KEY}
   api-secret: ${LIVEKIT_API_SECRET}
+
+cognito:
+  region: us-west-2
+  client-id: 3kjpccjofeesv4bv8hjsqliple
+  user-pool-id: us-west-2_Fm2VsaCqc
+#  domain: debbly-auth
+
 

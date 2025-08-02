@@ -1,0 +1,36 @@
+databaseChangeLog:
+  - changeSet:
+      id: create-users-table
+      author: gemini
+      changes:
+        - createTable:
+            tableName: users
+            columns:
+              - column:
+                  name: user_id
+                  type: varchar(255)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: email
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: username
+                  type: varchar(255)
+              - column:
+                  name: birthdate
+                  type: date
+              - column:
+                  name: avatar_url
+                  type: text
+  - changeSet:
+      id: add-unique-constraint-to-username
+      author: gemini
+      changes:
+        - addUniqueConstraint:
+            tableName: users
+            columnNames: username
+            constraintName: uc_users_username
