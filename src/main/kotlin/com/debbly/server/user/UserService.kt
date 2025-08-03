@@ -20,7 +20,7 @@ class UserService(private val repository: UserRepository) {
         username: String,
         birthdate: LocalDate
     ) {
-        if (repository.existsByUsername(username)) {
+        if (repository.findByUsername(username).isPresent) {
             throw IllegalArgumentException("Username already taken")
         }
 
@@ -35,5 +35,4 @@ class UserService(private val repository: UserRepository) {
 
     fun findByUsername(username: String): UserEntity? = repository.findByUsername(username).getOrNull()
 
-    fun existsByUsername(username: String): Boolean = repository.existsByUsername(username)
 }

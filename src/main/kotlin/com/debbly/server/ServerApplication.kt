@@ -1,6 +1,6 @@
 package com.debbly.server
 
-import com.debbly.server.auth.CognitoConfig
+import com.debbly.server.auth.config.CognitoConfig
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.runApplication

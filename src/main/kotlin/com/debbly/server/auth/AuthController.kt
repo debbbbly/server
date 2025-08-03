@@ -1,14 +1,21 @@
 package com.debbly.server.auth
 
+import com.debbly.server.auth.AuthErrorCode.*
+import com.debbly.server.auth.config.CognitoConfig
 import com.debbly.server.user.UserEntity
 import com.debbly.server.user.UserService
 import com.debbly.server.user.UserValidator.isUserComplete
 import com.debbly.server.user.UserValidator.isValidBirthdate
 import com.debbly.server.user.UserValidator.isValidUsername
+import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.constraints.NotBlank
 import org.springframework.http.HttpStatus
+import org.springframework.http.HttpStatus.BAD_REQUEST
+import org.springframework.http.HttpStatus.UNAUTHORIZED
 import org.springframework.http.ResponseEntity
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.security.oauth2.jwt.Jwt
+import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -23,18 +30,16 @@ import java.time.LocalDate
 class AuthController(
     private val cognitoClient: CognitoIdentityProviderClient,
     private val cognitoConfig: CognitoConfig,
-    private val userService: UserService
-
+    private val userService: UserService,
+    private val jwtDecoder: JwtDecoder
 ) {
-
-    private val jwtDecoder = NimbusJwtDecoder.withJwkSetUri(cognitoConfig.jwks).build()
 
     @PostMapping("/login")
     fun login(@RequestBody req: LoginRequest): ResponseEntity<TokenResponse> {
         return try {
             if (!AuthRateLimiter.tryConsume(req.usernameOrEmail)) {
                 return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                    .body(TokenResponse(error = AuthErrorCode.AUTH_TOO_MANY_ATTEMPTS))
+                    .body(TokenResponse(error = AUTH_TOO_MANY_ATTEMPTS))
             }
 
             val email = userService.findByUsername(req.usernameOrEmail)?.email ?: req.usernameOrEmail
@@ -62,8 +67,8 @@ class AuthController(
                 )
 
             return if (!isUserComplete(user)) {
-                ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(TokenResponse(error = AuthErrorCode.AUTH_USER_INCOMPLETE))
+                ResponseEntity.status(BAD_REQUEST)
+                    .body(TokenResponse(error = AUTH_USER_INCOMPLETE))
 
             } else {
                 ResponseEntity.ok(
@@ -74,24 +79,26 @@ class AuthController(
                     )
                 )
             }
+        } catch (e: NotAuthorizedException) {
+            ResponseEntity.status(UNAUTHORIZED).body(TokenResponse(error = AUTH_LOGIN_FAILED))
         } catch (e: Exception) {
-            ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(TokenResponse(error = AuthErrorCode.AUTH_LOGIN_FAILED))
+            ResponseEntity.status(UNAUTHORIZED).body(TokenResponse(error = AUTH_LOGIN_FAILED))
         }
     }
 
     @PostMapping("/signup")
     fun signup(@RequestBody request: SignupRequest): ResponseEntity<ApiResponse> {
         if (!isValidUsername(request.username)) {
-            return ResponseEntity.badRequest().body(ApiResponse(false, AuthErrorCode.AUTH_INVALID_USERNAME))
+            return ResponseEntity.badRequest().body(ApiResponse(false, AUTH_INVALID_USERNAME))
         }
 
         if (!isValidBirthdate(request.birthdate)) {
-            return ResponseEntity.badRequest().body(ApiResponse(false, AuthErrorCode.AUTH_INVALID_BIRTHDATE))
+            return ResponseEntity.badRequest().body(ApiResponse(false, AUTH_INVALID_BIRTHDATE))
         }
 
         if (!AuthRateLimiter.tryConsume(request.username)) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .body(ApiResponse(false, error = AuthErrorCode.AUTH_TOO_MANY_ATTEMPTS))
+                .body(ApiResponse(false, error = AUTH_TOO_MANY_ATTEMPTS))
         }
 
         try {
@@ -121,14 +128,14 @@ class AuthController(
                 }
 
                 ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(ApiResponse(true, AuthErrorCode.AUTH_EMAIL_REGISTERED_UNCONFIRMED))
+                    .body(ApiResponse(true, AUTH_EMAIL_REGISTERED_UNCONFIRMED))
             } else {
                 ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(ApiResponse(false, AuthErrorCode.AUTH_EMAIL_ALREADY_REGISTERED))
+                    .body(ApiResponse(false, AUTH_EMAIL_ALREADY_REGISTERED))
             }
         } catch (e: Exception) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse(false, AuthErrorCode.AUTH_GENERIC_ERROR))
+                .body(ApiResponse(false, AUTH_GENERIC_ERROR))
         }
     }
 
@@ -136,7 +143,7 @@ class AuthController(
     fun confirmEmail(@RequestBody request: SignupConfirmEmailRequest): ResponseEntity<TokenResponse> {
         if (!AuthRateLimiter.tryConsume(request.email)) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .body(TokenResponse(error = AuthErrorCode.AUTH_TOO_MANY_ATTEMPTS))
+                .body(TokenResponse(error = AUTH_TOO_MANY_ATTEMPTS))
         }
 
         try {
@@ -149,8 +156,8 @@ class AuthController(
             cognitoClient.confirmSignUp(confirm)
 
         } catch (e: Exception) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(TokenResponse(error = AuthErrorCode.AUTH_CONFIRMATION_CODE_INVALID))
+            return ResponseEntity.status(BAD_REQUEST)
+                .body(TokenResponse(error = AUTH_CONFIRMATION_CODE_INVALID))
         }
 
         return try {
@@ -177,8 +184,8 @@ class AuthController(
             userService.create(user)
 
             return if (!isUserComplete(user)) {
-                ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(TokenResponse(error = AuthErrorCode.AUTH_USER_INCOMPLETE))
+                ResponseEntity.status(BAD_REQUEST)
+                    .body(TokenResponse(error = AUTH_USER_INCOMPLETE))
             } else {
 
                 ResponseEntity.ok(
@@ -190,8 +197,8 @@ class AuthController(
                 )
             }
         } catch (e: Exception) {
-            ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(TokenResponse(error = AuthErrorCode.AUTH_GENERIC_ERROR))
+            ResponseEntity.status(BAD_REQUEST)
+                .body(TokenResponse(error = AUTH_GENERIC_ERROR))
         }
     }
 
@@ -199,7 +206,7 @@ class AuthController(
     fun resendConfirmation(@RequestBody req: EmailRequest): ResponseEntity<ApiResponse> {
         if (!AuthRateLimiter.tryConsume(req.email)) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .body(ApiResponse(false, error = AuthErrorCode.AUTH_TOO_MANY_ATTEMPTS))
+                .body(ApiResponse(false, error = AUTH_TOO_MANY_ATTEMPTS))
         }
 
         return try {
@@ -211,8 +218,8 @@ class AuthController(
             cognitoClient.resendConfirmationCode(resend)
             ResponseEntity.ok(ApiResponse(true))
         } catch (e: Exception) {
-            ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse(false, AuthErrorCode.RESEND_CONFIRMATION_FAILED))
+            ResponseEntity.status(BAD_REQUEST)
+                .body(ApiResponse(false, AUTH_RESEND_CONFIRMATION_FAILED))
         }
     }
 
@@ -220,7 +227,7 @@ class AuthController(
     fun forgotPassword(@RequestBody req: EmailRequest): ResponseEntity<ApiResponse> {
         if (!AuthRateLimiter.tryConsume(req.email)) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .body(ApiResponse(false, error = AuthErrorCode.AUTH_TOO_MANY_ATTEMPTS))
+                .body(ApiResponse(false, error = AUTH_TOO_MANY_ATTEMPTS))
         }
 
         return try {
@@ -232,7 +239,8 @@ class AuthController(
             cognitoClient.forgotPassword(forgot)
             ResponseEntity.ok(ApiResponse(true))
         } catch (e: Exception) {
-            ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse(false, AuthErrorCode.FORGOT_PASSWORD_FAILED))
+            ResponseEntity.status(BAD_REQUEST)
+                .body(ApiResponse(false, AUTH_FORGOT_PASSWORD_FAILED))
         }
     }
 
@@ -249,20 +257,44 @@ class AuthController(
             cognitoClient.confirmForgotPassword(confirm)
             ResponseEntity.ok(ApiResponse(true))
         } catch (e: Exception) {
-            ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse(false, AuthErrorCode.RESET_PASSWORD_FAILED))
+            ResponseEntity.status(BAD_REQUEST)
+                .body(ApiResponse(false, AUTH_RESET_PASSWORD_FAILED))
         }
     }
 
     @PostMapping("/logout")
-    fun logout(@RequestBody req: LogoutRequest): ResponseEntity<ApiResponse> {
-        try {
-            cognitoClient.globalSignOut {
-                it.accessToken(req.accessToken)
-            }
-            return ResponseEntity.ok(ApiResponse(true))
-        } catch (e: Exception) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse(false, AuthErrorCode.LOGOUT_FAILED))
-        }
+    fun logout(@AuthenticationPrincipal accessToken: Jwt?,
+               response: HttpServletResponse): ResponseEntity<ApiResponse> {
+
+        //    val token = extractToken(request)
+        //        if (token != null && token.startsWith("ey")) {
+        //            try {
+        //                cognitoClient.globalSignOut { it.accessToken(token) }
+        //            } catch (e: Exception) {
+        //                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        //                    .body(ApiResponse(false, "LOGOUT_FAILED"))
+        //            }
+        //        }
+
+        val secure = false
+        response.setCookie("accessToken", "", 0, "Lax", secure)
+        response.setCookie("idToken", "", 0, "Lax", secure)
+        response.setCookie("refreshToken", "", 0, "Strict", secure)
+
+        return ResponseEntity.ok(ApiResponse(true))
+    }
+
+    @PostMapping("/set-cookie")
+    fun setCookie(
+        @RequestBody tokenResponse: TokenResponse,
+        response: HttpServletResponse
+    ): ResponseEntity<Void> {
+        val secure = false
+        response.setCookie("accessToken", tokenResponse.accessToken, 60 * 60, "Lax", secure)
+        response.setCookie("idToken", tokenResponse.idToken, 60 * 60, "Lax", secure)
+        response.setCookie("refreshToken", tokenResponse.refreshToken, 60 * 60 * 24 * 30, "Strict", secure)
+
+        return ResponseEntity.ok().build()
     }
 
     private fun getUserId(idToken: String): String {
@@ -271,6 +303,18 @@ class AuthController(
 
     private fun getEmail(idToken: String): String {
         return jwtDecoder.decode(idToken).claims["email"] as String
+    }
+
+    fun HttpServletResponse.setCookie(
+        name: String,
+        value: String?,
+        maxAge: Int,
+        sameSite: String = "Lax",
+        secure: Boolean
+    ) {
+        val cookieValue =
+            "$name=$value; Path=/; HttpOnly; Max-Age=$maxAge; ${if (secure) "Secure; " else ""}SameSite=$sameSite"
+        this.addHeader("Set-Cookie", cookieValue)
     }
 
     data class ApiResponse(val success: Boolean, val error: AuthErrorCode? = null)
@@ -310,8 +354,5 @@ class AuthController(
         val error: AuthErrorCode? = null
     )
 
-    data class LogoutRequest(
-        @field:NotBlank val accessToken: String
-    )
 
 }

@@ -1,8 +1,6 @@
-package com.debbly.server.auth
+package com.debbly.server.auth.config
 
 import org.springframework.boot.context.properties.ConfigurationProperties
-import org.springframework.boot.context.properties.bind.ConstructorBinding
-import org.springframework.stereotype.Component
 
 @ConfigurationProperties(prefix = "cognito")
 data class CognitoConfig(

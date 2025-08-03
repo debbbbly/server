@@ -1,4 +1,4 @@
-package com.debbly.server.auth
+package com.debbly.server.auth.config
 
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
