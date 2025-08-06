@@ -17,20 +17,20 @@ class StageService(
         val stageId = idGenerator.id()
         val stage = StageEntity(stageId, type, claimId, Instant.now(), null)
         stageRepository.save(stage)
-        val stageHost = StageHostEntity(stageId, userId)
+        val stageHost = StageHostEntity(StageHostId(stageId, userId))
         stageHostRepository.save(stageHost)
         return stage
     }
 
     fun leaveStage(stageId: String, userId: String) {
-        val stageHost = stageHostRepository.findByStageIdAndUserId(stageId, userId)
-        if (stageHost != null) {
-            stageHostRepository.delete(stageHost)
+        val stageHostId = StageHostId(stageId, userId)
+        val stageHost = stageHostRepository.findById(stageHostId)
+        if (stageHost.isPresent) {
+            stageHostRepository.delete(stageHost.get())
             val hosts = stageHostRepository.findByStageId(stageId)
             if (hosts.isEmpty()) {
                 val stage = stageRepository.findById(stageId).orElseThrow()
-                stage.copy(closedAt = Instant.now())
-                stageRepository.save(stage)
+                stageRepository.save(stage.copy(closedAt = Instant.now()))
                 liveStageRepository.deleteById(stageId)
             }
         }

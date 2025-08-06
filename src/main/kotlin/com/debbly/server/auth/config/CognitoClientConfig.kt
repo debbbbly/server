@@ -11,7 +11,7 @@ class CognitoClientConfig {
     @Bean
     fun cognitoIdentityProviderClient(): CognitoIdentityProviderClient {
         return CognitoIdentityProviderClient.builder()
-            .region(Region.US_WEST_2) // 👈 replace with your actual region
+            .region(Region.US_WEST_2)
             .build()
     }
 }

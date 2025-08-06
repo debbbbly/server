@@ -1,5 +1,6 @@
 package com.debbly.server.user
 
+import com.debbly.server.auth.UserId
 import com.debbly.server.user.UserValidator.isValidUsername
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -16,12 +17,11 @@ class UserController(private val service: UserService) {
     //Disable CSRF (for stateless APIs)	If you're not using cookies, disable CSRF in the security config
 
     @GetMapping("/me")
-    fun me(@AuthenticationPrincipal jwt: Jwt?): ResponseEntity<UserResponse> {
-        if (jwt == null) {
+    fun me(@UserId userId: String?): ResponseEntity<UserResponse> {
+        if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
         }
 
-        val userId = jwt.claims["sub"] as String
         // val email = (jwt.claims["email"] as String?).orEmpty()
 
         val user = service.findById(userId) ?: service.create(UserEntity(userId = userId, email = ""))

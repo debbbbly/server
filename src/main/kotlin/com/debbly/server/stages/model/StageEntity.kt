@@ -1,11 +1,12 @@
 package com.debbly.server.stages.model
 
-import org.springframework.data.repository.CrudRepository
+import jakarta.persistence.Entity
+import jakarta.persistence.Id
 import java.time.Instant
 
-interface StageRepository : CrudRepository<StageEntity, String>
-
+@Entity(name = "stages")
 data class StageEntity(
+    @Id
     val stageId: String,
     val type: StageType,
     val claimId: String?,
