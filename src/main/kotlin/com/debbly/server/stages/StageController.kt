@@ -1,5 +1,7 @@
 package com.debbly.server.stages
 
+import com.debbly.server.stages.model.LiveStageRedisDto
+import com.debbly.server.stages.model.LiveStageRedisRepository
 import com.debbly.server.stages.model.StageEntity
 import com.debbly.server.stages.model.StageType
 import org.springframework.http.HttpStatus
@@ -10,7 +12,7 @@ import org.springframework.web.bind.annotation.*
 
 @RestController
 @RequestMapping("/stages")
-class StageController(private val stageService: StageService) {
+class StageController(private val stageService: StageService, private val liveStageRedisRepository: LiveStageRedisRepository) {
 
     @PostMapping
     fun createStage(
@@ -44,6 +46,12 @@ class StageController(private val stageService: StageService) {
         )
 
         return ResponseEntity.ok().build()
+    }
+
+    @GetMapping("/live")
+    fun getLiveStages(): ResponseEntity<List<LiveStageRedisDto>> {
+        val liveStages = liveStageRedisRepository.findAll().toList()
+        return ResponseEntity.ok(liveStages)
     }
 
     @PostMapping("/{stageId}/heartbeat")

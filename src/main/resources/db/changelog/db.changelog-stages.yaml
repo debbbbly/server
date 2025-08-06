@@ -1,0 +1,68 @@
+databaseChangeLog:
+  - changeSet:
+      id: create-stages-table
+      author: gemini
+      changes:
+        - createTable:
+            tableName: stages
+            columns:
+              - column:
+                  name: stage_id
+                  type: VARCHAR(8)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: type
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: claim_id
+                  type: VARCHAR(8)
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: closed_at
+                  type: TIMESTAMP WITH TIME ZONE
+  - changeSet:
+      id: create-stage-hosts-table
+      author: gemini
+      changes:
+        - createTable:
+            tableName: stage_hosts
+            columns:
+              - column:
+                  name: stage_id
+                  type: VARCHAR(8)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: VARCHAR(8)
+                  constraints:
+                    nullable: false
+            primaryKey:
+              columnNames: "stage_id, user_id"
+              name: pk_stage_hosts
+  - changeSet:
+      id: create-live-stages-table
+      author: gemini
+      changes:
+        - createTable:
+            tableName: live_stages
+            columns:
+              - column:
+                  name: stage_id
+                  type: VARCHAR(8)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: heartbeat_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false

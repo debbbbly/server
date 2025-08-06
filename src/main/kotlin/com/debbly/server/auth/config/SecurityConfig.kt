@@ -31,12 +31,9 @@ class SecurityConfig(
                     //.requestMatchers("/users/me").authenticated()
                     .anyRequest().permitAll()
             }
-            .addFilterBefore(
-                CookieOrBearerAuthenticationFilter(jwtDecoder),
-                BearerTokenAuthenticationFilter::class.java
-            )
             .oauth2ResourceServer { oauth2 ->
-                oauth2.jwt { jwt -> }
+                oauth2.bearerTokenResolver(CookieAndHeaderBearerTokenResolver())
+                oauth2.jwt { } 
             }
 
         return http.build()
