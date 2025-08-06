@@ -8,8 +8,8 @@ import jakarta.persistence.Id
 @Entity(name = "claims")
 data class Claim(
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    val id: java.util.UUID? = null,
+    val id: String,
     val topic: String,
     val text: String
 )
+

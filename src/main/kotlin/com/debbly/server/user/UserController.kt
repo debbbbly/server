@@ -16,15 +16,15 @@ class UserController(private val service: UserService) {
     //Disable CSRF (for stateless APIs)	If you're not using cookies, disable CSRF in the security config
 
     @GetMapping("/me")
-    fun me(@AuthenticationPrincipal principal: Jwt?): ResponseEntity<UserResponse> {
-        if (principal == null) {
+    fun me(@AuthenticationPrincipal jwt: Jwt?): ResponseEntity<UserResponse> {
+        if (jwt == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
         }
 
-        val userId = principal.claims["sub"] as String
-        val email = (principal.claims["email"] as String?).orEmpty()
+        val userId = jwt.claims["sub"] as String
+        // val email = (jwt.claims["email"] as String?).orEmpty()
 
-        val user = service.findById(userId) ?: service.create(UserEntity(userId = userId, email = email))
+        val user = service.findById(userId) ?: service.create(UserEntity(userId = userId, email = ""))
 
         return ResponseEntity.ok(UserResponse(user.userId, user.username, user.email, user.birthdate))
     }

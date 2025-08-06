@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.jwt.JwtDecoder
+import org.springframework.web.bind.annotation.CookieValue
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -284,6 +285,33 @@ class AuthController(
         return ResponseEntity.ok(ApiResponse(true))
     }
 
+    @PostMapping("/refresh")
+    fun refreshToken(@CookieValue("refreshToken") refreshToken: String): ResponseEntity<TokenResponse> {
+        return try {
+            val refreshRequest = InitiateAuthRequest.builder()
+                .authFlow(AuthFlowType.REFRESH_TOKEN_AUTH)
+                .clientId(cognitoConfig.clientId)
+                .authParameters(
+                    mapOf("REFRESH_TOKEN" to refreshToken)
+                )
+                .build()
+
+            val authResult = cognitoClient.initiateAuth(refreshRequest).authenticationResult()
+
+            ResponseEntity.ok(
+                TokenResponse(
+                    accessToken = authResult.accessToken(),
+                    idToken = authResult.idToken(),
+                    refreshToken = authResult.refreshToken() ?: refreshToken
+                )
+            )
+        } catch (e: NotAuthorizedException) {
+            ResponseEntity.status(UNAUTHORIZED).body(TokenResponse(error = AUTH_REFRESH_TOKEN_INVALID))
+        } catch (e: Exception) {
+            ResponseEntity.status(UNAUTHORIZED).body(TokenResponse(error = AUTH_REFRESH_TOKEN_INVALID))
+        }
+    }
+
     @PostMapping("/set-cookie")
     fun setCookie(
         @RequestBody tokenResponse: TokenResponse,
@@ -354,5 +382,8 @@ class AuthController(
         val error: AuthErrorCode? = null
     )
 
+    data class RefreshTokenRequest(
+        @field:NotBlank val refreshToken: String
+    )
 
 }
