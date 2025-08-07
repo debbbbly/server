@@ -22,10 +22,10 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import software.amazon.awssdk.http.HttpStatusCode.INTERNAL_SERVER_ERROR
 import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityProviderClient
 import software.amazon.awssdk.services.cognitoidentityprovider.model.*
 import java.time.LocalDate
-
 
 @RestController
 @RequestMapping("/auth")
@@ -87,7 +87,7 @@ class AuthController(
         } catch (e: NotAuthorizedException) {
             ResponseEntity.status(UNAUTHORIZED).body(TokenResponse(error = AUTH_LOGIN_FAILED))
         } catch (e: Exception) {
-            ResponseEntity.status(UNAUTHORIZED).body(TokenResponse(error = AUTH_LOGIN_FAILED))
+            ResponseEntity.status(INTERNAL_SERVER_ERROR).body(TokenResponse(error = AUTH_GENERIC_ERROR))
         }
     }
 

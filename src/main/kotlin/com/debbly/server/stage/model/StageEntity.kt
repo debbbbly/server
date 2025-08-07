@@ -18,7 +18,7 @@ data class StageEntity(
     @Id
     val stageId: String,
     val type: StageType,
-    val title: String?,
+    val topic: String?,
     @OneToMany(cascade = [CascadeType.ALL], orphanRemoval = true)
     @JoinColumn(name = "stageId")
     val hosts: Set<StageHostEntity>,

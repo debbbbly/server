@@ -28,12 +28,12 @@ class SecurityConfig(
             .cors { it.configurationSource(corsConfigurationSource()) }
             .authorizeHttpRequests {
                 it
-                    //.requestMatchers("/users/me").authenticated()
+                    .requestMatchers("/auth/logout").authenticated()
                     .anyRequest().permitAll()
             }
             .oauth2ResourceServer { oauth2 ->
                 oauth2.bearerTokenResolver(CookieAndHeaderBearerTokenResolver())
-                oauth2.jwt { } 
+                oauth2.jwt { }
             }
 
         return http.build()

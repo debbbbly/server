@@ -1,6 +1,6 @@
 databaseChangeLog:
   - changeSet:
-      id: create-stages-table
+      id: 1
       author: gemini
       changes:
         - createTable:
@@ -8,28 +8,28 @@ databaseChangeLog:
             columns:
               - column:
                   name: stage_id
-                  type: VARCHAR(8)
+                  type: varchar(16)
                   constraints:
                     primaryKey: true
                     nullable: false
               - column:
                   name: type
-                  type: VARCHAR(255)
+                  type: varchar(255)
                   constraints:
                     nullable: false
               - column:
-                  name: claim_id
-                  type: VARCHAR(8)
+                  name: topic
+                  type: varchar(1024)
               - column:
                   name: created_at
-                  type: TIMESTAMP WITH TIME ZONE
+                  type: timestamp
                   constraints:
                     nullable: false
               - column:
                   name: closed_at
-                  type: TIMESTAMP WITH TIME ZONE
+                  type: timestamp
   - changeSet:
-      id: create-stage-hosts-table
+      id: 2
       author: gemini
       changes:
         - createTable:
@@ -37,32 +37,18 @@ databaseChangeLog:
             columns:
               - column:
                   name: stage_id
-                  type: VARCHAR(8)
+                  type: varchar(16)
                   constraints:
                     nullable: false
+                    foreignKeyName: fk_stage_hosts_stage
+                    references: stages(stage_id)
               - column:
                   name: user_id
-                  type: VARCHAR(8)
+                  type: varchar(16)
                   constraints:
                     nullable: false
-            primaryKey:
-              columnNames: "stage_id, user_id"
-              name: pk_stage_hosts
-  - changeSet:
-      id: create-live-stages-table
-      author: gemini
-      changes:
-        - createTable:
-            tableName: live_stages
-            columns:
-              - column:
-                  name: stage_id
-                  type: VARCHAR(8)
-                  constraints:
-                    primaryKey: true
-                    nullable: false
-              - column:
-                  name: heartbeat_at
-                  type: TIMESTAMP WITH TIME ZONE
-                  constraints:
-                    nullable: false
+                    foreignKeyName: fk_stage_hosts_user
+                    references: users(user_id)
+        - addPrimaryKey:
+            tableName: stage_hosts
+            columnNames: stage_id, user_id

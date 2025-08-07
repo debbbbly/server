@@ -1,6 +1,6 @@
 databaseChangeLog:
   - changeSet:
-      id: create-users-table
+      id: 1
       author: gemini
       changes:
         - createTable:
@@ -8,9 +8,15 @@ databaseChangeLog:
             columns:
               - column:
                   name: user_id
-                  type: varchar(255)
+                  type: varchar(16)
                   constraints:
                     primaryKey: true
+                    nullable: false
+              - column:
+                  name: external_user_id
+                  type: varchar(255)
+                  constraints:
+                    unique: true
                     nullable: false
               - column:
                   name: email
@@ -20,17 +26,11 @@ databaseChangeLog:
               - column:
                   name: username
                   type: varchar(255)
+                  constraints:
+                    unique: true
               - column:
                   name: birthdate
                   type: date
               - column:
                   name: avatar_url
-                  type: text
-  - changeSet:
-      id: add-unique-constraint-to-username
-      author: gemini
-      changes:
-        - addUniqueConstraint:
-            tableName: users
-            columnNames: username
-            constraintName: uc_users_username
+                  type: varchar(1024)

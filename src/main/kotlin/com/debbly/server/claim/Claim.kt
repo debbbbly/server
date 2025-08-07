@@ -6,7 +6,7 @@ import jakarta.persistence.Id
 @Entity(name = "claims")
 data class Claim(
     @Id
-    val id: String,
+    val claimId: String,
     val topic: String,
     val text: String
 )

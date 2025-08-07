@@ -27,7 +27,7 @@ class StageService(
 //    }
 
 
-    fun live(stageId: String, userId: String):StageEntity {
+    fun live(stageId: String, userId: String): StageEntity {
         val stage = if (stageId == userId) {
             stageRepository.save(
                 StageEntity(
@@ -41,7 +41,7 @@ class StageService(
                             )
                         )
                     ),
-                    title = null,
+                    topic = null,
                     createdAt = Instant.now()
                 )
             )
@@ -55,8 +55,7 @@ class StageService(
                 }
         }
 
-        val userIds = stage.hosts.map { it.id.userId }
-        val users = userService.findAllByIds(userIds).associateBy { it.userId }
+        val users = stage.hosts.mapNotNull { userService.findById(it.id.userId) }.associateBy { it.userId }
 
         liveStageRedisRepository.save(
             LiveStageEntity(
@@ -70,7 +69,7 @@ class StageService(
                         )
                     }
                 },
-                claimId = stage.title,
+                claimId = stage.topic,
                 heartbeatAt = Instant.now()
             )
         )

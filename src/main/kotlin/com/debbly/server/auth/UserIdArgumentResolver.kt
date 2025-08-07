@@ -13,7 +13,7 @@ import org.springframework.web.method.support.ModelAndViewContainer
 class UserIdArgumentResolver : HandlerMethodArgumentResolver {
 
     override fun supportsParameter(parameter: MethodParameter): Boolean {
-        return parameter.getParameterAnnotation(UserId::class.java) != null
+        return parameter.getParameterAnnotation(ExternalUserId::class.java) != null
     }
 
     override fun resolveArgument(

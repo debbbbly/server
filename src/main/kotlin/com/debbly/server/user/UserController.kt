@@ -1,30 +1,34 @@
 package com.debbly.server.user
 
-import com.debbly.server.auth.UserId
+import com.debbly.server.IdService
+import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.user.UserValidator.isValidUsername
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
-import org.springframework.security.core.annotation.AuthenticationPrincipal
-import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.annotation.*
 import java.time.LocalDate
 
 @RestController
 @RequestMapping("/users")
-class UserController(private val service: UserService) {
-
-
-    //Disable CSRF (for stateless APIs)	If you're not using cookies, disable CSRF in the security config
+class UserController(
+    private val service: UserService,
+    private val idService: IdService,
+) {
 
     @GetMapping("/me")
-    fun me(@UserId userId: String?): ResponseEntity<UserResponse> {
-        if (userId == null) {
+    fun me(@ExternalUserId externalUserId: String?): ResponseEntity<UserResponse> {
+        if (externalUserId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
         }
 
-        // val email = (jwt.claims["email"] as String?).orEmpty()
-
-        val user = service.findById(userId) ?: service.create(UserEntity(userId = userId, email = ""))
+        val user = service.findByExternalUserId(externalUserId)
+            ?: service.create(
+                UserEntity(
+                    userId = idService.getId(),
+                    externalUserId = externalUserId,
+                    email = "unknown@gmail.com"
+                )
+            )
 
         return ResponseEntity.ok(UserResponse(user.userId, user.username, user.email, user.birthdate))
     }

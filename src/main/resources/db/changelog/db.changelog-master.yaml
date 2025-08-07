@@ -1,7 +1,7 @@
 databaseChangeLog:
   - include:
-      file: db/changelog/db.changelog-claims.yaml
-  - include:
       file: db/changelog/db.changelog-users.yaml
+  - include:
+      file: db/changelog/db.changelog-claims.yaml
   - include:
       file: db/changelog/db.changelog-stages.yaml

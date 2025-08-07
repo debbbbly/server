@@ -1,18 +1,20 @@
 package com.debbly.server.stage
 
-import com.debbly.server.auth.UserId
+import com.debbly.server.auth.ExternalUserId
+import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.stage.model.LiveStageEntity
 import com.debbly.server.stage.model.LiveStageRedisRepository
-import com.debbly.server.stage.model.StageType
-import org.springframework.http.HttpStatus
+import com.debbly.server.user.UserService
 import org.springframework.http.ResponseEntity
-import org.springframework.security.core.annotation.AuthenticationPrincipal
-import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.annotation.*
 
 @RestController
 @RequestMapping("/stages")
-class StageController(private val stageService: StageService, private val liveStageRedisRepository: LiveStageRedisRepository) {
+class StageController(
+    private val stageService: StageService,
+    private val liveStageRedisRepository: LiveStageRedisRepository,
+    private val userService: UserService
+) {
 
 //    @PostMapping
 //    fun createStage(
@@ -34,15 +36,17 @@ class StageController(private val stageService: StageService, private val liveSt
 //    }
 
     @PostMapping("/{stageId}/live")
-    fun live(@PathVariable stageId: String, @UserId userId: String?): ResponseEntity<Unit> {
-        if (userId == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+    fun live(@PathVariable stageId: String, @ExternalUserId externalUserId: String?): ResponseEntity<Unit> {
+        if (externalUserId == null) {
+            throw UnauthorizedException()
         }
 
-        stageService.live(
-            stageId = stageId,
-            userId = userId
-        )
+        userService.findByExternalUserId(externalUserId)?.let { user ->
+            stageService.live(
+                stageId = stageId,
+                userId = user.userId
+            )
+        }
 
         return ResponseEntity.ok().build()
     }
@@ -54,37 +58,34 @@ class StageController(private val stageService: StageService, private val liveSt
     }
 
     @PostMapping("/{stageId}/heartbeat")
-    fun heartbeat(@PathVariable stageId: String, @AuthenticationPrincipal jwt: Jwt?): ResponseEntity<Unit> {
-        if (jwt == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+    fun heartbeat(@PathVariable stageId: String, @ExternalUserId externalUserId: String?): ResponseEntity<Unit> {
+        if (externalUserId == null) {
+            throw UnauthorizedException()
         }
-        val userId = jwt.claims["sub"] as String
 
-        stageService.heartbeat(
-            stageId = stageId,
-            userId = userId
-        )
+        userService.findByExternalUserId(externalUserId)?.let { user ->
+            stageService.heartbeat(
+                stageId = stageId,
+                userId = user.userId
+            )
+        }
 
         return ResponseEntity.ok().build()
     }
 
     @PostMapping("/{stageId}/leave")
-    fun leave(@PathVariable stageId: String, @AuthenticationPrincipal jwt: Jwt?): ResponseEntity<Unit> {
-        if (jwt == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+    fun leave(@PathVariable stageId: String, @ExternalUserId externalUserId: String?): ResponseEntity<Unit> {
+        if (externalUserId == null) {
+            throw UnauthorizedException()
         }
-        val userId = jwt.claims["sub"] as String
 
-        stageService.leaveStage(
-            stageId = stageId,
-            userId = userId
-        )
+        userService.findByExternalUserId(externalUserId)?.let { user ->
+            stageService.leaveStage(
+                stageId = stageId,
+                userId = user.userId
+            )
+        }
 
         return ResponseEntity.ok().build()
     }
 }
-
-data class CreateStageRequest(
-    val type: StageType,
-    val claimId: String?
-)
