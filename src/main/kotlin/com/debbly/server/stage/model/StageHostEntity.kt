@@ -1,4 +1,4 @@
-package com.debbly.server.stages.model
+package com.debbly.server.stage.model
 
 import jakarta.persistence.Embeddable
 import jakarta.persistence.EmbeddedId

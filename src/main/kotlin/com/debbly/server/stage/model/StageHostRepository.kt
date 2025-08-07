@@ -1,4 +1,4 @@
-package com.debbly.server.stages.model
+package com.debbly.server.stage.model
 
 import org.springframework.data.repository.CrudRepository
 

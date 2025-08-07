@@ -9,7 +9,7 @@ class IdService () {
         private const val BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
     }
 
-    fun id(): String = (1..8)
+    fun getId(): String = (1..8)
         .map { BASE58.random() }
         .joinToString("")
 }

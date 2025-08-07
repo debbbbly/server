@@ -1,6 +1,6 @@
 package com.debbly.server.debates
 
-import com.debbly.server.claims.ClaimService
+import com.debbly.server.claim.ClaimService
 import com.debbly.server.user.UserService
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.data.redis.core.RedisTemplate

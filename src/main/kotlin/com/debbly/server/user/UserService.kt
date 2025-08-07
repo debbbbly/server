@@ -35,4 +35,6 @@ class UserService(private val repository: UserRepository) {
 
     fun findByUsername(username: String): UserEntity? = repository.findByUsername(username).getOrNull()
 
+    fun findAllByIds(userIds: List<String>): List<UserEntity> = repository.findAllByIdIn(userIds)
+
 }

@@ -6,7 +6,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
 
 @Configuration
-class JwtConfiguration(private val cognitoConfig: CognitoConfig) {
+class JwtConfig(private val cognitoConfig: CognitoConfig) {
 
     @Bean
     fun jwtDecoder(): JwtDecoder {

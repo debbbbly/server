@@ -1,4 +1,4 @@
-package com.debbly.server.claims
+package com.debbly.server.claim
 
 import org.springframework.stereotype.Service
 
