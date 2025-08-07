@@ -14,6 +14,7 @@ class UserService(private val repository: UserRepository) {
 
     fun findById(userId: String): UserEntity? = repository.findById(userId).getOrNull()
 
+    fun findByExternalUserId(userId: String): UserEntity? = repository.findByExternalUserId(userId).getOrNull()
 
     fun complete(
         userId: String,
@@ -35,6 +36,6 @@ class UserService(private val repository: UserRepository) {
 
     fun findByUsername(username: String): UserEntity? = repository.findByUsername(username).getOrNull()
 
-    fun findAllByIds(userIds: List<String>): List<UserEntity> = repository.findAllByIdIn(userIds)
+    fun findAllByIds(userIds: List<String>): List<UserEntity> = repository.findAllByUserIdIn(userIds)
 
 }

@@ -1,5 +1,6 @@
 package com.debbly.server.auth
 
+import com.debbly.server.IdService
 import com.debbly.server.auth.AuthErrorCode.*
 import com.debbly.server.auth.config.CognitoConfig
 import com.debbly.server.user.UserEntity
@@ -32,7 +33,9 @@ class AuthController(
     private val cognitoClient: CognitoIdentityProviderClient,
     private val cognitoConfig: CognitoConfig,
     private val userService: UserService,
-    private val jwtDecoder: JwtDecoder
+    private val idService: IdService,
+    private val jwtDecoder: JwtDecoder,
+    private val env: org.springframework.core.env.Environment
 ) {
 
     @PostMapping("/login")
@@ -58,11 +61,12 @@ class AuthController(
 
             val tokens = cognitoClient.initiateAuth(authRequest).authenticationResult()
 
-            val userId = getUserId(tokens.idToken())
-            val user = userService.findById(userId)
+            val externalUserId = getExternalUserId(tokens.idToken())
+            val user = userService.findByExternalUserId(externalUserId)
                 ?: userService.create(
                     UserEntity(
-                        userId = userId,
+                        userId = idService.getId(),
+                        externalUserId = externalUserId,
                         email = getEmail(tokens.idToken())
                     )
                 )
@@ -176,7 +180,8 @@ class AuthController(
             val authResult = cognitoClient.initiateAuth(authRequest).authenticationResult()
 
             val user = UserEntity(
-                userId = getUserId(authResult.idToken()),
+                userId = idService.getId(),
+                externalUserId = getExternalUserId(authResult.idToken()),
                 email = request.email,
                 username = request.username.takeIf { isValidUsername(request.username) },
                 birthdate = request.birthdate.takeIf { isValidBirthdate(request.birthdate) },
@@ -277,7 +282,7 @@ class AuthController(
         //            }
         //        }
 
-        val secure = false
+        val secure = "dev" !in env.activeProfiles
         response.setCookie("accessToken", "", 0, "Lax", secure)
         response.setCookie("idToken", "", 0, "Lax", secure)
         response.setCookie("refreshToken", "", 0, "Strict", secure)
@@ -317,7 +322,7 @@ class AuthController(
         @RequestBody tokenResponse: TokenResponse,
         response: HttpServletResponse
     ): ResponseEntity<Void> {
-        val secure = false
+        val secure = "dev" !in env.activeProfiles
         response.setCookie("accessToken", tokenResponse.accessToken, 60 * 60, "Lax", secure)
         response.setCookie("idToken", tokenResponse.idToken, 60 * 60, "Lax", secure)
         response.setCookie("refreshToken", tokenResponse.refreshToken, 60 * 60 * 24 * 30, "Strict", secure)
@@ -325,7 +330,7 @@ class AuthController(
         return ResponseEntity.ok().build()
     }
 
-    private fun getUserId(idToken: String): String {
+    private fun getExternalUserId(idToken: String): String {
         return jwtDecoder.decode(idToken).claims["sub"] as String
     }
 
@@ -340,8 +345,9 @@ class AuthController(
         sameSite: String = "Lax",
         secure: Boolean
     ) {
+        val httpOnly = if (secure) "HttpOnly; " else ""
         val cookieValue =
-            "$name=$value; Path=/; HttpOnly; Max-Age=$maxAge; ${if (secure) "Secure; " else ""}SameSite=$sameSite"
+            "$name=$value; Path=/; ${httpOnly}Max-Age=$maxAge; ${if (secure) "Secure; " else ""}SameSite=$sameSite"
         this.addHeader("Set-Cookie", cookieValue)
     }
 

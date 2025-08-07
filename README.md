@@ -26,3 +26,7 @@ This is the Kotlin/Spring Boot backend for Debbly, a live debating platform.
 🚪Leave the Stage – to exit the stream
 
 🎤 Solo on Stage – if they want to freestyle live
+
+
+
+-Dspring-boot.run.profiles=de

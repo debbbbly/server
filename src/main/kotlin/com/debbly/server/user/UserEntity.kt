@@ -9,6 +9,8 @@ import java.time.LocalDate
 data class UserEntity(
     @Id
     val userId: String,
+    @Column(unique = true)
+    val externalUserId: String,
     val email: String,
     @Column(unique = true)
     var username: String? = null,
