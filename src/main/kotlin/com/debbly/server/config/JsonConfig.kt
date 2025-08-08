@@ -12,11 +12,9 @@ import org.springframework.context.annotation.Configuration
 class JsonConfig {
 
     @Bean
-    fun objectMapper(): ObjectMapper {
-        return ObjectMapper()
-            .registerKotlinModule()
-            .registerModule(JavaTimeModule())
-            .registerModule(ParameterNamesModule())
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-    }
+    fun objectMapper(): ObjectMapper = ObjectMapper()
+        .registerKotlinModule()
+        .registerModule(JavaTimeModule())
+        .registerModule(ParameterNamesModule())
+        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
 }
