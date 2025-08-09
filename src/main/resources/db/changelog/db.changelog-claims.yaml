@@ -4,6 +4,45 @@ databaseChangeLog:
       author: gemini
       changes:
         - createTable:
+            tableName: categories
+            columns:
+              - column:
+                  name: category_id
+                  type: varchar(64)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: title
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: avatar_url
+                  type: varchar(1024)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+        - createTable:
+            tableName: tags
+            columns:
+              - column:
+                  name: tag_id
+                  type: varchar(16)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: title
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+        - createTable:
             tableName: claims
             columns:
               - column:
@@ -13,12 +52,449 @@ databaseChangeLog:
                     primaryKey: true
                     nullable: false
               - column:
-                  name: topic
-                  type: varchar(1024)
+                  name: title
+                  type: varchar(512)
+                  constraints:
+                    nullable: false
+        - createTable:
+            tableName: claims_categories
+            columns:
+              - column:
+                  name: claims_claim_id
+                  type: varchar(16)
                   constraints:
                     nullable: false
               - column:
-                  name: text
-                  type: text
+                  name: categories_category_id
+                  type: varchar(16)
                   constraints:
                     nullable: false
+        - createTable:
+            tableName: claims_tags
+            columns:
+              - column:
+                  name: claims_claim_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: tags_tag_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseColumnNames: claims_claim_id
+            baseTableName: claims_categories
+            constraintName: fk_claims_categories_claim_id
+            referencedColumnNames: claim_id
+            referencedTableName: claims
+        - addForeignKeyConstraint:
+            baseColumnNames: categories_category_id
+            baseTableName: claims_categories
+            constraintName: fk_claims_categories_category_id
+            referencedColumnNames: category_id
+            referencedTableName: categories
+        - addForeignKeyConstraint:
+            baseColumnNames: claims_claim_id
+            baseTableName: claims_tags
+            constraintName: fk_claims_tags_claim_id
+            referencedColumnNames: claim_id
+            referencedTableName: claims
+        - addForeignKeyConstraint:
+            baseColumnNames: tags_tag_id
+            baseTableName: claims_tags
+            constraintName: fk_claims_tags_tag_id
+            referencedColumnNames: tag_id
+            referencedTableName: tags
+  - changeSet:
+      id: 3
+      author: gemini
+      changes:
+        - insert:
+            tableName: categories
+            columns:
+              - column:
+                  name: category_id
+                  value: "politics"
+              - column:
+                  name: title
+                  value: "Politics"
+              - column:
+                  name: avatar_url
+                  value: "https://debbly.com/categories/politics.png"
+        - insert:
+            tableName: categories
+            columns:
+              - column:
+                  name: category_id
+                  value: "social-issues-culture"
+              - column:
+                  name: title
+                  value: "Social Issues & Culture"
+              - column:
+                  name: avatar_url
+                  value: "https://debbly.com/categories/social-issues-culture.png"
+        - insert:
+            tableName: categories
+            columns:
+              - column:
+                  name: category_id
+                  value: "economy-environment"
+              - column:
+                  name: title
+                  value: "Economy & Environment"
+              - column:
+                  name: avatar_url
+                  value: "https://debbly.com/categories/economy-environment.png"
+        - insert:
+            tableName: categories
+            columns:
+              - column:
+                  name: category_id
+                  value: "sports-entertainment-lifestyle"
+              - column:
+                  name: title
+                  value: "Sports, Entertainment & Lifestyle"
+              - column:
+                  name: avatar_url
+                  value: "https://debbly.com/categories/sports-entertainment-lifestyle.png"
+        - insert:
+            tableName: categories
+            columns:
+              - column:
+                  name: category_id
+                  value: "technology-innovation"
+              - column:
+                  name: title
+                  value: "Technology & Innovation"
+              - column:
+                  name: avatar_url
+                  value: "https://debbly.com/categories/technology-innovation.png"
+  - changeSet:
+      id: 4
+      author: gemini
+      changes:
+        - insert:
+            tableName: tags
+            columns:
+              - column:
+                  name: tag_id
+                  value: "tag_001"
+              - column:
+                  name: title
+                  value: "AI Regulation"
+        - insert:
+            tableName: tags
+            columns:
+              - column:
+                  name: tag_id
+                  value: "tag_002"
+              - column:
+                  name: title
+                  value: "Technology Policy"
+        - insert:
+            tableName: tags
+            columns:
+              - column:
+                  name: tag_id
+                  value: "tag_003"
+              - column:
+                  name: title
+                  value: "Government Oversight"
+        - insert:
+            tableName: tags
+            columns:
+              - column:
+                  name: tag_id
+                  value: "tag_004"
+              - column:
+                  name: title
+                  value: "TikTok"
+        - insert:
+            tableName: tags
+            columns:
+              - column:
+                  name: tag_id
+                  value: "tag_005"
+              - column:
+                  name: title
+                  value: "National Security"
+        - insert:
+            tableName: tags
+            columns:
+              - column:
+                  name: tag_id
+                  value: "tag_006"
+              - column:
+                  name: title
+                  value: "Privacy"
+        - insert:
+            tableName: tags
+            columns:
+              - column:
+                  name: tag_id
+                  value: "tag_007"
+              - column:
+                  name: title
+                  value: "Trump"
+        - insert:
+            tableName: tags
+            columns:
+              - column:
+                  name: tag_id
+                  value: "tag_008"
+              - column:
+                  name: title
+                  value: "Tariffs"
+        - insert:
+            tableName: tags
+            columns:
+              - column:
+                  name: tag_id
+                  value: "tag_009"
+              - column:
+                  name: title
+                  value: "Economy"
+        - insert:
+            tableName: tags
+            columns:
+              - column:
+                  name: tag_id
+                  value: "tag_010"
+              - column:
+                  name: title
+                  value: "Immigration"
+        - insert:
+            tableName: tags
+            columns:
+              - column:
+                  name: tag_id
+                  value: "tag_011"
+              - column:
+                  name: title
+                  value: "Border Policy"
+
+        - insert:
+            tableName: claims
+            columns:
+              - column:
+                  name: claim_id
+                  value: "claim_001"
+              - column:
+                  name: title
+                  value: "The U.S. government should regulate AI development as strictly as pharmaceuticals."
+        - insert:
+            tableName: claims_categories
+            columns:
+              - column:
+                  name: claims_claim_id
+                  value: "claim_001"
+              - column:
+                  name: categories_category_id
+                  value: "politics"
+        - insert:
+            tableName: claims_tags
+            columns:
+              - column:
+                  name: claims_claim_id
+                  value: "claim_001"
+              - column:
+                  name: tags_tag_id
+                  value: "tag_001"
+        - insert:
+            tableName: claims_tags
+            columns:
+              - column:
+                  name: claims_claim_id
+                  value: "claim_001"
+              - column:
+                  name: tags_tag_id
+                  value: "tag_002"
+        - insert:
+            tableName: claims_tags
+            columns:
+              - column:
+                  name: claims_claim_id
+                  value: "claim_001"
+              - column:
+                  name: tags_tag_id
+                  value: "tag_003"
+
+        - insert:
+            tableName: claims
+            columns:
+              - column:
+                  name: claim_id
+                  value: "claim_002"
+              - column:
+                  name: title
+                  value: "Banning TikTok in the U.S. is necessary to protect national security."
+        - insert:
+            tableName: claims_categories
+            columns:
+              - column:
+                  name: claims_claim_id
+                  value: "claim_002"
+              - column:
+                  name: categories_category_id
+                  value: "politics"
+        - insert:
+            tableName: claims_tags
+            columns:
+              - column:
+                  name: claims_claim_id
+                  value: "claim_002"
+              - column:
+                  name: tags_tag_id
+                  value: "tag_004"
+        - insert:
+            tableName: claims_tags
+            columns:
+              - column:
+                  name: claims_claim_id
+                  value: "claim_002"
+              - column:
+                  name: tags_tag_id
+                  value: "tag_005"
+        - insert:
+            tableName: claims_tags
+            columns:
+              - column:
+                  name: claims_claim_id
+                  value: "claim_002"
+              - column:
+                  name: tags_tag_id
+                  value: "tag_006"
+
+        - insert:
+            tableName: claims
+            columns:
+              - column:
+                  name: claim_id
+                  value: "claim_003"
+              - column:
+                  name: title
+                  value: "Trump’s tariffs will ruin the U.S. economy."
+        - insert:
+            tableName: claims_categories
+            columns:
+              - column:
+                  name: claims_claim_id
+                  value: "claim_003"
+              - column:
+                  name: categories_category_id
+                  value: "politics"
+        - insert:
+            tableName: claims_tags
+            columns:
+              - column:
+                  name: claims_claim_id
+                  value: "claim_003"
+              - column:
+                  name: tags_tag_id
+                  value: "tag_007"
+        - insert:
+            tableName: claims_tags
+            columns:
+              - column:
+                  name: claims_claim_id
+                  value: "claim_003"
+              - column:
+                  name: tags_tag_id
+                  value: "tag_008"
+        - insert:
+            tableName: claims_tags
+            columns:
+              - column:
+                  name: claims_claim_id
+                  value: "claim_003"
+              - column:
+                  name: tags_tag_id
+                  value: "tag_009"
+
+        - insert:
+            tableName: claims
+            columns:
+              - column:
+                  name: claim_id
+                  value: "claim_004"
+              - column:
+                  name: title
+                  value: "Immigration should be significantly reduced in the United States."
+        - insert:
+            tableName: claims_categories
+            columns:
+              - column:
+                  name: claims_claim_id
+                  value: "claim_004"
+              - column:
+                  name: categories_category_id
+                  value: "politics"
+        - insert:
+            tableName: claims_tags
+            columns:
+              - column:
+                  name: claims_claim_id
+                  value: "claim_004"
+              - column:
+                  name: tags_tag_id
+                  value: "tag_010"
+        - insert:
+            tableName: claims_tags
+            columns:
+              - column:
+                  name: claims_claim_id
+                  value: "claim_004"
+              - column:
+                  name: tags_tag_id
+                  value: "tag_011"
+        - insert:
+            tableName: claims_tags
+            columns:
+              - column:
+                  name: claims_claim_id
+                  value: "claim_004"
+              - column:
+                  name: tags_tag_id
+                  value: "tag_005"
+  - changeSet:
+      id: 5
+      author: gemini
+      changes:
+        - createTable:
+            tableName: claim_stances
+            columns:
+              - column:
+                  name: claim_id
+                  type: varchar(16)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: varchar(16)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: stance
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseColumnNames: claim_id
+            baseTableName: claim_stances
+            constraintName: fk_claim_stances_claim_id
+            referencedColumnNames: claim_id
+            referencedTableName: claims
+        - addForeignKeyConstraint:
+            baseColumnNames: user_id
+            baseTableName: claim_stances
+            constraintName: fk_claim_stances_user_id
+            referencedColumnNames: user_id
+            referencedTableName: users

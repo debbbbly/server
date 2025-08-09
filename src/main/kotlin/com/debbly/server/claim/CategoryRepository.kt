@@ -4,6 +4,4 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
 
 @Repository
-interface ClaimRepository : JpaRepository<ClaimEntity, String> {
-    fun findByCategoriesCategoryIdIn(categoryIds: List<String>): List<ClaimEntity>
-}
+interface CategoryRepository : JpaRepository<CategoryEntity, String>
