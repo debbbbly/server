@@ -1,7 +1,7 @@
 package com.debbly.server.claim
 
 import com.debbly.server.IdService
-import com.debbly.server.user.UserRepository
+import com.debbly.server.user.repository.UserRepository
 import org.springframework.stereotype.Service
 import java.time.Instant
 
@@ -17,9 +17,9 @@ class ClaimStanceService(
         val user = userRepository.findByExternalUserId(externalUserId).orElseThrow { Exception("User not found") }
 
         for (stanceInput in stances) {
-            val claimStanceId = if (stanceInput.claimId != null) {
+            val userClaimStanceId = if (stanceInput.claimId != null) {
                 val claim = claimRepository.findById(stanceInput.claimId).orElseThrow { Exception("Claim not found") }
-                ClaimStanceId(claim.claimId, user.userId)
+                UserClaimStanceId(claim.claimId, user.userId)
 
             } else if (stanceInput.title != null) {
                 val politicsCategory =
@@ -32,13 +32,13 @@ class ClaimStanceService(
                 )
                 val savedClaim = claimRepository.save(newClaim)
 
-                ClaimStanceId(savedClaim.claimId, user.userId)
+                UserClaimStanceId(savedClaim.claimId, user.userId)
             } else {
                 continue
             }
 
-            val claimStance = ClaimStanceEntity(
-                id = claimStanceId,
+            val claimStance = UserClaimStanceEntity(
+                id = userClaimStanceId,
                 stance = stanceInput.stance,
                 updatedAt = Instant.now()
             )

@@ -30,13 +30,17 @@ class MatchQueueController(private val service: MatchQueueService) {
     }
 
     @GetMapping("/status")
-    fun getMatchStatus(@ExternalUserId externalUserId: String?): ResponseEntity<List<MatchResult>> {
+    fun getMatchStatus(@ExternalUserId externalUserId: String?): ResponseEntity<GetMatchStatusResponse> {
         if (externalUserId == null) {
             return ResponseEntity.status(401).build()
         }
-        val status = service.getMatchStatus(externalUserId)
-        return ResponseEntity.ok(status)
+        val matches = service.getMatchStatus(externalUserId)
+        return ResponseEntity.ok(GetMatchStatusResponse(matches))
     }
+
+    data class GetMatchStatusResponse(
+        val matches: List<MatchResult>
+    )
 
     @PostMapping
     fun match(): ResponseEntity<Void> {

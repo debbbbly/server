@@ -3,8 +3,8 @@ package com.debbly.server.match
 import com.debbly.server.IdService
 import com.debbly.server.claim.ClaimRepository
 import com.debbly.server.claim.ClaimStanceRepository
-import com.debbly.server.claim.Stance
-import com.debbly.server.user.UserRepository
+import com.debbly.server.claim.ClaimStance
+import com.debbly.server.user.repository.UserRepository
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.stereotype.Service
@@ -108,12 +108,12 @@ class MatchQueueService(
         }
     }
 
-    private fun areOpposite(stanceA: Stance?, stanceB: Stance?): Boolean {
-        if (stanceA == null || stanceB == null) return false
-        if (stanceA == Stance.BOTH && (stanceB == Stance.PRO || stanceB == Stance.CON)) return true
-        if (stanceB == Stance.BOTH && (stanceA == Stance.PRO || stanceA == Stance.CON)) return true
-        if (stanceA == Stance.PRO && stanceB == Stance.CON) return true
-        if (stanceA == Stance.CON && stanceB == Stance.PRO) return true
+    private fun areOpposite(claimStanceA: ClaimStance?, claimStanceB: ClaimStance?): Boolean {
+        if (claimStanceA == null || claimStanceB == null) return false
+        if (claimStanceA == ClaimStance.ANY && (claimStanceB == ClaimStance.PRO || claimStanceB == ClaimStance.CON)) return true
+        if (claimStanceB == ClaimStance.ANY && (claimStanceA == ClaimStance.PRO || claimStanceA == ClaimStance.CON)) return true
+        if (claimStanceA == ClaimStance.PRO && claimStanceB == ClaimStance.CON) return true
+        if (claimStanceA == ClaimStance.CON && claimStanceB == ClaimStance.PRO) return true
         return false
     }
 
@@ -126,20 +126,20 @@ class MatchQueueService(
         val matchResultForA = MatchResult(
             matchId = matchId,
             claim = MatchClaim(claim.claimId, claim.title),
-            stance = userA.stances[claimId]!!,
+            claimStance = userA.stances[claimId]!!,
             opponent = Opponent(
                 user = OpponentUser(userBEntity.userId, userBEntity.username, userBEntity.avatarUrl),
-                stance = userB.stances[claimId]!!
+                claimStance = userB.stances[claimId]!!
             )
         )
 
         val matchResultForB = MatchResult(
             matchId = matchId,
             claim = MatchClaim(claim.claimId, claim.title),
-            stance = userB.stances[claimId]!!,
+            claimStance = userB.stances[claimId]!!,
             opponent = Opponent(
                 user = OpponentUser(userAEntity.userId, userAEntity.username, userAEntity.avatarUrl),
-                stance = userA.stances[claimId]!!
+                claimStance = userA.stances[claimId]!!
             )
         )
 

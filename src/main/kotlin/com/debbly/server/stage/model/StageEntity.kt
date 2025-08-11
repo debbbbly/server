@@ -1,12 +1,7 @@
 package com.debbly.server.stage.model
 
-import jakarta.persistence.CascadeType
-import jakarta.persistence.Entity
-import jakarta.persistence.Id
-import jakarta.persistence.JoinColumn
-import jakarta.persistence.NamedAttributeNode
-import jakarta.persistence.NamedEntityGraph
-import jakarta.persistence.OneToMany
+import com.debbly.server.claim.ClaimEntity
+import jakarta.persistence.*
 import java.time.Instant
 
 @NamedEntityGraph(
@@ -17,9 +12,13 @@ import java.time.Instant
 data class StageEntity(
     @Id
     val stageId: String,
+    @Enumerated(EnumType.STRING)
     val type: StageType,
     val topic: String?,
-    @OneToMany(cascade = [CascadeType.ALL], orphanRemoval = true)
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "claimId")
+    val claim: ClaimEntity?,
+    @OneToMany(cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.EAGER)
     @JoinColumn(name = "stageId")
     val hosts: Set<StageHostEntity>,
     val createdAt: Instant,

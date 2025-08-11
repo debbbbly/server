@@ -4,7 +4,7 @@ import com.debbly.server.IdService
 import com.debbly.server.auth.AuthErrorCode.*
 import com.debbly.server.auth.config.CognitoConfig
 import com.debbly.server.user.UserEntity
-import com.debbly.server.user.UserService
+import com.debbly.server.user.repository.UserCachedRepository
 import com.debbly.server.user.UserValidator.isUserComplete
 import com.debbly.server.user.UserValidator.isValidBirthdate
 import com.debbly.server.user.UserValidator.isValidUsername
@@ -28,7 +28,7 @@ import java.time.LocalDate
 class AuthController(
     private val cognitoClient: CognitoIdentityProviderClient,
     private val cognitoConfig: CognitoConfig,
-    private val userService: UserService,
+    private val userCachedRepository: UserCachedRepository,
     private val idService: IdService,
     private val jwtDecoder: JwtDecoder,
     private val env: org.springframework.core.env.Environment
@@ -42,7 +42,7 @@ class AuthController(
                     .body(TokenResponse(error = AUTH_TOO_MANY_ATTEMPTS))
             }
 
-            val email = userService.findByUsername(req.usernameOrEmail)?.email ?: req.usernameOrEmail
+            val email = userCachedRepository.findByUsername(req.usernameOrEmail)?.email ?: req.usernameOrEmail
 
             val authRequest = InitiateAuthRequest.builder()
                 .authFlow(AuthFlowType.USER_PASSWORD_AUTH)
@@ -58,8 +58,8 @@ class AuthController(
             val tokens = cognitoClient.initiateAuth(authRequest).authenticationResult()
 
             val externalUserId = getExternalUserId(tokens.idToken())
-            val user = userService.findByExternalUserId(externalUserId)
-                ?: userService.create(
+            val user = userCachedRepository.findByExternalUserId(externalUserId)
+                ?: userCachedRepository.save(
                     UserEntity(
                         userId = idService.getId(),
                         externalUserId = externalUserId,
@@ -183,7 +183,7 @@ class AuthController(
                 birthdate = request.birthdate.takeIf { isValidBirthdate(request.birthdate) },
             )
 
-            userService.create(user)
+            userCachedRepository.save(user)
 
             return if (!isUserComplete(user)) {
                 ResponseEntity.status(BAD_REQUEST)

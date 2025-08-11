@@ -7,5 +7,5 @@ data class StanceRequest(
 data class ClaimStanceUpdate(
     val claimId: String?,
     val title: String?,
-    val stance: Stance
+    val stance: ClaimStance
 )

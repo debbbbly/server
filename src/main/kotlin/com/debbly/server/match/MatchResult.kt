@@ -1,11 +1,11 @@
 package com.debbly.server.match
 
-import com.debbly.server.claim.Stance
+import com.debbly.server.claim.ClaimStance
 
 data class MatchResult(
     val matchId: String,
     val claim: MatchClaim,
-    val stance: Stance,
+    val claimStance: ClaimStance,
     val opponent: Opponent
 )
 
@@ -16,7 +16,7 @@ data class MatchClaim(
 
 data class Opponent(
     val user: OpponentUser,
-    val stance: Stance
+    val claimStance: ClaimStance
 )
 
 data class OpponentUser(

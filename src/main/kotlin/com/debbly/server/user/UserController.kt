@@ -3,6 +3,7 @@ package com.debbly.server.user
 import com.debbly.server.IdService
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.user.UserValidator.isValidUsername
+import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -11,7 +12,7 @@ import java.time.LocalDate
 @RestController
 @RequestMapping("/users")
 class UserController(
-    private val service: UserService,
+    private val service: UserCachedRepository,
     private val idService: IdService,
 ) {
 
@@ -22,7 +23,7 @@ class UserController(
         }
 
         val user = service.findByExternalUserId(externalUserId)
-            ?: service.create(
+            ?: service.save(
                 UserEntity(
                     userId = idService.getId(),
                     externalUserId = externalUserId,

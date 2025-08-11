@@ -1,5 +1,6 @@
-package com.debbly.server.user
+package com.debbly.server.user.repository
 
+import com.debbly.server.user.UserEntity
 import org.springframework.data.jpa.repository.JpaRepository
 
 import java.util.Optional

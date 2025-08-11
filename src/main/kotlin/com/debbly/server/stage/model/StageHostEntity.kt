@@ -1,14 +1,15 @@
 package com.debbly.server.stage.model
 
-import jakarta.persistence.Embeddable
-import jakarta.persistence.EmbeddedId
-import jakarta.persistence.Entity
+import com.debbly.server.claim.ClaimStance
+import jakarta.persistence.*
 import java.io.Serializable
 
 @Entity(name = "stage_hosts")
 data class StageHostEntity(
     @EmbeddedId
-    val id: StageHostId
+    val id: StageHostId,
+    @Enumerated(EnumType.STRING)
+    val stance: ClaimStance?
 )
 
 @Embeddable

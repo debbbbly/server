@@ -121,7 +121,7 @@ databaseChangeLog:
                   value: "Politics"
               - column:
                   name: avatar_url
-                  value: "https://debbly.com/categories/politics.png"
+                  value: "./categories/politics.png"
         - insert:
             tableName: categories
             columns:
@@ -462,7 +462,7 @@ databaseChangeLog:
       author: gemini
       changes:
         - createTable:
-            tableName: claim_stances
+            tableName: users_claims_stances
             columns:
               - column:
                   name: claim_id
@@ -488,13 +488,13 @@ databaseChangeLog:
                     nullable: false
         - addForeignKeyConstraint:
             baseColumnNames: claim_id
-            baseTableName: claim_stances
-            constraintName: fk_claim_stances_claim_id
+            baseTableName: users_claims_stances
+            constraintName: fk_users_claims_stances_claim_id
             referencedColumnNames: claim_id
             referencedTableName: claims
         - addForeignKeyConstraint:
             baseColumnNames: user_id
-            baseTableName: claim_stances
-            constraintName: fk_claim_stances_user_id
+            baseTableName: users_claims_stances
+            constraintName: fk_users_claims_stances_user_id
             referencedColumnNames: user_id
             referencedTableName: users

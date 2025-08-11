@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator
+import com.fasterxml.jackson.datatype.hibernate6.Hibernate6Module
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.paramnames.ParameterNamesModule
@@ -24,16 +25,15 @@ import java.time.Duration
 
 @Configuration
 @EnableCaching
-class RedisConfig(private val objectMapper: ObjectMapper) {
+class RedisConfig {
 
     @Bean
-    @Primary
-    fun cacheManager(redisConnectionFactory: RedisConnectionFactory): RedisCacheManager {
-
-        val redisObjectMapper = ObjectMapper()
+    fun redisObjectMapper(): ObjectMapper {
+        return ObjectMapper()
             .registerModule(JavaTimeModule())
             .registerModule(KotlinModule.Builder().build())
             .registerModule(ParameterNamesModule())
+            .registerModule(Hibernate6Module())
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .activateDefaultTyping(
@@ -41,7 +41,11 @@ class RedisConfig(private val objectMapper: ObjectMapper) {
                 ObjectMapper.DefaultTyping.NON_FINAL,
                 JsonTypeInfo.As.PROPERTY
             )
+    }
 
+    @Bean
+    @Primary
+    fun cacheManager(redisConnectionFactory: RedisConnectionFactory, redisObjectMapper: ObjectMapper): RedisCacheManager {
         val serializer = GenericJackson2JsonRedisSerializer(redisObjectMapper)
 
         val config = RedisCacheConfiguration.defaultCacheConfig()
@@ -55,13 +59,13 @@ class RedisConfig(private val objectMapper: ObjectMapper) {
     }
 
     @Bean
-    fun redisTemplate(redisConnectionFactory: RedisConnectionFactory): RedisTemplate<String, Any> {
+    fun redisTemplate(redisConnectionFactory: RedisConnectionFactory, redisObjectMapper: ObjectMapper): RedisTemplate<String, Any> {
+        val serializer = GenericJackson2JsonRedisSerializer(redisObjectMapper)
+
         val template = RedisTemplate<String, Any>()
         template.setConnectionFactory(redisConnectionFactory)
         template.keySerializer = StringRedisSerializer()
-        template.valueSerializer = GenericJackson2JsonRedisSerializer()
+        template.valueSerializer = serializer
         return template
     }
-
-
 }

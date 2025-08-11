@@ -3,8 +3,8 @@ package com.debbly.server.stage
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.stage.model.LiveStageEntity
-import com.debbly.server.stage.model.LiveStageRedisRepository
-import com.debbly.server.user.UserService
+import com.debbly.server.stage.repository.LiveStageRedisRepository
+import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -13,8 +13,21 @@ import org.springframework.web.bind.annotation.*
 class StageController(
     private val stageService: StageService,
     private val liveStageRedisRepository: LiveStageRedisRepository,
-    private val userService: UserService
+    private val userCachedRepository: UserCachedRepository
 ) {
+
+    @GetMapping("/{stageId}")
+    fun getStageDetails(
+        @PathVariable stageId: String,
+        @ExternalUserId externalUserId: String?
+    ): ResponseEntity<StageService.StageDetails> {
+
+        val user = externalUserId?.let {
+            userCachedRepository.findByExternalUserId(externalUserId) ?: throw UnauthorizedException()
+        }
+        val stageDetails = stageService.getStageDetails(stageId, user?.userId)
+        return ResponseEntity.ok(stageDetails)
+    }
 
 //    @PostMapping
 //    fun createStage(
@@ -35,13 +48,14 @@ class StageController(
 //        return ResponseEntity.ok(stage)
 //    }
 
+
     @PostMapping("/{stageId}/live")
     fun live(@PathVariable stageId: String, @ExternalUserId externalUserId: String?): ResponseEntity<Unit> {
         if (externalUserId == null) {
             throw UnauthorizedException()
         }
 
-        userService.findByExternalUserId(externalUserId)?.let { user ->
+        userCachedRepository.findByExternalUserId(externalUserId)?.let { user ->
             stageService.live(
                 stageId = stageId,
                 userId = user.userId
@@ -63,7 +77,7 @@ class StageController(
             throw UnauthorizedException()
         }
 
-        userService.findByExternalUserId(externalUserId)?.let { user ->
+        userCachedRepository.findByExternalUserId(externalUserId)?.let { user ->
             stageService.heartbeat(
                 stageId = stageId,
                 userId = user.userId
@@ -79,7 +93,7 @@ class StageController(
             throw UnauthorizedException()
         }
 
-        userService.findByExternalUserId(externalUserId)?.let { user ->
+        userCachedRepository.findByExternalUserId(externalUserId)?.let { user ->
             stageService.leaveStage(
                 stageId = stageId,
                 userId = user.userId
