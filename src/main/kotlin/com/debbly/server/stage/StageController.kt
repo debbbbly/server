@@ -3,6 +3,7 @@ package com.debbly.server.stage
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.stage.model.LiveStageEntity
+import com.debbly.server.stage.model.StageModel
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.http.ResponseEntity
@@ -21,13 +22,26 @@ class StageController(
         @PathVariable stageId: String,
         @ExternalUserId externalUserId: String?
     ): ResponseEntity<StageService.StageDetails> {
-
         val user = externalUserId?.let {
             userCachedRepository.findByExternalUserId(externalUserId) ?: throw UnauthorizedException()
         }
         val stageDetails = stageService.getStageDetails(stageId, user?.userId)
         return ResponseEntity.ok(stageDetails)
     }
+
+
+    //TODO backdoor for testing purposes
+    @PostMapping
+    fun createStage( @RequestBody request: CreateStageRequest): ResponseEntity<StageModel> {
+        val stage = stageService.createStage(claimId = request.claimId, hosts = request.hosts)
+
+        return ResponseEntity.ok(stage)
+    }
+
+    data class CreateStageRequest(
+        val claimId: String,
+        val hosts: List<StageModel.StageHostModel>
+    )
 
 //    @PostMapping
 //    fun createStage(

@@ -27,8 +27,8 @@ class ClaimStanceService(
                 val newClaim = ClaimEntity(
                     claimId = idService.getId(),
                     title = stanceInput.title,
-                    categories = listOf(politicsCategory),
-                    tags = emptyList()
+                    categories = setOf(politicsCategory),
+                    tags = emptySet()
                 )
                 val savedClaim = claimRepository.save(newClaim)
 

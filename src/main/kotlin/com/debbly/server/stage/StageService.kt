@@ -8,18 +8,18 @@ import com.debbly.server.claim.ClaimStanceRepository
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.stage.model.*
 import com.debbly.server.stage.repository.LiveStageRedisRepository
-import com.debbly.server.stage.repository.StageCachedRepository
-import com.debbly.server.stage.repository.StageHostRepository
+import com.debbly.server.stage.repository.StageRepository
 import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 
 @Service
 class StageService(
-    private val stageCachedRepository: StageCachedRepository,
-    private val stageHostRepository: StageHostRepository,
+//    private val stageRepository: stageRepository,
+//    private val stageHostJpaRepository: StageHostJpaRepository,
     // private val liveStageRepository: LiveStageRepository,
+    private val stageRepository: StageRepository,
+
     private val liveStageRedisRepository: LiveStageRedisRepository,
     private val userCachedRepository: UserCachedRepository,
     private val idService: IdService,
@@ -28,61 +28,107 @@ class StageService(
     private val liveKitService: LiveKitService
 ) {
 
-//    fun createStage(type: StageType, claimId: String?, userId: String): StageEntity {
-//        val stageId = idService.getId()
-//        val stage = StageEntity(stageId, type, claimId, Instant.now(), null)
-//        stageRepository.save(stage)
-//        val stageHost = StageHostEntity(StageHostId(stageId, userId))
-//        stageHostRepository.save(stageHost)
-//        return stage
-//    }
+    fun getStageDetails(stageId: String, userId: String?): StageDetails {
+        val stage = stageRepository.getById(stageId)
+        val claim = stage.claimId?.let { claimRepository.findById(it).orElseThrow() }
+        val hosts = stage.hosts.map { host ->
+            val user = userCachedRepository.findById(host.userId) ?: throw Exception("User not found")
+            val stance = host.stance
 
+            StageDetails.Host(
+                userId = user.userId,
+                username = user.username ?: "unknown",
+                avatarUrl = user.avatarUrl,
+                stance = stance ?: ClaimStance.ANY
+            )
+        }
 
-    fun live(stageId: String, userId: String): StageEntity {
+        val isHost = userId?.let { stage.hosts.any { it.userId == userId } } ?: false
+        val livekitToken = userId?.takeIf { isHost }?.let {
+            liveKitService.getToken(userId = userId, stageId = stageId)
+        }
+
+        return StageDetails(
+            stageId = stage.stageId,
+            claim = claim?.let { it ->
+                StageDetails.Claim(
+                    claimId = it.claimId,
+                    title = claim.title,
+                    tags = claim.tags.map { StageDetails.Claim.Tag(tagId = it.tagId, title = it.title) },
+                    categories = claim.categories.map {
+                        StageDetails.Category(
+                            categoryId = it.categoryId,
+                            title = it.title,
+                            avatarUrl = it.avatarUrl ?: ""
+                        )
+                    }
+                )
+            },
+            hosts = hosts,
+            livekitToken = livekitToken
+        )
+    }
+
+    fun createStage(claimId: String?, hosts: List<StageModel.StageHostModel>): StageModel {
+        val stageId = idService.getId()
+        val claim = claimId?.let { claimRepository.findById(it).orElseThrow() }
+        val stage = StageModel(
+            stageId = stageId,
+            type = if (hosts.size == 1) StageType.SOLO else StageType.ONE_ON_ONE,
+            claimId = claim?.claimId,
+            title = claim?.title,
+            hosts = hosts,
+            createdAt = Instant.now(),
+            closedAt = null,
+        )
+
+        stageRepository.save(stage)
+
+        return stage
+    }
+
+    fun live(stageId: String, userId: String): StageModel {
         val stage = if (stageId == userId) {
-            stageCachedRepository.save(
-                StageEntity(
+            stageRepository.save(
+                StageModel(
                     stageId = idService.getId(),
                     type = StageType.SOLO,
-                    hosts = setOf(
-                        StageHostEntity(
-                            StageHostId(
-                                stageId = stageId,
-                                userId = userId,
-                            ),
+                    hosts = listOf(
+                        StageModel.StageHostModel(
+                            userId = userId,
                             stance = null
                         )
                     ),
-                    topic = null,
-                    claim = null,
+                    title = null,
+                    claimId = null,
                     createdAt = Instant.now()
                 )
             )
         } else {
-            stageCachedRepository.findById(stageId)
+            stageRepository.getById(stageId)
 
                 ?.also { stage ->
-                    if (stage.hosts.none { it.id.userId == userId }) {
+                    if (stage.hosts.none { it.userId == userId }) {
                         throw UnauthorizedException("User is not a host of this stage")
                     }
                 } ?: throw UnauthorizedException("Stage not found")
         }
 
-        val users = stage.hosts.mapNotNull { userCachedRepository.findById(it.id.userId) }.associateBy { it.userId }
+        val users = stage.hosts.mapNotNull { userCachedRepository.findById(it.userId) }.associateBy { it.userId }
 
         liveStageRedisRepository.save(
             LiveStageEntity(
                 stageId = stageId,
                 type = stage.type,
                 hosts = stage.hosts.mapNotNull { it ->
-                    users[it.id.userId]?.let { user ->
+                    users[it.userId]?.let { user ->
                         LiveStageHost(
                             user.userId,
                             user.username ?: "unknown"
                         )
                     }
                 },
-                claimId = stage.topic,
+                claimId = stage.claimId,
                 heartbeatAt = Instant.now()
             )
         )
@@ -100,55 +146,13 @@ class StageService(
     }
 
     fun leaveStage(stageId: String, userId: String) {
-        stageCachedRepository.findById(stageId)?.let { stage ->
-            if (stage.hosts.none { it.id.userId == userId }) {
+        stageRepository.getById(stageId)?.let { stage ->
+            if (stage.hosts.none { it.userId == userId }) {
                 throw UnauthorizedException("User is not a host of this stage")
             }
-            stageCachedRepository.save(stage.copy(closedAt = Instant.now()))
+            stageRepository.save(stage.copy(closedAt = Instant.now()))
             liveStageRedisRepository.deleteById(stageId)
         }
-    }
-
-    @Transactional(readOnly = true)
-    fun getStageDetails(stageId: String, userId: String?): StageDetails {
-        val stage = stageCachedRepository.getById(stageId)
-        val claim = stage.claim
-        val hosts = stage.hosts.map { host ->
-            val user = userCachedRepository.findById(host.id.userId) ?: throw Exception("User not found")
-            val stance = host.stance
-
-            StageDetails.Host(
-                userId = user.userId,
-                username = user.username ?: "unknown",
-                avatarUrl = user.avatarUrl,
-                stance = stance ?: ClaimStance.ANY
-            )
-        }
-
-        val isHost = userId?.let { stage.hosts.any { it.id.userId == userId } } ?: false
-        val livekitToken = userId?.takeIf { isHost }?.let {
-            liveKitService.getToken(userId = userId, stageId = stageId)
-        }
-
-        return StageDetails(
-            stageId = stage.stageId,
-            claim = stage.claim?.let { claim ->
-                StageDetails.Claim(
-                    claimId = claim.claimId,
-                    title = claim.title,
-                    tags = claim.tags.map { StageDetails.Claim.Tag(tagId = it.tagId, title = it.title) },
-                    categories = claim.categories.map {
-                        StageDetails.Category(
-                            categoryId = it.categoryId,
-                            title = it.title,
-                            avatarUrl = it.avatarUrl ?: ""
-                        )
-                    }
-                )
-            },
-            hosts = hosts,
-            livekitToken = livekitToken
-        )
     }
 
     data class StageDetails(

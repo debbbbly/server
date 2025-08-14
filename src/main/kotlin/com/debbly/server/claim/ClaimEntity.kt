@@ -12,11 +12,11 @@ data class ClaimEntity(
     val claimId: String,
 
     @ManyToMany(fetch = FetchType.EAGER)
-    val categories: List<CategoryEntity>,
+    val categories: Set<CategoryEntity>,
 
     val title: String,
 
     @ManyToMany(fetch = FetchType.EAGER)
-    val tags: List<TagEntity>
+    val tags: Set<TagEntity>
 )
 

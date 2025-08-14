@@ -1,6 +1,7 @@
 package com.debbly.server.stage.repository
 
-import com.debbly.server.stage.model.StageEntity
+import com.debbly.server.stage.model.StageModel
+import com.debbly.server.stage.repository.entities.StageEntity
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import kotlin.jvm.optionals.getOrNull
@@ -9,13 +10,9 @@ import kotlin.jvm.optionals.getOrNull
 class StageCachedRepository(
     private val stageRepository: StageRepository,
 ) {
-    @Cacheable(value = ["stages"], key = "#stageId", unless = "#result == null")
-    fun findById(stageId: String) = stageRepository.findById(stageId).getOrNull()
 
-    @Cacheable(value = ["stages"], key = "#stageId", unless = "#result == null")
-    fun getById(stageId: String): StageEntity = stageRepository.findById(stageId)
-        .orElseThrow { Exception("Stage '$stageId' not found") }
+    @Cacheable(value = ["stagesByStageId"], key = "#stageId")
+    fun getById(stageId: String): StageModel = stageRepository.getById(stageId)
 
-    fun save(stage: StageEntity): StageEntity = stageRepository.save(stage)
-
+    fun save(stage: StageModel) = stageRepository.save(stage)
 }

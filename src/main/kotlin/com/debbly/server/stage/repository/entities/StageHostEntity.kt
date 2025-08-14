@@ -1,4 +1,4 @@
-package com.debbly.server.stage.model
+package com.debbly.server.stage.repository.entities
 
 import com.debbly.server.claim.ClaimStance
 import jakarta.persistence.*

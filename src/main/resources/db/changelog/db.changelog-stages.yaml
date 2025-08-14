@@ -18,7 +18,7 @@ databaseChangeLog:
                   constraints:
                     nullable: false
               - column:
-                  name: topic
+                  name: title
                   type: varchar(1024)
               - column:
                   name: created_at
