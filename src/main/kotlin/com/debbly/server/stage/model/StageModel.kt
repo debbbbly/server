@@ -1,6 +1,6 @@
 package com.debbly.server.stage.model
 
-import com.debbly.server.claim.ClaimStance
+import com.debbly.server.claim.model.ClaimStance
 import java.time.Instant
 
 //@JsonTypeInfo(

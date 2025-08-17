@@ -52,21 +52,13 @@ databaseChangeLog:
                     primaryKey: true
                     nullable: false
               - column:
+                  name: category_id
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
                   name: title
                   type: varchar(512)
-                  constraints:
-                    nullable: false
-        - createTable:
-            tableName: claims_categories
-            columns:
-              - column:
-                  name: claims_claim_id
-                  type: varchar(16)
-                  constraints:
-                    nullable: false
-              - column:
-                  name: categories_category_id
-                  type: varchar(16)
                   constraints:
                     nullable: false
         - createTable:
@@ -83,15 +75,9 @@ databaseChangeLog:
                   constraints:
                     nullable: false
         - addForeignKeyConstraint:
-            baseColumnNames: claims_claim_id
-            baseTableName: claims_categories
-            constraintName: fk_claims_categories_claim_id
-            referencedColumnNames: claim_id
-            referencedTableName: claims
-        - addForeignKeyConstraint:
-            baseColumnNames: categories_category_id
-            baseTableName: claims_categories
-            constraintName: fk_claims_categories_category_id
+            baseColumnNames: category_id
+            baseTableName: claims
+            constraintName: fk_claims_category_id
             referencedColumnNames: category_id
             referencedTableName: categories
         - addForeignKeyConstraint:
@@ -281,17 +267,11 @@ databaseChangeLog:
                   name: claim_id
                   value: "claim_001"
               - column:
+                  name: category_id
+                  value: "politics"
+              - column:
                   name: title
                   value: "The U.S. government should regulate AI development as strictly as pharmaceuticals."
-        - insert:
-            tableName: claims_categories
-            columns:
-              - column:
-                  name: claims_claim_id
-                  value: "claim_001"
-              - column:
-                  name: categories_category_id
-                  value: "politics"
         - insert:
             tableName: claims_tags
             columns:
@@ -327,17 +307,11 @@ databaseChangeLog:
                   name: claim_id
                   value: "claim_002"
               - column:
+                  name: category_id
+                  value: "politics"
+              - column:
                   name: title
                   value: "Banning TikTok in the U.S. is necessary to protect national security."
-        - insert:
-            tableName: claims_categories
-            columns:
-              - column:
-                  name: claims_claim_id
-                  value: "claim_002"
-              - column:
-                  name: categories_category_id
-                  value: "politics"
         - insert:
             tableName: claims_tags
             columns:
@@ -373,17 +347,11 @@ databaseChangeLog:
                   name: claim_id
                   value: "claim_003"
               - column:
+                  name: category_id
+                  value: "politics"
+              - column:
                   name: title
                   value: "Trump’s tariffs will ruin the U.S. economy."
-        - insert:
-            tableName: claims_categories
-            columns:
-              - column:
-                  name: claims_claim_id
-                  value: "claim_003"
-              - column:
-                  name: categories_category_id
-                  value: "politics"
         - insert:
             tableName: claims_tags
             columns:
@@ -411,7 +379,6 @@ databaseChangeLog:
               - column:
                   name: tags_tag_id
                   value: "tag_009"
-
         - insert:
             tableName: claims
             columns:
@@ -419,17 +386,11 @@ databaseChangeLog:
                   name: claim_id
                   value: "claim_004"
               - column:
+                  name: category_id
+                  value: "politics"
+              - column:
                   name: title
                   value: "Immigration should be significantly reduced in the United States."
-        - insert:
-            tableName: claims_categories
-            columns:
-              - column:
-                  name: claims_claim_id
-                  value: "claim_004"
-              - column:
-                  name: categories_category_id
-                  value: "politics"
         - insert:
             tableName: claims_tags
             columns:
@@ -471,6 +432,11 @@ databaseChangeLog:
                     primaryKey: true
                     nullable: false
               - column:
+                  name: category_id
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
                   name: user_id
                   type: varchar(16)
                   constraints:
@@ -498,3 +464,9 @@ databaseChangeLog:
             constraintName: fk_users_claims_stances_user_id
             referencedColumnNames: user_id
             referencedTableName: users
+        - addForeignKeyConstraint:
+            baseColumnNames: category_id
+            baseTableName: users_claims_stances
+            constraintName: fk_users_claims_stances_category_id
+            referencedColumnNames: category_id
+            referencedTableName: categories

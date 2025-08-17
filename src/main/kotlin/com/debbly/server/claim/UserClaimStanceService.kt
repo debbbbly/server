@@ -1,20 +1,23 @@
 package com.debbly.server.claim
 
 import com.debbly.server.IdService
-import com.debbly.server.user.repository.UserRepository
+import com.debbly.server.claim.repository.UserClaimStanceEntity
+import com.debbly.server.claim.repository.UserClaimStanceId
+import com.debbly.server.claim.repository.UserClaimStanceJpaRepository
+import com.debbly.server.user.repository.UserJpaRepository
 import org.springframework.stereotype.Service
 import java.time.Instant
 
 @Service
-class ClaimStanceService(
-    private val claimStanceRepository: ClaimStanceRepository,
+class UserClaimStanceService(
+    private val userClaimStanceRepository: UserClaimStanceJpaRepository,
     private val claimRepository: ClaimRepository,
-    private val userRepository: UserRepository,
+    private val userJpaRepository: UserJpaRepository,
     private val idService: IdService,
     private val categoryRepository: CategoryRepository
 ) {
     fun processStances(stances: List<ClaimStanceUpdate>, externalUserId: String) {
-        val user = userRepository.findByExternalUserId(externalUserId).orElseThrow { Exception("User not found") }
+        val user = userJpaRepository.findByExternalUserId(externalUserId).orElseThrow { Exception("User not found") }
 
         for (stanceInput in stances) {
             val userClaimStanceId = if (stanceInput.claimId != null) {
@@ -27,7 +30,7 @@ class ClaimStanceService(
                 val newClaim = ClaimEntity(
                     claimId = idService.getId(),
                     title = stanceInput.title,
-                    categories = setOf(politicsCategory),
+                    category = politicsCategory,
                     tags = emptySet()
                 )
                 val savedClaim = claimRepository.save(newClaim)
@@ -37,12 +40,14 @@ class ClaimStanceService(
                 continue
             }
 
+            // TODO get category from the claim
             val claimStance = UserClaimStanceEntity(
                 id = userClaimStanceId,
                 stance = stanceInput.stance,
+                categoryId = "politics",
                 updatedAt = Instant.now()
             )
-            claimStanceRepository.save(claimStance)
+            userClaimStanceRepository.save(claimStance)
         }
     }
 }

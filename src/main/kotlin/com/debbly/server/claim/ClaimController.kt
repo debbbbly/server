@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/claims")
 class ClaimController(
     private val service: ClaimService,
-    private val stanceService: ClaimStanceService
+    private val stanceService: UserClaimStanceService
 ) {
 
     // TODO remove or auth

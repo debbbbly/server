@@ -1,8 +1,8 @@
-package com.debbly.server.match
+package com.debbly.server.backstage
 
-import com.debbly.server.claim.ClaimStance
+import com.debbly.server.claim.model.ClaimStance
 
-data class MatchResult(
+data class BackstageMatch(
     val matchId: String,
     val claim: MatchClaim,
     val claimStance: ClaimStance,

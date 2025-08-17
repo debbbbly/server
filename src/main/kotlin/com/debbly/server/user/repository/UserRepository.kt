@@ -1,12 +1,20 @@
 package com.debbly.server.user.repository
 
 import com.debbly.server.user.UserEntity
-import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.stereotype.Service
 
-import java.util.Optional
+@Service
+class UserRepository(
+    private val userCachedRepository: UserCachedRepository,
+    private val userJpaRepository: UserJpaRepository
+) {
+    fun save(user: UserEntity): UserEntity = userJpaRepository.save(user)
 
-interface UserRepository : JpaRepository<UserEntity, String> {
-    fun findByUsername(username: String): Optional<UserEntity>
-    fun findByExternalUserId(externalUserId: String): Optional<UserEntity>
-    fun findAllByUserIdIn(ids: List<String>): List<UserEntity>
+    fun getById(userId: String): UserEntity = userCachedRepository.getById(userId)
+
+    fun findById(userId: String): UserEntity? = userCachedRepository.findById(userId)
+
+    fun findByExternalUserId(externalId: String): UserEntity? = userCachedRepository.findByExternalUserId(externalId)
+
+    fun findByUsername(username: String): UserEntity? = userCachedRepository.findByUsername(username)
 }

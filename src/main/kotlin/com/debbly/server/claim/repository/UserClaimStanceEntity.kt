@@ -1,27 +1,19 @@
-package com.debbly.server.claim
+package com.debbly.server.claim.repository
 
-import jakarta.persistence.Embeddable
-import jakarta.persistence.EmbeddedId
-import jakarta.persistence.Entity
-import jakarta.persistence.EnumType
-import jakarta.persistence.Enumerated
+import com.debbly.server.claim.model.ClaimStance
+import jakarta.persistence.*
 import java.io.Serializable
 import java.time.Instant
 
-enum class ClaimStance {
-    PRO,
-    ANY,
-    CON
-}
 
 @Entity(name = "users_claims_stances")
 data class UserClaimStanceEntity(
-
     @EmbeddedId
     val id: UserClaimStanceId,
     @Enumerated(EnumType.STRING)
     val stance: ClaimStance,
-    val updatedAt: Instant
+    val categoryId: String,
+    val updatedAt: Instant,
 )
 
 @Embeddable

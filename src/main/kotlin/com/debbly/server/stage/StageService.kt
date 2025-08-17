@@ -1,12 +1,15 @@
 package com.debbly.server.stage
 
 import com.debbly.server.IdService
-import com.debbly.server.LiveKitService
 import com.debbly.server.claim.ClaimRepository
-import com.debbly.server.claim.ClaimStance
-import com.debbly.server.claim.ClaimStanceRepository
+import com.debbly.server.claim.model.ClaimStance
+import com.debbly.server.claim.repository.UserClaimStanceJpaRepository
 import com.debbly.server.infra.error.UnauthorizedException
-import com.debbly.server.stage.model.*
+import com.debbly.server.livekit.LiveKitService
+import com.debbly.server.stage.model.LiveStageEntity
+import com.debbly.server.stage.model.LiveStageHost
+import com.debbly.server.stage.model.StageModel
+import com.debbly.server.stage.model.StageType
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageRepository
 import com.debbly.server.user.repository.UserCachedRepository
@@ -24,7 +27,7 @@ class StageService(
     private val userCachedRepository: UserCachedRepository,
     private val idService: IdService,
     private val claimRepository: ClaimRepository,
-    private val claimStanceRepository: ClaimStanceRepository,
+    private val userClaimStanceJpaRepository: UserClaimStanceJpaRepository,
     private val liveKitService: LiveKitService
 ) {
 
@@ -43,10 +46,12 @@ class StageService(
             )
         }
 
-        val isHost = userId?.let { stage.hosts.any { it.userId == userId } } ?: false
-        val livekitToken = userId?.takeIf { isHost }?.let {
-            liveKitService.getToken(userId = userId, stageId = stageId)
+        val (isHost, livekitToken) = userId.let { tokenUserId ->
+            val isHost = stage.hosts.any { it.userId == userId }
+
+            isHost to liveKitService.getToken(userId = tokenUserId, stageId = stageId, isHost = isHost)
         }
+
 
         return StageDetails(
             stageId = stage.stageId,
@@ -55,17 +60,16 @@ class StageService(
                     claimId = it.claimId,
                     title = claim.title,
                     tags = claim.tags.map { StageDetails.Claim.Tag(tagId = it.tagId, title = it.title) },
-                    categories = claim.categories.map {
-                        StageDetails.Category(
-                            categoryId = it.categoryId,
-                            title = it.title,
-                            avatarUrl = it.avatarUrl ?: ""
-                        )
-                    }
+                    category = StageDetails.Category(
+                        categoryId = claim.category.categoryId,
+                        title = claim.category.title,
+                        avatarUrl = claim.category.avatarUrl ?: ""
+                    )
                 )
             },
+            isHost = isHost,
             hosts = hosts,
-            livekitToken = livekitToken
+            token = livekitToken
         )
     }
 
@@ -158,8 +162,9 @@ class StageService(
     data class StageDetails(
         val stageId: String,
         val claim: Claim?,
+        val isHost: Boolean,
         val hosts: List<Host>,
-        val livekitToken: String?
+        val token: String?
     ) {
         data class Host(
             val userId: String,
@@ -172,7 +177,7 @@ class StageService(
             val claimId: String,
             val title: String,
             val tags: List<Tag>,
-            val categories: List<Category>
+            val category: Category
         ) {
             data class Tag(
                 val tagId: String,
@@ -180,7 +185,7 @@ class StageService(
             )
         }
 
-        class Category(
+        data class Category(
             val categoryId: String,
             val title: String,
             val avatarUrl: String

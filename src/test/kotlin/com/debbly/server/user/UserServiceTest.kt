@@ -1,7 +1,7 @@
 package com.debbly.server.user
 
 import com.debbly.server.user.repository.UserCachedRepository
-import com.debbly.server.user.repository.UserRepository
+import com.debbly.server.user.repository.UserJpaRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.*
@@ -19,14 +19,14 @@ class UserServiceTest {
     private lateinit var userCachedRepository: UserCachedRepository
 
     @MockBean
-    private lateinit var userRepository: UserRepository
+    private lateinit var userJpaRepository: UserJpaRepository
 
     @Test
     fun `test findById caching`() {
         val userId = "testId"
         val user = UserEntity(userId = userId, externalUserId = "extId", email = "test@test.com", username = "testuser")
 
-        `when`(userRepository.findById(userId)).thenReturn(Optional.of(user))
+        `when`(userJpaRepository.findById(userId)).thenReturn(Optional.of(user))
 
         // First call - should hit the repository
         var result = userCachedRepository.findById(userId)
@@ -36,7 +36,7 @@ class UserServiceTest {
         result = userCachedRepository.findById(userId)
         assertEquals(user, result)
 
-        verify(userRepository, times(1)).findById(userId)
+        verify(userJpaRepository, times(1)).findById(userId)
     }
 
     @Test
@@ -45,7 +45,7 @@ class UserServiceTest {
         val user =
             UserEntity(userId = "testId", externalUserId = externalId, email = "test@test.com", username = "testuser")
 
-        `when`(userRepository.findByExternalUserId(externalId)).thenReturn(Optional.of(user))
+        `when`(userJpaRepository.findByExternalUserId(externalId)).thenReturn(Optional.of(user))
 
         // First call - should hit the repository
         var result = userCachedRepository.findByExternalUserId(externalId)
@@ -55,7 +55,7 @@ class UserServiceTest {
         result = userCachedRepository.findByExternalUserId(externalId)
         assertEquals(user, result)
 
-        verify(userRepository, times(1)).findByExternalUserId(externalId)
+        verify(userJpaRepository, times(1)).findByExternalUserId(externalId)
     }
 
     @Test
@@ -63,7 +63,7 @@ class UserServiceTest {
         val username = "testuser"
         val user = UserEntity(userId = "testId", externalUserId = "extId", email = "test@test.com", username = username)
 
-        `when`(userRepository.findByUsername(username)).thenReturn(Optional.of(user))
+        `when`(userJpaRepository.findByUsername(username)).thenReturn(Optional.of(user))
 
         // First call - should hit the repository
         var result = userCachedRepository.findByUsername(username)
@@ -73,6 +73,6 @@ class UserServiceTest {
         result = userCachedRepository.findByUsername(username)
         assertEquals(user, result)
 
-        verify(userRepository, times(1)).findByUsername(username)
+        verify(userJpaRepository, times(1)).findByUsername(username)
     }
 }

@@ -13,7 +13,7 @@ class ClaimService(private val repository: ClaimRepository) {
         return (if (categoryIds.isNullOrEmpty()) {
             repository.findAllWithAllData().take(limit)
         } else {
-            repository.findByCategoriesCategoryIdInWithAllData(categoryIds).take(limit)
-        }).filter { claim -> claim.categories.any { it.active } }
+            repository.findByCategoryCategoryIdInWithAllData(categoryIds).take(limit)
+        }).filter { claim -> claim.category.active }
     }
 }

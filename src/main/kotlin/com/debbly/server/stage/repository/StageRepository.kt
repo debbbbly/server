@@ -9,15 +9,13 @@ import org.springframework.stereotype.Service
 
 @Service
 class StageRepository(
-    private val stageJpaRepository: StageJpaRepository,
+    private val stageCachedRepository: StageCachedRepository,
+    private val stageJpaRepository: StageJpaRepository
 ) {
 
-    fun getById(stageId: String): StageModel = stageJpaRepository.findById(stageId)
-        .orElseThrow { Exception("Stage '$stageId' not found") }
-        .toModel()
+    fun getById(stageId: String): StageModel = stageCachedRepository.getById(stageId).toModel()
 
-    fun save(stage: StageModel) =
-        stageJpaRepository.save(stage.toEntity()).toModel()
+    fun save(stage: StageModel) = stageJpaRepository.save(stage.toEntity()).toModel()
 
     private fun StageModel.toEntity() = StageEntity(
         stageId = this.stageId,

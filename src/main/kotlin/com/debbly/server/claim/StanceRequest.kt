@@ -1,5 +1,7 @@
 package com.debbly.server.claim
 
+import com.debbly.server.claim.model.ClaimStance
+
 data class StanceRequest(
     val claims: List<ClaimStanceUpdate>
 )
