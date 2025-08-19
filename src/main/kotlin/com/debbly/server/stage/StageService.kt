@@ -1,7 +1,7 @@
 package com.debbly.server.stage
 
 import com.debbly.server.IdService
-import com.debbly.server.backstage.Match
+import com.debbly.server.backstage.model.Match
 import com.debbly.server.claim.ClaimRepository
 import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.UserClaimStanceJpaRepository

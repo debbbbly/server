@@ -1,6 +1,10 @@
 package com.debbly.server.backstage
 
 import com.debbly.server.IdService
+import com.debbly.server.backstage.model.Match
+import com.debbly.server.backstage.model.MatchStatus
+import com.debbly.server.backstage.repository.MatchRepository
+import com.debbly.server.backstage.repository.QueueRepository
 import com.debbly.server.claim.CategoryRepository
 import com.debbly.server.claim.ClaimRepository
 import com.debbly.server.claim.ClaimStanceUpdate
@@ -9,27 +13,22 @@ import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.UserClaimStanceRepository
 import com.debbly.server.user.UserEntity
 import com.debbly.server.user.repository.UserRepository
-import com.fasterxml.jackson.databind.ObjectMapper
-import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.stereotype.Service
 import java.time.Instant
 
 @Service
 class BackstageService(
-    private val redisTemplate: RedisTemplate<String, String>,
     private val userClaimStanceRepository: UserClaimStanceRepository,
+    private val queueRepository: QueueRepository,
+    private val matchRepository: MatchRepository,
     private val userRepository: UserRepository,
-    private val objectMapper: ObjectMapper,
     private val idService: IdService,
     private val claimRepository: ClaimRepository,
     private val categoryRepository: CategoryRepository,
     private val userClaimStanceService: UserClaimStanceService
 ) {
-    private val QUEUE_KEY = "match_queue"
-    private val USER_BACKSTAGE_MATCH_KEY_PREFIX = "user_backstage_match:"
-
     fun join(user: UserEntity) {
-        pushMatchRequest(buildMatchRequest(user))
+        queueRepository.push(buildMatchRequest(user))
     }
 
     private fun buildMatchRequest(
@@ -53,32 +52,18 @@ class BackstageService(
         )
     }
 
-    private fun pushMatchRequest(request: MatchRequest) {
-        redisTemplate.opsForList().leftPush(QUEUE_KEY, objectMapper.writeValueAsString(request))
-    }
-
-    private fun removeMatchRequest(userId: String) {
-        val listOperations = redisTemplate.opsForList()
-        val queue = listOperations.range(QUEUE_KEY, 0, -1)
-        queue?.forEach { userData ->
-            val matchRequest = objectMapper.readValue(userData, MatchRequest::class.java)
-            if (matchRequest.userId == userId) {
-                listOperations.remove(QUEUE_KEY, 1, userData)
-            }
-        }
-    }
 
     fun leave(user: UserEntity) {
-        removeMatchRequest(userId = user.userId)
+        queueRepository.removeByUserId(userId = user.userId)
     }
 
     fun skip(match: Match, user: UserEntity) {
         removeMatch(user.userId)
-        pushMatchRequest(buildMatchRequest(user, setOf(match.claim.claimId)))
+        queueRepository.push(buildMatchRequest(user, setOf(match.claim.claimId)))
 
         match.sides.filter { it.userId != user.userId }.forEach { otherUser ->
             removeMatch(otherUser.userId)
-            pushMatchRequest(request = buildMatchRequest(userRepository.getById(otherUser.userId)))
+            queueRepository.push(request = buildMatchRequest(userRepository.getById(otherUser.userId)))
         }
     }
 
@@ -94,18 +79,18 @@ class BackstageService(
             .orEmpty()
 
         removeMatch(user.userId)
-        pushMatchRequest(buildMatchRequest(user, withClaimIdToStance = withClaimIdToStance))
+        queueRepository.push(buildMatchRequest(user, withClaimIdToStance = withClaimIdToStance))
 
         match.sides.filter { it.userId != user.userId }.forEach { otherUser ->
             removeMatch(otherUser.userId)
-            pushMatchRequest(request = buildMatchRequest(userRepository.getById(otherUser.userId)))
+            queueRepository.push(request = buildMatchRequest(userRepository.getById(otherUser.userId)))
         }
     }
 
     fun accept(match: Match, user: UserEntity) {
 
         val acceptedMatch = match.copy(status = MatchStatus.ACCEPTED)
-        saveMatch(acceptedMatch, user)
+        matchRepository.save(user.userId, acceptedMatch)
 
         val allAccepted = match.sides
             .filter { it.userId != user.userId }
@@ -123,46 +108,29 @@ class BackstageService(
     }
 
     private fun removeMatch(userId: String) {
-        redisTemplate.delete("$USER_BACKSTAGE_MATCH_KEY_PREFIX${userId}")
+        matchRepository.remove(userId)
     }
 
-    fun getQueue(): List<MatchRequest> {
-        val listOperations = redisTemplate.opsForList()
-        return listOperations.range(QUEUE_KEY, 0, -1)
-            ?.map { objectMapper.readValue(it, MatchRequest::class.java) }
-            ?.toMutableList() ?: emptyList()
-    }
+
+    fun getQueue(): List<MatchRequest> = queueRepository.findAll()
 
     fun getMatch(userId: String): Match? {
-        return redisTemplate.opsForValue().get("$USER_BACKSTAGE_MATCH_KEY_PREFIX${userId}")?.let {
-            objectMapper.readValue(it, Match::class.java)
-        }
+        return matchRepository.find(userId)
     }
 
     fun getMatchStatus(user: UserEntity): List<Match> {
 
-        val matchResultJson = redisTemplate.opsForValue().get("$USER_BACKSTAGE_MATCH_KEY_PREFIX${user.userId}")
-        return if (matchResultJson != null) {
-            val match = objectMapper.readValue(matchResultJson, Match::class.java)
-//            redisTemplate.delete("$USER_MATCH_KEY_PREFIX${user.userId}")
+        return matchRepository.find(user.userId)?.let { match ->
             listOf(match)
-        } else {
-            emptyList()
-        }
+        } ?: emptyList()
     }
 
     fun performMatching() {
-        val listOps = redisTemplate.opsForList()
-        val queueSize = listOps.size(QUEUE_KEY) ?: 0
-        if (queueSize < 2) {
+        if (queueRepository.count() < 2) {
             return
         }
 
-        val waitingUsers = listOps.range(QUEUE_KEY, 0, -1)
-            ?.map { objectMapper.readValue(it, MatchRequest::class.java) }
-            ?.toMutableList() ?: return
-
-        waitingUsers.sortBy { it.joinedAt }
+        val waitingUsers = queueRepository.findAll().sortedBy { it.joinedAt } ?: return
 
         val matchedUsers = mutableSetOf<String>()
 
@@ -193,10 +161,9 @@ class BackstageService(
         }
 
         val remainingUsers = waitingUsers.filter { it.userId !in matchedUsers }
-        redisTemplate.delete(QUEUE_KEY)
+        queueRepository.removeAll()
         if (remainingUsers.isNotEmpty()) {
-            val remainingUsersJson = remainingUsers.map { objectMapper.writeValueAsString(it) }
-            listOps.leftPushAll(QUEUE_KEY, remainingUsersJson)
+            queueRepository.pushAll(remainingUsers)
         }
     }
 
@@ -235,17 +202,7 @@ class BackstageService(
             )
         )
 
-        saveMatch(match, userAEntity)
-        saveMatch(match, userBEntity)
-    }
-
-    private fun saveMatch(
-        match: Match,
-        user: UserEntity
-    ) {
-        redisTemplate.opsForValue().set(
-            "$USER_BACKSTAGE_MATCH_KEY_PREFIX${user.userId}",
-            objectMapper.writeValueAsString(match)
-        )
+        matchRepository.save(userAEntity.userId, match)
+        matchRepository.save(userBEntity.userId, match)
     }
 }

@@ -2,9 +2,9 @@ package com.debbly.server.backstage
 
 import com.debbly.server.auth.AuthService
 import com.debbly.server.auth.ExternalUserId
+import com.debbly.server.backstage.model.Match
 import com.debbly.server.claim.UserClaimStanceService
 import com.debbly.server.infra.error.ForbiddenException
-import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.stage.StageService
 import com.debbly.server.user.repository.UserRepository
 import org.springframework.http.ResponseEntity
