@@ -14,7 +14,7 @@ class UserRepository(
 
     fun findById(userId: String): UserEntity? = userCachedRepository.findById(userId)
 
-    fun findByExternalUserId(externalId: String): UserEntity? = userCachedRepository.findByExternalUserId(externalId)
+    fun getByExternalUserId(externalId: String): UserEntity = userCachedRepository.findByExternalUserId(externalId) ?: throw NoSuchElementException("User not found")
 
     fun findByUsername(username: String): UserEntity? = userCachedRepository.findByUsername(username)
 }

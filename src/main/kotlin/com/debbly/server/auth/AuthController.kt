@@ -58,7 +58,7 @@ class AuthController(
             val tokens = cognitoClient.initiateAuth(authRequest).authenticationResult()
 
             val externalUserId = getExternalUserId(tokens.idToken())
-            val user = userRepository.findByExternalUserId(externalUserId)
+            val user = userRepository.getByExternalUserId(externalUserId)
                 ?: userRepository.save(
                     UserEntity(
                         userId = idService.getId(),

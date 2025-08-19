@@ -1,6 +1,7 @@
 package com.debbly.server.stage
 
 import com.debbly.server.IdService
+import com.debbly.server.backstage.Match
 import com.debbly.server.claim.ClaimRepository
 import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.UserClaimStanceJpaRepository
@@ -81,6 +82,32 @@ class StageService(
             type = if (hosts.size == 1) StageType.SOLO else StageType.ONE_ON_ONE,
             claimId = claim?.claimId,
             title = claim?.title,
+            hosts = hosts,
+            createdAt = Instant.now(),
+            closedAt = null,
+        )
+
+        stageRepository.save(stage)
+
+        return stage
+    }
+
+    fun createStageFromMatch(match: Match): StageModel {
+        val stageId = idService.getId()
+        val claim = claimRepository.findById(match.claim.claimId).orElseThrow()
+
+        val hosts = match.sides.map {
+            StageModel.StageHostModel(
+                userId = it.userId,
+                stance = it.stance
+            )
+        }
+
+        val stage = StageModel(
+            stageId = stageId,
+            type = if (hosts.size == 1) StageType.SOLO else StageType.ONE_ON_ONE,
+            claimId = claim.claimId,
+            title = claim.title,
             hosts = hosts,
             createdAt = Instant.now(),
             closedAt = null,

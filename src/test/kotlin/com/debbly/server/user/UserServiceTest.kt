@@ -3,11 +3,13 @@ package com.debbly.server.user
 import com.debbly.server.user.repository.UserCachedRepository
 import com.debbly.server.user.repository.UserJpaRepository
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.*
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.mock.mockito.MockBean
+import org.springframework.cache.CacheManager
 import org.springframework.test.context.ActiveProfiles
 import java.util.*
 
@@ -20,6 +22,16 @@ class UserServiceTest {
 
     @MockBean
     private lateinit var userJpaRepository: UserJpaRepository
+
+    @Autowired
+    private lateinit var cacheManager: CacheManager
+
+    @BeforeEach
+    fun setUp() {
+        cacheManager.getCache("users")?.clear()
+        cacheManager.getCache("usersByExternalId")?.clear()
+        cacheManager.getCache("usersByUsername")?.clear()
+    }
 
     @Test
     fun `test findById caching`() {

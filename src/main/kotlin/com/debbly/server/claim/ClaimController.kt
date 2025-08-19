@@ -1,5 +1,6 @@
 package com.debbly.server.claim
 
+import com.debbly.server.auth.AuthService
 import com.debbly.server.auth.ExternalUserId
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -9,7 +10,8 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/claims")
 class ClaimController(
     private val service: ClaimService,
-    private val stanceService: UserClaimStanceService
+    private val stanceService: UserClaimStanceService,
+    private val authService: AuthService
 ) {
 
     // TODO remove or auth
@@ -42,11 +44,10 @@ class ClaimController(
         @RequestBody stanceRequest: StanceRequest,
         @ExternalUserId externalUserId: String?
     ): ResponseEntity<Void> {
-        if (externalUserId == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
-        }
+        authService.authenticate(externalUserId).let { user ->
+            stanceService.save(stanceRequest.claims, user)
 
-        stanceService.processStances(stanceRequest.claims, externalUserId)
+        }
 
         return ResponseEntity.ok().build()
     }
