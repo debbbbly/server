@@ -10,13 +10,16 @@ class MatchRepository(
     private val redisTemplate: RedisTemplate<String, String>,
     private val objectMapper: ObjectMapper,
 ) {
-    private val USER_BACKSTAGE_MATCH_KEY_PREFIX = "user_backstage_match:"
+    companion object {
+        private const val USER_BACKSTAGE_MATCH_KEY_PREFIX = "user_match:"
+        private const val USER_BACKSTAGE_MATCH_ALL = "${USER_BACKSTAGE_MATCH_KEY_PREFIX}all"
+    }
 
     fun save(userId: String, match: Match) {
-        redisTemplate.opsForValue().set(
-            "$USER_BACKSTAGE_MATCH_KEY_PREFIX${userId}",
-            objectMapper.writeValueAsString(match)
-        )
+        val key = "$USER_BACKSTAGE_MATCH_KEY_PREFIX$userId"
+        redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(match))
+
+        redisTemplate.opsForSet().add(USER_BACKSTAGE_MATCH_ALL, key)
     }
 
     fun find(userId: String): Match? {
@@ -25,8 +28,15 @@ class MatchRepository(
         }
     }
 
-    fun remove(userId: String) {
-        redisTemplate.delete("$USER_BACKSTAGE_MATCH_KEY_PREFIX${userId}")
+    fun findAll(): List<Match> {
+        val keys = redisTemplate.opsForSet().members(USER_BACKSTAGE_MATCH_ALL).orEmpty()
+        return redisTemplate.opsForValue().multiGet(keys).orEmpty()
+            .mapNotNull { objectMapper.readValue(it, Match::class.java) }
     }
 
+    fun remove(userId: String) {
+        val key = "$USER_BACKSTAGE_MATCH_KEY_PREFIX$userId"
+        redisTemplate.delete(key)
+        redisTemplate.opsForSet().remove(USER_BACKSTAGE_MATCH_ALL, key)
+    }
 }

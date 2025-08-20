@@ -22,5 +22,5 @@ data class Match(
 }
 
 enum class MatchStatus {
-    PENDING, ACCEPTED, REJECTED
+    PENDING, ACCEPTED, ACCEPTED_BY_ALL, REJECTED
 }

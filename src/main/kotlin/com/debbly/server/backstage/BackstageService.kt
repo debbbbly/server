@@ -1,34 +1,41 @@
 package com.debbly.server.backstage
 
 import com.debbly.server.IdService
+import com.debbly.server.backstage.BackstageService.MatchingStatus.*
 import com.debbly.server.backstage.model.Match
+import com.debbly.server.backstage.model.MatchRequest
 import com.debbly.server.backstage.model.MatchStatus
+import com.debbly.server.backstage.repository.MatchQueueRepository
 import com.debbly.server.backstage.repository.MatchRepository
-import com.debbly.server.backstage.repository.QueueRepository
 import com.debbly.server.claim.CategoryRepository
 import com.debbly.server.claim.ClaimRepository
 import com.debbly.server.claim.ClaimStanceUpdate
 import com.debbly.server.claim.UserClaimStanceService
 import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.UserClaimStanceRepository
+import com.debbly.server.stage.StageService
 import com.debbly.server.user.UserEntity
 import com.debbly.server.user.repository.UserRepository
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.Instant
 
 @Service
 class BackstageService(
     private val userClaimStanceRepository: UserClaimStanceRepository,
-    private val queueRepository: QueueRepository,
+    private val matchQueueRepository: MatchQueueRepository,
     private val matchRepository: MatchRepository,
     private val userRepository: UserRepository,
     private val idService: IdService,
     private val claimRepository: ClaimRepository,
     private val categoryRepository: CategoryRepository,
-    private val userClaimStanceService: UserClaimStanceService
+    private val userClaimStanceService: UserClaimStanceService,
+    private val stageService: StageService
 ) {
+    private val logger = LoggerFactory.getLogger(javaClass)
+
     fun join(user: UserEntity) {
-        queueRepository.push(buildMatchRequest(user))
+        matchQueueRepository.save(buildMatchRequest(user))
     }
 
     private fun buildMatchRequest(
@@ -52,18 +59,17 @@ class BackstageService(
         )
     }
 
-
     fun leave(user: UserEntity) {
-        queueRepository.removeByUserId(userId = user.userId)
+        matchQueueRepository.remove(userId = user.userId)
     }
 
     fun skip(match: Match, user: UserEntity) {
         removeMatch(user.userId)
-        queueRepository.push(buildMatchRequest(user, setOf(match.claim.claimId)))
+        matchQueueRepository.save(buildMatchRequest(user, setOf(match.claim.claimId)))
 
         match.sides.filter { it.userId != user.userId }.forEach { otherUser ->
             removeMatch(otherUser.userId)
-            queueRepository.push(request = buildMatchRequest(userRepository.getById(otherUser.userId)))
+            matchQueueRepository.save(request = buildMatchRequest(userRepository.getById(otherUser.userId)))
         }
     }
 
@@ -73,24 +79,28 @@ class BackstageService(
         val withClaimIdToStance = side.stance
             ?.let { match.claim.claimId to it }
             ?.also { (_, stance) ->
-                userClaimStanceService.save(ClaimStanceUpdate(match.claim.claimId, null, stance), user)
+                userClaimStanceService.save(
+                    ClaimStanceUpdate(
+                        claimId = match.claim.claimId,
+                        title = null,
+                        stance = stance
+                    ), user
+                )
             }
             ?.let { listOf(it) }
             .orEmpty()
 
         removeMatch(user.userId)
-        queueRepository.push(buildMatchRequest(user, withClaimIdToStance = withClaimIdToStance))
+        matchQueueRepository.save(buildMatchRequest(user, withClaimIdToStance = withClaimIdToStance))
 
         match.sides.filter { it.userId != user.userId }.forEach { otherUser ->
             removeMatch(otherUser.userId)
-            queueRepository.push(request = buildMatchRequest(userRepository.getById(otherUser.userId)))
+            matchQueueRepository.save(request = buildMatchRequest(userRepository.getById(otherUser.userId)))
         }
     }
 
     fun accept(match: Match, user: UserEntity) {
-
-        val acceptedMatch = match.copy(status = MatchStatus.ACCEPTED)
-        matchRepository.save(user.userId, acceptedMatch)
+        matchRepository.save(user.userId, match.copy(status = MatchStatus.ACCEPTED))
 
         val allAccepted = match.sides
             .filter { it.userId != user.userId }
@@ -100,9 +110,7 @@ class BackstageService(
             }
 
         if (allAccepted) {
-
-            // STAGE !!!
-
+//            matchRepository.save(user.userId, match.copy(status = MatchStatus.ACCEPTED_BY_ALL))
         }
 
     }
@@ -111,26 +119,40 @@ class BackstageService(
         matchRepository.remove(userId)
     }
 
-
-    fun getQueue(): List<MatchRequest> = queueRepository.findAll()
+    fun getQueue(): List<MatchRequest> = matchQueueRepository.findAll()
 
     fun getMatch(userId: String): Match? {
         return matchRepository.find(userId)
     }
 
-    fun getMatchStatus(user: UserEntity): List<Match> {
-
-        return matchRepository.find(user.userId)?.let { match ->
-            listOf(match)
-        } ?: emptyList()
-    }
-
-    fun performMatching() {
-        if (queueRepository.count() < 2) {
-            return
+    fun getMatchingState(user: UserEntity): MatchingState {
+        if (matchQueueRepository.find(user.userId) == null) {
+            return MatchingState(status = NOT_ENABLED)
         }
 
-        val waitingUsers = queueRepository.findAll().sortedBy { it.joinedAt } ?: return
+        return matchRepository.find(user.userId)?.let { match ->
+            MatchingState(status = MATCHED, matches = listOf(match))
+        } ?: MatchingState(status = MATCHING)
+    }
+
+    fun runMatchingConfirmation() {
+        matchRepository
+    }
+
+    data class MatchingState(
+        val status: MatchingStatus,
+        val matches: List<Match> = emptyList()
+    )
+
+    enum class MatchingStatus {
+        MATCHING, MATCHED, NOT_ENABLED
+    }
+
+    fun runMatching() {
+
+        val waitingUsers = matchQueueRepository.findAll().sortedBy { it.joinedAt }
+
+        logger.info("Running matching for ${waitingUsers.size} users")
 
         val matchedUsers = mutableSetOf<String>()
 
@@ -161,9 +183,9 @@ class BackstageService(
         }
 
         val remainingUsers = waitingUsers.filter { it.userId !in matchedUsers }
-        queueRepository.removeAll()
+        matchQueueRepository.removeAll()
         if (remainingUsers.isNotEmpty()) {
-            queueRepository.pushAll(remainingUsers)
+            remainingUsers.forEach { matchQueueRepository.save(it) }
         }
     }
 

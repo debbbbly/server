@@ -14,6 +14,7 @@ class ClaimService(private val repository: ClaimRepository) {
             repository.findAllWithAllData().take(limit)
         } else {
             repository.findByCategoryCategoryIdInWithAllData(categoryIds).take(limit)
-        }).filter { claim -> claim.category.active }
+        })
+            .filter { claim -> claim.category.active }
     }
 }

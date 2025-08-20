@@ -1,4 +1,4 @@
-package com.debbly.server.backstage
+package com.debbly.server.backstage.model
 
 import com.debbly.server.claim.model.ClaimStance
 import java.time.Instant

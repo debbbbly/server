@@ -4,7 +4,7 @@ import com.debbly.server.IdService
 import com.debbly.server.backstage.model.Match
 import com.debbly.server.claim.ClaimRepository
 import com.debbly.server.claim.model.ClaimStance
-import com.debbly.server.claim.repository.UserClaimStanceJpaRepository
+import com.debbly.server.claim.repository.UserClaimStanceRepository
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.livekit.LiveKitService
 import com.debbly.server.stage.model.LiveStageEntity
@@ -28,7 +28,7 @@ class StageService(
     private val userCachedRepository: UserCachedRepository,
     private val idService: IdService,
     private val claimRepository: ClaimRepository,
-    private val userClaimStanceJpaRepository: UserClaimStanceJpaRepository,
+    private val userClaimStanceRepository: UserClaimStanceRepository,
     private val liveKitService: LiveKitService
 ) {
 

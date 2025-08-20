@@ -2,11 +2,9 @@ package com.debbly.server.backstage
 
 import com.debbly.server.auth.AuthService
 import com.debbly.server.auth.ExternalUserId
-import com.debbly.server.backstage.model.Match
-import com.debbly.server.claim.UserClaimStanceService
+import com.debbly.server.backstage.BackstageService.MatchingState
+import com.debbly.server.backstage.model.MatchRequest
 import com.debbly.server.infra.error.ForbiddenException
-import com.debbly.server.stage.StageService
-import com.debbly.server.user.repository.UserRepository
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -14,10 +12,7 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/backstage")
 class BackstageController(
     private val backstageService: BackstageService,
-    private val userRepository: UserRepository,
     private val authService: AuthService,
-    private val stageService: StageService,
-    private val userClaimStanceService: UserClaimStanceService
 ) {
 
     @PostMapping("/join")
@@ -47,21 +42,19 @@ class BackstageController(
     )
 
     @GetMapping("/status")
-    fun getMatchStatus(@ExternalUserId externalUserId: String?): ResponseEntity<GetMatchStatusResponse> {
-        val matches = authService.authenticate(externalUserId).let { user ->
-            backstageService.getMatchStatus(user)
+    fun getMatchingState(@ExternalUserId externalUserId: String?): ResponseEntity<MatchingState> {
+
+        val state = authService.authenticate(externalUserId).let { user ->
+            backstageService.getMatchingState(user)
         }
-        return ResponseEntity.ok(GetMatchStatusResponse(matches))
+        return ResponseEntity.ok(state)
     }
 
-    data class GetMatchStatusResponse(
-        val matches: List<Match>
-    )
 
     // TODO: remove ??? looks like a backdoor
     @PostMapping("/match")
     fun match(): ResponseEntity<Void> {
-        backstageService.performMatching()
+        backstageService.runMatching()
         return ResponseEntity.ok().build()
     }
 
@@ -74,7 +67,6 @@ class BackstageController(
             .let { (user, match) -> backstageService.skip(match, user) }
         return ResponseEntity.ok().build()
     }
-
 
     @PostMapping("/match/{matchId}/accept")
     fun accept(
