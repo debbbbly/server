@@ -3,6 +3,7 @@ package com.debbly.server.backstage
 import com.debbly.server.auth.AuthService
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.backstage.BackstageService.MatchingState
+import com.debbly.server.backstage.model.Match
 import com.debbly.server.backstage.model.MatchRequest
 import com.debbly.server.infra.error.ForbiddenException
 import org.springframework.http.ResponseEntity
@@ -41,6 +42,16 @@ class BackstageController(
         val users: List<MatchRequest>
     )
 
+    // TODO: remove ??? looks like a backdoor
+    @GetMapping("/matches")
+    fun findAllMatches(): ResponseEntity<FindAllMatchesResponse> {
+        return ResponseEntity.ok(FindAllMatchesResponse(backstageService.findAllMatches()))
+    }
+
+    data class FindAllMatchesResponse(
+        val users: List<Match>
+    )
+
     @GetMapping("/status")
     fun getMatchingState(@ExternalUserId externalUserId: String?): ResponseEntity<MatchingState> {
 
@@ -49,7 +60,6 @@ class BackstageController(
         }
         return ResponseEntity.ok(state)
     }
-
 
     // TODO: remove ??? looks like a backdoor
     @PostMapping("/match")

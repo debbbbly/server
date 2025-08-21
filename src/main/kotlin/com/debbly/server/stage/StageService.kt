@@ -92,8 +92,8 @@ class StageService(
         return stage
     }
 
-    fun createStageFromMatch(match: Match): StageModel {
-        val stageId = idService.getId()
+    fun createStage(match: Match): StageModel {
+        val stageId = match.matchId
         val claim = claimRepository.findById(match.claim.claimId).orElseThrow()
 
         val hosts = match.sides.map {

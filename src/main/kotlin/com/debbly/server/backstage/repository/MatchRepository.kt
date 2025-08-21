@@ -11,32 +11,51 @@ class MatchRepository(
     private val objectMapper: ObjectMapper,
 ) {
     companion object {
-        private const val USER_BACKSTAGE_MATCH_KEY_PREFIX = "user_match:"
-        private const val USER_BACKSTAGE_MATCH_ALL = "${USER_BACKSTAGE_MATCH_KEY_PREFIX}all"
+        private const val MATCH_KEY_PREFIX = "match:"
+        private const val USER_MATCH_KEY_PREFIX = "user_match:"
+        private const val ALL_MATCHES_SET = "matches:all"
     }
 
-    fun save(userId: String, match: Match) {
-        val key = "$USER_BACKSTAGE_MATCH_KEY_PREFIX$userId"
-        redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(match))
+    fun save(match: Match) {
+        val matchKey = "$MATCH_KEY_PREFIX${match.matchId}"
+        // store the match once
+        redisTemplate.opsForValue().set(matchKey, objectMapper.writeValueAsString(match))
+        redisTemplate.opsForSet().add(ALL_MATCHES_SET, matchKey)
 
-        redisTemplate.opsForSet().add(USER_BACKSTAGE_MATCH_ALL, key)
+        // link each userId to this matchId
+        match.sides.forEach { side ->
+            redisTemplate.opsForValue().set("$USER_MATCH_KEY_PREFIX${side.userId}", match.matchId)
+        }
     }
 
-    fun find(userId: String): Match? {
-        return redisTemplate.opsForValue().get("$USER_BACKSTAGE_MATCH_KEY_PREFIX${userId}")?.let {
+    fun findByUserId(userId: String): Match? {
+        val matchId = redisTemplate.opsForValue().get("$USER_MATCH_KEY_PREFIX$userId") ?: return null
+        val matchJson = redisTemplate.opsForValue().get("$MATCH_KEY_PREFIX$matchId") ?: return null
+        return objectMapper.readValue(matchJson, Match::class.java)
+    }
+
+    fun findByMatchId(matchId: String): Match? {
+        return redisTemplate.opsForValue().get("$MATCH_KEY_PREFIX$matchId")?.let {
             objectMapper.readValue(it, Match::class.java)
         }
     }
 
     fun findAll(): List<Match> {
-        val keys = redisTemplate.opsForSet().members(USER_BACKSTAGE_MATCH_ALL).orEmpty()
+        val keys = redisTemplate.opsForSet().members(ALL_MATCHES_SET).orEmpty()
         return redisTemplate.opsForValue().multiGet(keys).orEmpty()
             .mapNotNull { objectMapper.readValue(it, Match::class.java) }
     }
 
-    fun remove(userId: String) {
-        val key = "$USER_BACKSTAGE_MATCH_KEY_PREFIX$userId"
-        redisTemplate.delete(key)
-        redisTemplate.opsForSet().remove(USER_BACKSTAGE_MATCH_ALL, key)
+    fun remove(matchId: String) {
+        val matchKey = "$MATCH_KEY_PREFIX$matchId"
+        redisTemplate.opsForValue().get(matchKey)
+            ?.let { objectMapper.readValue(it, Match::class.java) }
+            ?.sides
+            ?.forEach { userId ->
+                redisTemplate.delete("$USER_MATCH_KEY_PREFIX$userId")
+            }
+
+        redisTemplate.delete(matchKey)
+        redisTemplate.opsForSet().remove(ALL_MATCHES_SET, matchKey)
     }
 }
