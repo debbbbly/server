@@ -1,90 +1,90 @@
-package com.debbly.server.backstage
+package com.debbly.server.match
 
 import com.debbly.server.IdService
-import com.debbly.server.backstage.BackstageService.MatchingStatus.*
-import com.debbly.server.backstage.model.Match
-import com.debbly.server.backstage.model.MatchRequest
-import com.debbly.server.backstage.model.MatchSideStatus
-import com.debbly.server.backstage.model.MatchStatus
-import com.debbly.server.backstage.repository.MatchQueueRepository
-import com.debbly.server.backstage.repository.MatchRepository
+import com.debbly.server.match.MatchService.MatchingStatus.*
+import com.debbly.server.match.model.Match
+import com.debbly.server.match.model.MatchRequest
+import com.debbly.server.match.model.MatchSideStatus
+import com.debbly.server.match.model.MatchStatus
+import com.debbly.server.match.repository.MatchQueueRepository
+import com.debbly.server.match.repository.MatchRepository
 import com.debbly.server.claim.CategoryRepository
 import com.debbly.server.claim.ClaimRepository
-import com.debbly.server.claim.ClaimStanceUpdate
-import com.debbly.server.claim.UserClaimStanceService
-import com.debbly.server.claim.model.ClaimStance
-import com.debbly.server.claim.repository.UserClaimStanceRepository
+import com.debbly.server.claim.ClaimSideUpdate
+import com.debbly.server.claim.UserClaimSideService
+import com.debbly.server.claim.model.ClaimSide
+import com.debbly.server.claim.repository.UserClaimSideRepository
 import com.debbly.server.stage.StageService
-import com.debbly.server.user.UserEntity
-import com.debbly.server.user.repository.UserRepository
+import com.debbly.server.user.model.UserModel
+import com.debbly.server.user.repository.UserCachedRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.Instant
 
 @Service
-class BackstageService(
-    private val userClaimStanceRepository: UserClaimStanceRepository,
+class MatchService(
+    private val userClaimSideRepository: UserClaimSideRepository,
     private val matchQueueRepository: MatchQueueRepository,
     private val matchRepository: MatchRepository,
-    private val userRepository: UserRepository,
+    private val userCachedRepository: UserCachedRepository,
     private val idService: IdService,
     private val claimRepository: ClaimRepository,
     private val categoryRepository: CategoryRepository,
-    private val userClaimStanceService: UserClaimStanceService,
+    private val userClaimSideService: UserClaimSideService,
     private val stageService: StageService
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    fun join(user: UserEntity) {
+    fun join(user: UserModel) {
         matchQueueRepository.save(buildMatchRequest(user))
     }
 
     private fun buildMatchRequest(
-        user: UserEntity,
+        user: UserModel,
         withSkipClaimIds: Collection<String>? = null,
-        withClaimIdToStance: Collection<Pair<String, ClaimStance>>? = null
+        withClaimIdToSide: Collection<Pair<String, ClaimSide>>? = null
     ): MatchRequest {
         val activeCategoryIds = categoryRepository.findAll()
             .filter { it.active }
             .map { it.categoryId }
             .toSet()
 
-        val userStances = userClaimStanceRepository.findByUserId(user.userId)
+        val userSides = userClaimSideRepository.findByUserId(user.userId)
             .filter { it.categoryId in activeCategoryIds }
 
         return MatchRequest(
             userId = user.userId,
-            claimIdToStance = userStances.associate { it.claimId to it.stance }.plus(withClaimIdToStance.orEmpty()),
+            claimIdToSide = userSides.associate { it.claimId to it.side }.plus(withClaimIdToSide.orEmpty()),
             skipClaimIds = withSkipClaimIds.orEmpty(),
             joinedAt = Instant.now()
         )
     }
 
-    fun leave(user: UserEntity) {
+    fun leave(user: UserModel) {
         matchQueueRepository.remove(userId = user.userId)
     }
 
-    fun skip(match: Match, user: UserEntity) {
+    fun skip(match: Match, user: UserModel) {
         removeMatch(user.userId)
         matchQueueRepository.save(buildMatchRequest(user, setOf(match.claim.claimId)))
 
         match.sides.filter { it.userId != user.userId }.forEach { otherUser ->
             removeMatch(otherUser.userId)
-            matchQueueRepository.save(request = buildMatchRequest(userRepository.getById(otherUser.userId)))
+            matchQueueRepository.save(request = buildMatchRequest(userCachedRepository.getById(otherUser.userId)))
         }
     }
 
-    fun switch(match: Match, user: UserEntity) {
+    fun switch(match: Match, user: UserModel) {
 
         val side = match.sides.first { it.userId == user.userId }
-        val withClaimIdToStance = side.stance
+        val withClaimIdToSide = side.side
             ?.let { match.claim.claimId to it }
-            ?.also { (_, stance) ->
-                userClaimStanceService.save(
-                    ClaimStanceUpdate(
+            ?.also { (_, side) ->
+                userClaimSideService.save(
+                    ClaimSideUpdate(
                         claimId = match.claim.claimId,
                         title = null,
-                        stance = stance
+                        side = side
                     ), user
                 )
             }
@@ -92,15 +92,15 @@ class BackstageService(
             .orEmpty()
 
         removeMatch(user.userId)
-        matchQueueRepository.save(buildMatchRequest(user, withClaimIdToStance = withClaimIdToStance))
+        matchQueueRepository.save(buildMatchRequest(user, withClaimIdToSide = withClaimIdToSide))
 
         match.sides.filter { it.userId != user.userId }.forEach { otherUser ->
             removeMatch(otherUser.userId)
-            matchQueueRepository.save(request = buildMatchRequest(userRepository.getById(otherUser.userId)))
+            matchQueueRepository.save(request = buildMatchRequest(userCachedRepository.getById(otherUser.userId)))
         }
     }
 
-    fun accept(match: Match, user: UserEntity) {
+    fun accept(match: Match, user: UserModel) {
         val sides = match.sides.map { side ->
             if (side.userId == user.userId) side.copy(status = MatchSideStatus.ACCEPTED) else side
         }
@@ -121,7 +121,7 @@ class BackstageService(
         return matchRepository.findAll()
     }
 
-    fun getMatchingState(user: UserEntity): MatchingState =
+    fun getMatchingState(user: UserModel): MatchingState =
         matchRepository.findByUserId(user.userId)
             ?.let {
                 match -> MatchingState(status = MATCHED, matches = listOf(match))
@@ -130,7 +130,7 @@ class BackstageService(
                 if (matchQueueRepository.find(user.userId) != null) {
                     MatchingState(status = MATCHING)
                 } else {
-                    MatchingState(status = NOT_ENABLED)
+                    MatchingState(status = NOT_MATCHING)
                 }
             }
 
@@ -150,7 +150,7 @@ class BackstageService(
             } else if (match.createdAt.isBefore(matchDeadline)) {
                 matchRepository.remove(match.matchId)
                 match.sides.forEach { side ->
-                    matchQueueRepository.save(buildMatchRequest(userRepository.getById(side.userId)))
+                    matchQueueRepository.save(buildMatchRequest(userCachedRepository.getById(side.userId)))
                 }
             }
         }
@@ -162,7 +162,7 @@ class BackstageService(
     )
 
     enum class MatchingStatus {
-        MATCHING, MATCHED, NOT_ENABLED
+        MATCHING, MATCHED, NOT_MATCHING
     }
 
     fun runMatching() {
@@ -182,10 +182,10 @@ class BackstageService(
                 if (userB.userId in matchedUsers) continue
 
                 val matchingClaimId =
-                    userA.claimIdToStance.keys.intersect(userB.claimIdToStance.keys).firstOrNull { claimId ->
-                        val stanceA = userA.claimIdToStance[claimId]
-                        val stanceB = userB.claimIdToStance[claimId]
-                        areOpposite(stanceA, stanceB)
+                    userA.claimIdToSide.keys.intersect(userB.claimIdToSide.keys).firstOrNull { claimId ->
+                        val sideA = userA.claimIdToSide[claimId]
+                        val sideB = userB.claimIdToSide[claimId]
+                        areOpposite(sideA, sideB)
                     }
 
                 if (matchingClaimId != null) {
@@ -206,20 +206,20 @@ class BackstageService(
         }
     }
 
-    private fun areOpposite(claimStanceA: ClaimStance?, claimStanceB: ClaimStance?): Boolean {
-        if (claimStanceA == null || claimStanceB == null) return false
-        if (claimStanceA == ClaimStance.ANY && (claimStanceB == ClaimStance.PRO || claimStanceB == ClaimStance.CON)) return true
-        if (claimStanceB == ClaimStance.ANY && (claimStanceA == ClaimStance.PRO || claimStanceA == ClaimStance.CON)) return true
-        if (claimStanceA == ClaimStance.PRO && claimStanceB == ClaimStance.CON) return true
-        if (claimStanceA == ClaimStance.CON && claimStanceB == ClaimStance.PRO) return true
+    private fun areOpposite(claimSideA: ClaimSide?, claimSideB: ClaimSide?): Boolean {
+        if (claimSideA == null || claimSideB == null) return false
+        if (claimSideA == ClaimSide.ANY && (claimSideB == ClaimSide.PRO || claimSideB == ClaimSide.CON)) return true
+        if (claimSideB == ClaimSide.ANY && (claimSideA == ClaimSide.PRO || claimSideA == ClaimSide.CON)) return true
+        if (claimSideA == ClaimSide.PRO && claimSideB == ClaimSide.CON) return true
+        if (claimSideA == ClaimSide.CON && claimSideB == ClaimSide.PRO) return true
         return false
     }
 
     private fun createAndStoreMatch(userA: MatchRequest, userB: MatchRequest, claimId: String) {
         val matchId = idService.getId()
         val claim = claimRepository.findById(claimId).orElseThrow { Exception("Claim not found") }
-        val userAEntity = userRepository.getById(userA.userId)
-        val userBEntity = userRepository.getById(userB.userId)
+        val userAEntity = userCachedRepository.getById(userA.userId)
+        val userBEntity = userCachedRepository.getById(userB.userId)
         val now = Instant.now()
 
         val match = Match(
@@ -231,14 +231,14 @@ class BackstageService(
                     userId = userAEntity.userId,
                     username = userAEntity.username,
                     avatarUrl = userAEntity.avatarUrl,
-                    stance = userA.claimIdToStance[claimId],
+                    side = userA.claimIdToSide[claimId],
                     status = MatchSideStatus.PENDING
                 ),
                 Match.MatchSide(
                     userId = userBEntity.userId,
                     username = userBEntity.username,
                     avatarUrl = userBEntity.avatarUrl,
-                    stance = userB.claimIdToStance[claimId],
+                    side = userB.claimIdToSide[claimId],
                     status = MatchSideStatus.PENDING
                 )
             ),

@@ -1,25 +1,25 @@
-package com.debbly.server.backstage
+package com.debbly.server.match
 
 import com.debbly.server.auth.AuthService
 import com.debbly.server.auth.ExternalUserId
-import com.debbly.server.backstage.BackstageService.MatchingState
-import com.debbly.server.backstage.model.Match
-import com.debbly.server.backstage.model.MatchRequest
+import com.debbly.server.match.MatchService.MatchingState
+import com.debbly.server.match.model.Match
+import com.debbly.server.match.model.MatchRequest
 import com.debbly.server.infra.error.ForbiddenException
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
 @RestController
-@RequestMapping("/backstage")
-class BackstageController(
-    private val backstageService: BackstageService,
+@RequestMapping("/match")
+class MatchController(
+    private val matchService: MatchService,
     private val authService: AuthService,
 ) {
 
     @PostMapping("/join")
     fun joinQueue(@ExternalUserId externalUserId: String?): ResponseEntity<Void> {
         authService.authenticate(externalUserId).let { user ->
-            backstageService.join(user)
+            matchService.join(user)
         }
         return ResponseEntity.ok().build()
     }
@@ -27,7 +27,7 @@ class BackstageController(
     @PostMapping("/leave")
     fun leaveQueue(@ExternalUserId externalUserId: String?): ResponseEntity<Void> {
         authService.authenticate(externalUserId).let { user ->
-            backstageService.leave(user)
+            matchService.leave(user)
         }
         return ResponseEntity.ok().build()
     }
@@ -35,7 +35,7 @@ class BackstageController(
     // TODO: remove ??? looks like a backdoor
     @GetMapping("/queue")
     fun getQueue(): ResponseEntity<GetQueueResponse> {
-        return ResponseEntity.ok(GetQueueResponse(backstageService.getQueue()))
+        return ResponseEntity.ok(GetQueueResponse(matchService.getQueue()))
     }
 
     data class GetQueueResponse(
@@ -43,20 +43,20 @@ class BackstageController(
     )
 
     // TODO: remove ??? looks like a backdoor
-    @GetMapping("/matches")
+    @GetMapping("/all")
     fun findAllMatches(): ResponseEntity<FindAllMatchesResponse> {
-        return ResponseEntity.ok(FindAllMatchesResponse(backstageService.findAllMatches()))
+        return ResponseEntity.ok(FindAllMatchesResponse(matchService.findAllMatches()))
     }
 
     data class FindAllMatchesResponse(
         val users: List<Match>
     )
 
-    @GetMapping("/status")
+    @GetMapping("/state")
     fun getMatchingState(@ExternalUserId externalUserId: String?): ResponseEntity<MatchingState> {
 
         val state = authService.authenticate(externalUserId).let { user ->
-            backstageService.getMatchingState(user)
+            matchService.getMatchingState(user)
         }
         return ResponseEntity.ok(state)
     }
@@ -64,46 +64,46 @@ class BackstageController(
     // TODO: remove ??? looks like a backdoor
     @PostMapping("/match")
     fun match(): ResponseEntity<Void> {
-        backstageService.runMatching()
+        matchService.runMatching()
         return ResponseEntity.ok().build()
     }
 
-    @PostMapping("/match/{matchId}/skip")
+    @PostMapping("/{matchId}/skip")
     fun skip(
         @ExternalUserId externalUserId: String?,
         @PathVariable matchId: String
     ): ResponseEntity<Void> {
         authorize(externalUserId, matchId)
-            .let { (user, match) -> backstageService.skip(match, user) }
+            .let { (user, match) -> matchService.skip(match, user) }
         return ResponseEntity.ok().build()
     }
 
-    @PostMapping("/match/{matchId}/accept")
+    @PostMapping("/{matchId}/accept")
     fun accept(
         @ExternalUserId externalUserId: String?,
         @PathVariable matchId: String
     ): ResponseEntity<Void> {
         authorize(externalUserId, matchId)
-            .let { (user, match) -> backstageService.accept(match, user) }
+            .let { (user, match) -> matchService.accept(match, user) }
 
         //val stageDetails = stageService.getStageDetails(stage.stageId, user.userId)
         return ResponseEntity.ok().build()
     }
 
-    @PostMapping("/match/{matchId}/switch")
+    @PostMapping("/{matchId}/switch")
     fun switch(
         @ExternalUserId externalUserId: String?,
         @PathVariable matchId: String
     ): ResponseEntity<Void> {
         authorize(externalUserId, matchId)
-            .let { (user, match) -> backstageService.switch(match, user) }
+            .let { (user, match) -> matchService.switch(match, user) }
 
         return ResponseEntity.ok().build()
     }
 
     private fun authorize(externalUserId: String?, matchId: String) =
         authService.authenticate(externalUserId).let { user ->
-            val match = backstageService.getMatch(user.userId)
+            val match = matchService.getMatch(user.userId)
                 ?.takeIf { it.matchId == matchId }
                 ?: throw ForbiddenException()
             user to match

@@ -16,6 +16,5 @@ data class UserEntity(
     var username: String? = null,
     var birthdate: LocalDate? = null,
     var avatarUrl: String? = null,
-//    var bannerUrl: String? = null,
-//    var bannerKey: String? = null,
 )
+

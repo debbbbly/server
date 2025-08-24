@@ -1,32 +1,33 @@
 package com.debbly.server.claim
 
 import com.debbly.server.IdService
-import com.debbly.server.claim.model.UserClaimStanceModel
-import com.debbly.server.claim.repository.UserClaimStanceRepository
+import com.debbly.server.claim.model.UserClaimSideModel
+import com.debbly.server.claim.repository.UserClaimSideRepository
 import com.debbly.server.user.UserEntity
+import com.debbly.server.user.model.UserModel
 import org.springframework.stereotype.Service
 import java.time.Instant
 import kotlin.jvm.optionals.getOrNull
 
 @Service
-class UserClaimStanceService(
-    private val userClaimStanceRepository: UserClaimStanceRepository,
+class UserClaimSideService(
+    private val userClaimSideRepository: UserClaimSideRepository,
     private val claimRepository: ClaimRepository,
     private val idService: IdService,
     private val categoryRepository: CategoryRepository
 ) {
-    fun save(stances: List<ClaimStanceUpdate>, user: UserEntity) {
+    fun save(sides: List<ClaimSideUpdate>, user: UserModel) {
 
-        for (stanceInput in stances) {
-            val claim = if (stanceInput.claimId != null) {
-                claimRepository.findById(stanceInput.claimId).orElseThrow { Exception("Claim not found") }
+        for (sideInput in sides) {
+            val claim = if (sideInput.claimId != null) {
+                claimRepository.findById(sideInput.claimId).orElseThrow { Exception("Claim not found") }
 
-            } else if (stanceInput.title != null) {
+            } else if (sideInput.title != null) {
                 val politicsCategory = categoryRepository.findById("politics")
                     .orElseThrow { Exception("Politics category not found") }
                 val newClaim = ClaimEntity(
                     claimId = idService.getId(),
-                    title = stanceInput.title,
+                    title = sideInput.title,
                     category = politicsCategory,
                     tags = emptySet()
                 )
@@ -37,25 +38,25 @@ class UserClaimStanceService(
             }
 
             // TODO get category from the claim
-            val claimStance = UserClaimStanceModel(
+            val claimSide = UserClaimSideModel(
                 claimId = claim.claimId,
                 userId = user.userId,
-                stance = stanceInput.stance,
+                side = sideInput.side,
                 categoryId = claim.category.categoryId,
                 updatedAt = Instant.now()
             )
-            userClaimStanceRepository.save(claimStance)
+            userClaimSideRepository.save(claimSide)
         }
     }
 
-    fun save(update: ClaimStanceUpdate, user: UserEntity) {
+    fun save(update: ClaimSideUpdate, user: UserModel) {
         require(update.claimId != null)
         claimRepository.findById(update.claimId).getOrNull()?.let { claim ->
-            userClaimStanceRepository.save(
-                UserClaimStanceModel(
+            userClaimSideRepository.save(
+                UserClaimSideModel(
                     claimId = update.claimId,
                     userId = user.userId,
-                    stance = update.stance,
+                    side = update.side,
                     categoryId = claim.category.categoryId,
                     updatedAt = Instant.now()
                 )

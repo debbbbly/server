@@ -1,6 +1,6 @@
 package com.debbly.server.stage.repository.entities
 
-import com.debbly.server.claim.model.ClaimStance
+import com.debbly.server.claim.model.ClaimSide
 import jakarta.persistence.*
 import java.io.Serializable
 
@@ -9,7 +9,7 @@ data class StageHostEntity(
     @EmbeddedId
     val id: StageHostId,
     @Enumerated(EnumType.STRING)
-    val stance: ClaimStance?
+    val side: ClaimSide?
 )
 
 @Embeddable

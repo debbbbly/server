@@ -34,3 +34,56 @@ databaseChangeLog:
               - column:
                   name: avatar_url
                   type: varchar(1024)
+
+  - changeSet:
+      id: 2
+      author: claude
+      changes:
+        - createTable:
+            tableName: user_follows
+            columns:
+              - column:
+                  name: follower_user_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: following_user_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: user_follows
+            columnNames: follower_user_id, following_user_id
+        - addForeignKeyConstraint:
+            baseTableName: user_follows
+            baseColumnNames: follower_user_id
+            referencedTableName: users
+            referencedColumnNames: user_id
+            constraintName: fk_user_follows_follower
+            onDelete: CASCADE
+        - addForeignKeyConstraint:
+            baseTableName: user_follows
+            baseColumnNames: following_user_id
+            referencedTableName: users
+            referencedColumnNames: user_id
+            constraintName: fk_user_follows_following
+            onDelete: CASCADE
+        - createIndex:
+            tableName: user_follows
+            indexName: idx_user_follows_follower
+            columns:
+              - column:
+                  name: follower_user_id
+        - createIndex:
+            tableName: user_follows
+            indexName: idx_user_follows_following
+            columns:
+              - column:
+                  name: following_user_id

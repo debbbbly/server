@@ -2,16 +2,16 @@ package com.debbly.server.claim.model
 
 import java.time.Instant
 
-enum class ClaimStance {
+enum class ClaimSide {
     PRO,
     ANY,
     CON,
 }
 
-data class UserClaimStanceModel(
+data class UserClaimSideModel(
     val claimId: String,
     val categoryId: String,
     val userId: String,
-    val stance: ClaimStance,
+    val side: ClaimSide,
     val updatedAt: Instant
 )

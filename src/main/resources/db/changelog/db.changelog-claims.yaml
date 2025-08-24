@@ -423,7 +423,7 @@ databaseChangeLog:
       author: gemini
       changes:
         - createTable:
-            tableName: users_claims_stances
+            tableName: users_claims_sides
             columns:
               - column:
                   name: claim_id
@@ -443,7 +443,7 @@ databaseChangeLog:
                     primaryKey: true
                     nullable: false
               - column:
-                  name: stance
+                  name: side
                   type: varchar(16)
                   constraints:
                     nullable: false
@@ -454,19 +454,19 @@ databaseChangeLog:
                     nullable: false
         - addForeignKeyConstraint:
             baseColumnNames: claim_id
-            baseTableName: users_claims_stances
-            constraintName: fk_users_claims_stances_claim_id
+            baseTableName: users_claims_sides
+            constraintName: fk_users_claims_sides_claim_id
             referencedColumnNames: claim_id
             referencedTableName: claims
         - addForeignKeyConstraint:
             baseColumnNames: user_id
-            baseTableName: users_claims_stances
-            constraintName: fk_users_claims_stances_user_id
+            baseTableName: users_claims_sides
+            constraintName: fk_users_claims_sides_user_id
             referencedColumnNames: user_id
             referencedTableName: users
         - addForeignKeyConstraint:
             baseColumnNames: category_id
-            baseTableName: users_claims_stances
-            constraintName: fk_users_claims_stances_category_id
+            baseTableName: users_claims_sides
+            constraintName: fk_users_claims_sides_category_id
             referencedColumnNames: category_id
             referencedTableName: categories

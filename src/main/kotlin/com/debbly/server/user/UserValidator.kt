@@ -1,5 +1,6 @@
 package com.debbly.server.user
 
+import com.debbly.server.user.model.UserModel
 import java.time.LocalDate
 import java.time.Period
 
@@ -10,6 +11,6 @@ object UserValidator {
     fun isValidUsername(username: String) =
         username.trim().matches(Regex("^[a-zA-Z0-9_]{5,30}$"))
 
-    fun isUserComplete(user: UserEntity) = user.birthdate != null || user.username != null
+    fun isUserComplete(user: UserModel) = user.birthdate != null || user.username != null
 
 }

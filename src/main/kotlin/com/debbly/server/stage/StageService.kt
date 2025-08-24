@@ -1,10 +1,10 @@
 package com.debbly.server.stage
 
 import com.debbly.server.IdService
-import com.debbly.server.backstage.model.Match
+import com.debbly.server.match.model.Match
 import com.debbly.server.claim.ClaimRepository
-import com.debbly.server.claim.model.ClaimStance
-import com.debbly.server.claim.repository.UserClaimStanceRepository
+import com.debbly.server.claim.model.ClaimSide
+import com.debbly.server.claim.repository.UserClaimSideRepository
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.livekit.LiveKitService
 import com.debbly.server.stage.model.LiveStageEntity
@@ -28,7 +28,7 @@ class StageService(
     private val userCachedRepository: UserCachedRepository,
     private val idService: IdService,
     private val claimRepository: ClaimRepository,
-    private val userClaimStanceRepository: UserClaimStanceRepository,
+    private val userClaimSideRepository: UserClaimSideRepository,
     private val liveKitService: LiveKitService
 ) {
 
@@ -37,13 +37,13 @@ class StageService(
         val claim = stage.claimId?.let { claimRepository.findById(it).orElseThrow() }
         val hosts = stage.hosts.map { host ->
             val user = userCachedRepository.findById(host.userId) ?: throw Exception("User not found")
-            val stance = host.stance
+            val side = host.side
 
             StageDetails.Host(
                 userId = user.userId,
                 username = user.username ?: "unknown",
                 avatarUrl = user.avatarUrl,
-                stance = stance ?: ClaimStance.ANY
+                side = side ?: ClaimSide.ANY
             )
         }
 
@@ -99,7 +99,7 @@ class StageService(
         val hosts = match.sides.map {
             StageModel.StageHostModel(
                 userId = it.userId,
-                stance = it.stance
+                side = it.side
             )
         }
 
@@ -127,7 +127,7 @@ class StageService(
                     hosts = listOf(
                         StageModel.StageHostModel(
                             userId = userId,
-                            stance = null
+                            side = null
                         )
                     ),
                     title = null,
@@ -197,7 +197,7 @@ class StageService(
             val userId: String,
             val username: String,
             val avatarUrl: String?,
-            val stance: ClaimStance
+            val side: ClaimSide
         )
 
         data class Claim(

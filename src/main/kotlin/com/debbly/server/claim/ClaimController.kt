@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/claims")
 class ClaimController(
     private val service: ClaimService,
-    private val stanceService: UserClaimStanceService,
+    private val sideService: UserClaimSideService,
     private val authService: AuthService
 ) {
 
@@ -39,14 +39,13 @@ class ClaimController(
         return ResponseEntity.ok().build()
     }
 
-    @PostMapping("/stance")
-    fun postStance(
-        @RequestBody stanceRequest: StanceRequest,
+    @PostMapping("/side")
+    fun postSide(
+        @RequestBody claimSideUpdateRequest: ClaimSideUpdateRequest,
         @ExternalUserId externalUserId: String?
     ): ResponseEntity<Void> {
         authService.authenticate(externalUserId).let { user ->
-            stanceService.save(stanceRequest.claims, user)
-
+            sideService.save(claimSideUpdateRequest.claims, user)
         }
 
         return ResponseEntity.ok().build()

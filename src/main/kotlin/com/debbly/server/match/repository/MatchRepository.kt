@@ -1,6 +1,6 @@
-package com.debbly.server.backstage.repository
+package com.debbly.server.match.repository
 
-import com.debbly.server.backstage.model.Match
+import com.debbly.server.match.model.Match
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.stereotype.Service

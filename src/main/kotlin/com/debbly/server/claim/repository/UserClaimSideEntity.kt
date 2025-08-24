@@ -1,23 +1,23 @@
 package com.debbly.server.claim.repository
 
-import com.debbly.server.claim.model.ClaimStance
+import com.debbly.server.claim.model.ClaimSide
 import jakarta.persistence.*
 import java.io.Serializable
 import java.time.Instant
 
 
-@Entity(name = "users_claims_stances")
-data class UserClaimStanceEntity(
+@Entity(name = "users_claims_sides")
+data class UserClaimSideEntity(
     @EmbeddedId
-    val id: UserClaimStanceId,
+    val id: UserClaimSideId,
     @Enumerated(EnumType.STRING)
-    val stance: ClaimStance,
+    val side: ClaimSide,
     val categoryId: String,
     val updatedAt: Instant,
 )
 
 @Embeddable
-data class UserClaimStanceId(
+data class UserClaimSideId(
     val claimId: String,
     val userId: String
 ) : Serializable

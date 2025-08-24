@@ -3,11 +3,11 @@ package com.debbly.server.auth
 import com.debbly.server.IdService
 import com.debbly.server.auth.AuthErrorCode.*
 import com.debbly.server.auth.config.CognitoConfig
-import com.debbly.server.user.UserEntity
+import com.debbly.server.user.model.UserModel
 import com.debbly.server.user.UserValidator.isUserComplete
 import com.debbly.server.user.UserValidator.isValidBirthdate
 import com.debbly.server.user.UserValidator.isValidUsername
-import com.debbly.server.user.repository.UserRepository
+import com.debbly.server.user.repository.UserCachedRepository
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.constraints.NotBlank
 import org.springframework.http.HttpStatus
@@ -28,7 +28,7 @@ import java.time.LocalDate
 class AuthController(
     private val cognitoClient: CognitoIdentityProviderClient,
     private val cognitoConfig: CognitoConfig,
-    private val userRepository: UserRepository,
+    private val userCachedRepository: UserCachedRepository,
     private val idService: IdService,
     private val jwtDecoder: JwtDecoder,
     private val env: org.springframework.core.env.Environment
@@ -42,7 +42,7 @@ class AuthController(
                     .body(TokenResponse(error = AUTH_TOO_MANY_ATTEMPTS))
             }
 
-            val email = userRepository.findByUsername(req.usernameOrEmail)?.email ?: req.usernameOrEmail
+            val email = userCachedRepository.findByUsername(req.usernameOrEmail)?.email ?: req.usernameOrEmail
 
             val authRequest = InitiateAuthRequest.builder()
                 .authFlow(AuthFlowType.USER_PASSWORD_AUTH)
@@ -58,9 +58,9 @@ class AuthController(
             val tokens = cognitoClient.initiateAuth(authRequest).authenticationResult()
 
             val externalUserId = getExternalUserId(tokens.idToken())
-            val user = userRepository.getByExternalUserId(externalUserId)
-                ?: userRepository.save(
-                    UserEntity(
+            val user = userCachedRepository.findByExternalUserId(externalUserId)
+                ?: userCachedRepository.save(
+                    UserModel(
                         userId = idService.getId(),
                         externalUserId = externalUserId,
                         email = getEmail(tokens.idToken())
@@ -175,7 +175,7 @@ class AuthController(
 
             val authResult = cognitoClient.initiateAuth(authRequest).authenticationResult()
 
-            val user = UserEntity(
+            val user = UserModel(
                 userId = idService.getId(),
                 externalUserId = getExternalUserId(authResult.idToken()),
                 email = request.email,
@@ -183,7 +183,7 @@ class AuthController(
                 birthdate = request.birthdate.takeIf { isValidBirthdate(request.birthdate) },
             )
 
-            userRepository.save(user)
+            userCachedRepository.save(user)
 
             return if (!isUserComplete(user)) {
                 ResponseEntity.status(BAD_REQUEST)

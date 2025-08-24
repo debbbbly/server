@@ -1,6 +1,6 @@
-package com.debbly.server.backstage.model
+package com.debbly.server.match.model
 
-import com.debbly.server.claim.model.ClaimStance
+import com.debbly.server.claim.model.ClaimSide
 
 import java.time.Instant
 
@@ -15,7 +15,7 @@ data class Match(
         val userId: String,
         val username: String?,
         val avatarUrl: String?,
-        val stance: ClaimStance?,
+        val side: ClaimSide?,
         val status: MatchSideStatus
     )
 
