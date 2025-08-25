@@ -1,19 +1,20 @@
 package com.debbly.server.stage
 
 import com.debbly.server.IdService
-import com.debbly.server.match.model.Match
 import com.debbly.server.claim.ClaimRepository
 import com.debbly.server.claim.model.ClaimSide
 import com.debbly.server.claim.repository.UserClaimSideRepository
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.livekit.LiveKitService
+import com.debbly.server.match.model.Match
 import com.debbly.server.stage.model.LiveStageEntity
 import com.debbly.server.stage.model.LiveStageHost
 import com.debbly.server.stage.model.StageModel
 import com.debbly.server.stage.model.StageType
 import com.debbly.server.stage.repository.LiveStageRedisRepository
-import com.debbly.server.stage.repository.StageRepository
+import com.debbly.server.stage.repository.StageCachedRepository
 import com.debbly.server.user.repository.UserCachedRepository
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.Instant
 
@@ -22,7 +23,7 @@ class StageService(
 //    private val stageRepository: stageRepository,
 //    private val stageHostJpaRepository: StageHostJpaRepository,
     // private val liveStageRepository: LiveStageRepository,
-    private val stageRepository: StageRepository,
+    private val stageRepository: StageCachedRepository,
 
     private val liveStageRedisRepository: LiveStageRedisRepository,
     private val userCachedRepository: UserCachedRepository,
@@ -31,6 +32,8 @@ class StageService(
     private val userClaimSideRepository: UserClaimSideRepository,
     private val liveKitService: LiveKitService
 ) {
+
+    private val logger = LoggerFactory.getLogger(javaClass)
 
     fun getStageDetails(stageId: String, userId: String?): StageDetails {
         val stage = stageRepository.getById(stageId)
@@ -94,28 +97,31 @@ class StageService(
 
     fun createStage(match: Match): StageModel {
         val stageId = match.matchId
-        val claim = claimRepository.findById(match.claim.claimId).orElseThrow()
+        return stageRepository.findById(stageId) ?: let {
 
-        val hosts = match.sides.map {
-            StageModel.StageHostModel(
-                userId = it.userId,
-                side = it.side
+            liveKitService.createRoom(stageId)
+
+            val claim = claimRepository.findById(match.claim.claimId).orElseThrow()
+
+            val hosts = match.sides.map {
+                StageModel.StageHostModel(
+                    userId = it.userId,
+                    side = it.side
+                )
+            }
+
+            val stage = StageModel(
+                stageId = stageId,
+                type = if (hosts.size == 1) StageType.SOLO else StageType.ONE_ON_ONE,
+                claimId = claim.claimId,
+                title = claim.title,
+                hosts = hosts,
+                createdAt = Instant.now(),
+                closedAt = null,
             )
+
+            stageRepository.save(stage)
         }
-
-        val stage = StageModel(
-            stageId = stageId,
-            type = if (hosts.size == 1) StageType.SOLO else StageType.ONE_ON_ONE,
-            claimId = claim.claimId,
-            title = claim.title,
-            hosts = hosts,
-            createdAt = Instant.now(),
-            closedAt = null,
-        )
-
-        stageRepository.save(stage)
-
-        return stage
     }
 
     fun live(stageId: String, userId: String): StageModel {
@@ -183,6 +189,23 @@ class StageService(
             }
             stageRepository.save(stage.copy(closedAt = Instant.now()))
             liveStageRedisRepository.deleteById(stageId)
+        }
+    }
+
+    fun onUserLeft(userId: String, stageId: String) {
+        logger.info("User: '$userId' left from stage: '$stageId'.")
+        // Implement any additional logic needed when a participant leaves
+    }
+
+    fun onUserJoined(userId: String, stageId: String) {
+        logger.info("User: '$userId' joined stage: '$stageId'.")
+
+        val stage = stageRepository.getById(stageId)
+        val allHostUserIds = stage.hosts.map { it.userId }
+        val liveKitParticipants = liveKitService.getParticipants(stageId)
+
+        if (liveKitParticipants.map { it.identity }.toSet().containsAll(allHostUserIds)) {
+            // start egress
         }
     }
 

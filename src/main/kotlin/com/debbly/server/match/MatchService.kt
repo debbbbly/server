@@ -1,6 +1,12 @@
 package com.debbly.server.match
 
 import com.debbly.server.IdService
+import com.debbly.server.claim.CategoryRepository
+import com.debbly.server.claim.ClaimRepository
+import com.debbly.server.claim.ClaimSideUpdate
+import com.debbly.server.claim.UserClaimSideService
+import com.debbly.server.claim.model.ClaimSide
+import com.debbly.server.claim.repository.UserClaimSideRepository
 import com.debbly.server.match.MatchService.MatchingStatus.*
 import com.debbly.server.match.model.Match
 import com.debbly.server.match.model.MatchRequest
@@ -8,12 +14,6 @@ import com.debbly.server.match.model.MatchSideStatus
 import com.debbly.server.match.model.MatchStatus
 import com.debbly.server.match.repository.MatchQueueRepository
 import com.debbly.server.match.repository.MatchRepository
-import com.debbly.server.claim.CategoryRepository
-import com.debbly.server.claim.ClaimRepository
-import com.debbly.server.claim.ClaimSideUpdate
-import com.debbly.server.claim.UserClaimSideService
-import com.debbly.server.claim.model.ClaimSide
-import com.debbly.server.claim.repository.UserClaimSideRepository
 import com.debbly.server.stage.StageService
 import com.debbly.server.user.model.UserModel
 import com.debbly.server.user.repository.UserCachedRepository
@@ -123,8 +123,8 @@ class MatchService(
 
     fun getMatchingState(user: UserModel): MatchingState =
         matchRepository.findByUserId(user.userId)
-            ?.let {
-                match -> MatchingState(status = MATCHED, matches = listOf(match))
+            ?.let { match ->
+                MatchingState(status = MATCHED, matches = listOf(match))
             }
             ?: let {
                 if (matchQueueRepository.find(user.userId) != null) {
@@ -140,8 +140,7 @@ class MatchService(
 
         for (match in matches) {
             if (match.status == MatchStatus.ACCEPTED) {
-
-                // check stage status
+                stageService.createStage(match)
 
             } else if (match.sides.all { it.status == MatchSideStatus.ACCEPTED }) {
                 stageService.createStage(match)
@@ -152,6 +151,7 @@ class MatchService(
                 match.sides.forEach { side ->
                     matchQueueRepository.save(buildMatchRequest(userCachedRepository.getById(side.userId)))
                 }
+                logger.info("Removed match: ${match.matchId} on ${match.claim.claimId}:${match.claim.title}.")
             }
         }
     }
@@ -169,7 +169,7 @@ class MatchService(
 
         val waitingUsers = matchQueueRepository.findAll().sortedBy { it.joinedAt }
 
-        logger.info("Running matching for ${waitingUsers.size} users")
+        // logger.info("Running matching for ${waitingUsers.size} users")
 
         val matchedUsers = mutableSetOf<String>()
 

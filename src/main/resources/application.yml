@@ -20,7 +20,8 @@ server:
   port: 8080
 
 livekit:
-  url: wss://debbly.duckdns.org
+  wss: wss://debbly.duckdns.org
+  http: http://debbly.duckdns.org
   api-key: ${LIVEKIT_API_KEY}
   api-secret: ${LIVEKIT_API_SECRET}
 
@@ -29,5 +30,3 @@ cognito:
   client-id: 3kjpccjofeesv4bv8hjsqliple
   user-pool-id: us-west-2_Fm2VsaCqc
 #  domain: debbly-auth
-
-

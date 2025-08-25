@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/livekit")
 class LiveKitController(
     liveKitConfig: LiveKitConfig,
-    private val liveKitService: LiveKitService
+    private val liveKitWebhookService: LiveKitWebhookService
 ) {
     private val webhookReceiver = WebhookReceiver(liveKitConfig.apiKey, liveKitConfig.apiSecret)
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -29,7 +29,7 @@ class LiveKitController(
 
         logger.info("Received livekit webhook event: ${event.event}")
 
-        liveKitService.processWebhookEvent(event)
+        liveKitWebhookService.processWebhookEvent(event)
 
         return ResponseEntity.ok().build()
     }
