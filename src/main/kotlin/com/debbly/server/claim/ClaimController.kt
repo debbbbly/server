@@ -2,7 +2,6 @@ package com.debbly.server.claim
 
 import com.debbly.server.auth.AuthService
 import com.debbly.server.auth.ExternalUserId
-import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -26,18 +25,22 @@ class ClaimController(
         return service.getTopClaims(categoryIds, limit)
     }
 
-    @PostMapping
-    fun createClaim(
-        @RequestBody claim: ClaimEntity,
+    @PostMapping("/propose")
+    fun proposeClaim(
+        @RequestBody request: ProposeClaimRequest,
         @ExternalUserId externalUserId: String?
     ): ResponseEntity<Void> {
-
-        if (externalUserId == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+        authService.authenticate(externalUserId)?.let { user ->
+            service.propose(request.title, user.userId)
         }
+
 
         return ResponseEntity.ok().build()
     }
+
+    data class ProposeClaimRequest(
+        val title: String,
+    )
 
     @PostMapping("/side")
     fun postSide(

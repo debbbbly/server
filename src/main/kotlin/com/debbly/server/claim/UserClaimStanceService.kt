@@ -1,9 +1,9 @@
 package com.debbly.server.claim
 
 import com.debbly.server.IdService
+import com.debbly.server.category.repository.CategoryJpaRepository
 import com.debbly.server.claim.model.UserClaimSideModel
 import com.debbly.server.claim.repository.UserClaimSideRepository
-import com.debbly.server.user.UserEntity
 import com.debbly.server.user.model.UserModel
 import org.springframework.stereotype.Service
 import java.time.Instant
@@ -14,7 +14,7 @@ class UserClaimSideService(
     private val userClaimSideRepository: UserClaimSideRepository,
     private val claimRepository: ClaimRepository,
     private val idService: IdService,
-    private val categoryRepository: CategoryRepository
+    private val categoryJpaRepository: CategoryJpaRepository
 ) {
     fun save(sides: List<ClaimSideUpdate>, user: UserModel) {
 
@@ -23,7 +23,7 @@ class UserClaimSideService(
                 claimRepository.findById(sideInput.claimId).orElseThrow { Exception("Claim not found") }
 
             } else if (sideInput.title != null) {
-                val politicsCategory = categoryRepository.findById("politics")
+                val politicsCategory = categoryJpaRepository.findById("politics")
                     .orElseThrow { Exception("Politics category not found") }
                 val newClaim = ClaimEntity(
                     claimId = idService.getId(),

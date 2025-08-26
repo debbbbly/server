@@ -1,5 +1,6 @@
 package com.debbly.server.claim
 
+import com.debbly.server.category.CategoryEntity
 import jakarta.persistence.*
 
 @Entity(name = "claims")

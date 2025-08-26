@@ -46,7 +46,7 @@ class StageService(
                 userId = user.userId,
                 username = user.username ?: "unknown",
                 avatarUrl = user.avatarUrl,
-                side = side ?: ClaimSide.ANY
+                side = side ?: ClaimSide.EITHER
             )
         }
 

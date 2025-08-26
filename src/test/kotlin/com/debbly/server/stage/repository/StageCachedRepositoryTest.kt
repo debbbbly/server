@@ -1,8 +1,7 @@
 package com.debbly.server.stage.repository
 
-import com.debbly.server.claim.CategoryEntity
+import com.debbly.server.category.CategoryEntity
 import com.debbly.server.claim.ClaimEntity
-import com.debbly.server.claim.TagEntity
 import com.debbly.server.stage.model.StageType
 import com.debbly.server.stage.repository.entities.StageEntity
 import jakarta.persistence.EntityManager
@@ -27,7 +26,7 @@ class StageCachedRepositoryTest {
     @Test
     fun `getById should fetch from database and then from cache`() {
         // given
-        val category = CategoryEntity("cat1", "Category 1", "url", true)
+        val category = CategoryEntity("cat1", "Category 1", null, "url", true)
         entityManager.persist(category)
 
         val claim = ClaimEntity(

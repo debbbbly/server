@@ -1,7 +1,7 @@
 package com.debbly.server.match
 
 import com.debbly.server.IdService
-import com.debbly.server.claim.CategoryRepository
+import com.debbly.server.category.repository.CategoryJpaRepository
 import com.debbly.server.claim.ClaimRepository
 import com.debbly.server.claim.ClaimSideUpdate
 import com.debbly.server.claim.UserClaimSideService
@@ -29,7 +29,7 @@ class MatchService(
     private val userCachedRepository: UserCachedRepository,
     private val idService: IdService,
     private val claimRepository: ClaimRepository,
-    private val categoryRepository: CategoryRepository,
+    private val categoryJpaRepository: CategoryJpaRepository,
     private val userClaimSideService: UserClaimSideService,
     private val stageService: StageService
 ) {
@@ -44,7 +44,7 @@ class MatchService(
         withSkipClaimIds: Collection<String>? = null,
         withClaimIdToSide: Collection<Pair<String, ClaimSide>>? = null
     ): MatchRequest {
-        val activeCategoryIds = categoryRepository.findAll()
+        val activeCategoryIds = categoryJpaRepository.findAll()
             .filter { it.active }
             .map { it.categoryId }
             .toSet()
@@ -208,10 +208,10 @@ class MatchService(
 
     private fun areOpposite(claimSideA: ClaimSide?, claimSideB: ClaimSide?): Boolean {
         if (claimSideA == null || claimSideB == null) return false
-        if (claimSideA == ClaimSide.ANY && (claimSideB == ClaimSide.PRO || claimSideB == ClaimSide.CON)) return true
-        if (claimSideB == ClaimSide.ANY && (claimSideA == ClaimSide.PRO || claimSideA == ClaimSide.CON)) return true
-        if (claimSideA == ClaimSide.PRO && claimSideB == ClaimSide.CON) return true
-        if (claimSideA == ClaimSide.CON && claimSideB == ClaimSide.PRO) return true
+        if (claimSideA == ClaimSide.EITHER && (claimSideB == ClaimSide.FOR || claimSideB == ClaimSide.AGAINST)) return true
+        if (claimSideB == ClaimSide.EITHER && (claimSideA == ClaimSide.FOR || claimSideA == ClaimSide.AGAINST)) return true
+        if (claimSideA == ClaimSide.FOR && claimSideB == ClaimSide.AGAINST) return true
+        if (claimSideA == ClaimSide.AGAINST && claimSideB == ClaimSide.FOR) return true
         return false
     }
 

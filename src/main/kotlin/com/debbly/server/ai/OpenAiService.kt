@@ -19,7 +19,7 @@ class OpenAIService(
         val prompt = """
             You are a strict content moderator for an online debating platform (like Twitch, but for debates). 
             Users submit short claims that serve as the starting point for debates. 
-            Your task is to evaluate each claim against the platform rules and debate-worthiness criteria.
+            Your task is to evaluate each claim against the platform rules and provide a cleaned-up version.
 
             Platform Rules:
             - The claim must be debatable: reasonable people could disagree about it.
@@ -29,12 +29,18 @@ class OpenAIService(
               (Criticism of public figures’ actions, policies, or ideas is acceptable.)
             - The claim must not contain hate speech. 
               (If it targets an immutable identity with exclusion or inferiority → invalid. 
-               If it critiques behavior, policy, status, or law it is valid, even if offensive.)
-            - The claim must not actively promote committing illegal acts.
-              (Claims that argue about whether something should be legal or illegal are acceptable debate topics, 
-              except if the change would legalize violence, exploitation, or denial of fundamental human rights.)
+               If it critiques behavior, policy, status, or law - valid, even if offensive.)
+            - The claim must not actively promote committing illegal acts. 
+              (Debates about changing laws/policies are allowed, except if the change would legalize violence, exploitation, or denial of fundamental human rights.)
             - The claim must not contain spam, promotional content, or advertising.
             - The claim must not be nonsense, gibberish, or irrelevant platform meta-comments.
+
+            Extra Requirement:
+              - If the claim is valid, provide a normalized version:
+              - Correct spelling/grammar
+              - Remove emojis, special symbols, random punctuation
+              - Remove ALL CAPS shouting (convert to sentence case or title case if appropriate)
+              - Keep the wording faithful to the original meaning
 
             Instructions:
             For the given user claim: "$title"
@@ -47,8 +53,10 @@ class OpenAIService(
               "valid": true/false,
               "violations": ["string", "string"],   // list of violated rules or empty if none
               "reasoning": "short explanation of decision",
-              "confidence": 0.0-1.0                 // float confidence score
-            }""".trimIndent()
+              "confidence": 0.0-1.0, // confidence score
+              "normalized": "cleaned-up version (empty string if invalid)"
+            }
+            """.trimIndent()
 
         return try {
             val response = chatClient.prompt()
@@ -63,6 +71,7 @@ class OpenAIService(
                 valid = false,
                 violations = emptyList(),
                 reasoning = "AI validation failed, rejecting claim",
+                normalized = null,
                 confidence = 0.0
             )
         }
@@ -130,13 +139,14 @@ class OpenAIService(
                 valid = jsonResponse.valid,
                 violations = jsonResponse.violations,
                 reasoning = jsonResponse.reasoning,
-                confidence = jsonResponse.confidence
+                confidence = jsonResponse.confidence,
+                normalized = jsonResponse.normalized
             )
         } catch (e: Exception) {
             logger.error("Error parsing validation response: ${e.message}. Response: $response", e)
             // Fallback parsing
             val valid = response.contains("\"valid\": true") || response.contains("\"valid\":true")
-            ClaimValidationResult(valid = valid, violations = emptyList(), reasoning = "Parse error", confidence = 0.0)
+            ClaimValidationResult(valid = valid, violations = emptyList(), reasoning = "Parse error", confidence = 0.0, normalized = null)
         }
     }
 
@@ -172,12 +182,14 @@ private data class ValidationResponse(
     val valid: Boolean,
     val violations: List<String>,
     val reasoning: String,
-    val confidence: Double
+    val confidence: Double,
+    val normalized: String
 )
 
 data class ClaimValidationResult(
     val valid: Boolean,
     val violations: List<String>,
     val reasoning: String,
-    val confidence: Double
+    val confidence: Double,
+    val normalized: String?
 )

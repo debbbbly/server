@@ -3,9 +3,9 @@ package com.debbly.server.claim.model
 import java.time.Instant
 
 enum class ClaimSide {
-    PRO,
-    ANY,
-    CON,
+    FOR,
+    EITHER,
+    AGAINST,
 }
 
 data class UserClaimSideModel(

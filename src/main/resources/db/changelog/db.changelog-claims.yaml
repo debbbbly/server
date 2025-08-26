@@ -93,6 +93,18 @@ databaseChangeLog:
             referencedColumnNames: tag_id
             referencedTableName: tags
   - changeSet:
+      id: 2
+      author: gemini
+      changes:
+        - addColumn:
+            tableName: categories
+            columns:
+              - column:
+                  name: description
+                  type: varchar(255)
+                  constraints:
+                    nullable: true
+  - changeSet:
       id: 3
       author: gemini
       changes:
@@ -108,6 +120,13 @@ databaseChangeLog:
               - column:
                   name: avatar_url
                   value: "./categories/politics.png"
+        - update:
+            tableName: categories
+            columns:
+              - column:
+                  name: description
+                  value: "Political topics, governance, elections, policy"
+            where: "category_id = 'politics'"
         - insert:
             tableName: categories
             columns:
@@ -120,6 +139,13 @@ databaseChangeLog:
               - column:
                   name: avatar_url
                   value: "https://debbly.com/categories/social-issues-culture.png"
+        - update:
+            tableName: categories
+            columns:
+              - column:
+                  name: description
+                  value: "Social topics, cultural issues, ethics, human rights"
+            where: "category_id = 'social-issues-culture'"
         - insert:
             tableName: categories
             columns:
@@ -132,6 +158,13 @@ databaseChangeLog:
               - column:
                   name: avatar_url
                   value: "https://debbly.com/categories/economy-environment.png"
+        - update:
+            tableName: categories
+            columns:
+              - column:
+                  name: description
+                  value: "Economic policy, environmental issues, business, sustainability"
+            where: "category_id = 'economy-environment'"
         - insert:
             tableName: categories
             columns:
@@ -144,6 +177,13 @@ databaseChangeLog:
               - column:
                   name: avatar_url
                   value: "https://debbly.com/categories/sports-entertainment-lifestyle.png"
+        - update:
+            tableName: categories
+            columns:
+              - column:
+                  name: description
+                  value: "Sports, entertainment, lifestyle, health, fitness"
+            where: "category_id = 'sports-entertainment-lifestyle'"
         - insert:
             tableName: categories
             columns:
@@ -156,6 +196,13 @@ databaseChangeLog:
               - column:
                   name: avatar_url
                   value: "https://debbly.com/categories/technology-innovation.png"
+        - update:
+            tableName: categories
+            columns:
+              - column:
+                  name: description
+                  value: "Technology, AI, innovation, science, digital topics"
+            where: "category_id = 'technology-innovation'"
   - changeSet:
       id: 4
       author: gemini

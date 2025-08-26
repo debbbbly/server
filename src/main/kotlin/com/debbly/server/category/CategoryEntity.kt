@@ -1,4 +1,4 @@
-package com.debbly.server.claim
+package com.debbly.server.category
 
 import jakarta.persistence.Entity
 import jakarta.persistence.Id
@@ -10,6 +10,7 @@ class CategoryEntity(
     @Id
     val categoryId: String,
     val title: String,
+    val description: String?,
     val avatarUrl: String,
     val active: Boolean = true
 )
