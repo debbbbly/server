@@ -2,9 +2,11 @@ package com.debbly.server.claim
 
 import com.debbly.server.IdService
 import com.debbly.server.ai.OpenAIService
-import com.debbly.server.category.model.toEntity
 import com.debbly.server.category.repository.CategoryCachedRepository
 import com.debbly.server.claim.exception.ClaimValidationException
+import com.debbly.server.claim.model.ClaimModel
+import com.debbly.server.claim.model.TagModel
+import com.debbly.server.claim.repository.ClaimCachedRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -12,7 +14,7 @@ import kotlin.jvm.optionals.getOrNull
 
 @Service
 class ClaimService(
-    private val repository: ClaimRepository,
+    private val claimCachedRepository: ClaimCachedRepository,
     private val categoryCachedRepository: CategoryCachedRepository,
     private val tagRepository: TagRepository,
     private val openAIService: OpenAIService,
@@ -20,21 +22,21 @@ class ClaimService(
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    fun findAll(): List<ClaimEntity> = repository.findAllWithAllData()
+    fun findAll(): List<ClaimModel> = claimCachedRepository.findAll()
 
-    fun save(claim: ClaimEntity): ClaimEntity = repository.save(claim)
+    fun save(claim: ClaimModel): ClaimModel = claimCachedRepository.save(claim)
 
-    fun getTopClaims(categoryIds: List<String>?, limit: Int): List<ClaimEntity> {
+    fun getTopClaims(categoryIds: List<String>?, limit: Int): List<ClaimModel> {
         return (if (categoryIds.isNullOrEmpty()) {
-            repository.findAllWithAllData().take(limit)
+            claimCachedRepository.findAll().take(limit)
         } else {
-            repository.findByCategoryCategoryIdInWithAllData(categoryIds).take(limit)
+            claimCachedRepository.findByCategoryCategoryIdIn(categoryIds).take(limit)
         })
             .filter { claim -> claim.category.active }
     }
 
     @Transactional
-    fun propose(title: String, userId: String): ClaimEntity {
+    fun propose(title: String, userId: String): ClaimModel {
         logger.info("Processing claim proposal: '$title' by user: $userId")
 
         // Step 1: AI validation
@@ -53,22 +55,24 @@ class ClaimService(
         val tagTitles = openAIService.generateTags(title)
         val tags = tagTitles.mapNotNull { tagTitle ->
             // Find existing tag or create new one
-            tagRepository.findByTitle(tagTitle).getOrNull()
-                ?: try {
-                    tagRepository.save(TagEntity(idService.getId(), tagTitle))
-                } catch (e: Exception) {
-                    logger.warn("Failed to create tag '$tagTitle': ${e.message}")
-                    null
-                }
+            tagRepository.findByTitle(tagTitle).getOrNull()?.let { existingTag ->
+                TagModel(existingTag.tagId, existingTag.title)
+            } ?: try {
+                val savedTag = tagRepository.save(TagEntity(idService.getId(), tagTitle))
+                TagModel(savedTag.tagId, savedTag.title)
+            } catch (e: Exception) {
+                logger.warn("Failed to create tag '$tagTitle': ${e.message}")
+                null
+            }
         }.toSet()
 
-        return repository.save(
-            ClaimEntity(
-                claimId = idService.getId(),
-                category = categoryModel.toEntity(),
-                title = title,
-                tags = tags
-            )
+        val newClaim = ClaimModel(
+            claimId = idService.getId(),
+            category = categoryModel,
+            title = validationResult.normalized ?: title,
+            tags = tags
         )
+
+        return claimCachedRepository.save(newClaim)
     }
 }

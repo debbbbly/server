@@ -2,6 +2,7 @@ package com.debbly.server.claim
 
 import com.debbly.server.auth.AuthService
 import com.debbly.server.auth.ExternalUserId
+import com.debbly.server.claim.model.ClaimModel
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -15,13 +16,13 @@ class ClaimController(
 
     // TODO remove or auth
     @GetMapping
-    fun getAllClaims(): List<ClaimEntity> = service.findAll()
+    fun getAllClaims(): List<ClaimModel> = service.findAll()
 
     @GetMapping("/top")
     fun getOptions(
         @RequestParam(required = false) categoryIds: List<String>?,
         @RequestParam(defaultValue = "5") limit: Int
-    ): List<ClaimEntity> {
+    ): List<ClaimModel> {
         return service.getTopClaims(categoryIds, limit)
     }
 
@@ -29,7 +30,7 @@ class ClaimController(
     fun proposeClaim(
         @RequestBody request: ProposeClaimRequest,
         @ExternalUserId externalUserId: String?
-    ): ResponseEntity<ClaimEntity> {
+    ): ResponseEntity<ClaimModel> {
         val claim = authService.authenticate(externalUserId).let { user ->
             service.propose(request.title, user.userId)
         }

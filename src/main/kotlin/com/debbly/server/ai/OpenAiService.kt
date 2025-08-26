@@ -17,51 +17,73 @@ class OpenAIService(
 
     fun validateClaim(title: String): ClaimValidationResult {
         val prompt = """
-            You are a strict content moderator for an online debating platform (like Twitch, but for debates). 
-            Users submit short claims that serve as the starting point for debates. 
-            Your task is to evaluate each claim against the platform rules and provide a cleaned-up version.
+            You are a content moderator and classifier for an online debating platform 
+            (like Twitch, but for debates). Users submit short claims that serve as the starting 
+            point for debates. Your task is to evaluate each claim against the platform rules, 
+            normalize it, and enrich it with categories and tags.
 
             Platform Rules:
             - The claim must be debatable: reasonable people could disagree about it.
-            - The claim must be clear and specific enough to spark discussion. 
+            - The claim must be clear and specific enough to spark discussion.
               (If broad but still conveys a clear controversial stance, accept it.)
-            - The claim must not contain personal attacks against private individuals. 
+            - The claim must not contain personal attacks against private individuals.
               (Criticism of public figures’ actions, policies, or ideas is acceptable.)
-            - The claim must not contain hate speech. 
-              (If it targets an immutable identity with exclusion or inferiority → invalid. 
+            - The claim must not contain hate speech.
+              (If it targets an immutable identity with exclusion or inferiority → invalid.
                If it critiques behavior, policy, status, or law - valid, even if offensive.)
-            - The claim must not actively promote committing illegal acts. 
-              (Debates about changing laws/policies are allowed, 
-              except if the change would legalize violence, exploitation, or denial of fundamental human rights.)
-            - The claim must not mention sexual organs, sexual activity, or explicit anatomy 
-              UNLESS the claim is clearly framed as a serious policy, educational, or medical debate. 
-              By default, any casual reference to sex or anatomy should be treated as invalid, 
+            - The claim must not actively promote committing illegal acts.
+              (Debates about changing laws/policies are allowed,
+               except if the change would legalize violence, exploitation, or denial of 
+               fundamental human rights.)
+            - The claim must not mention sexual organs, sexual activity, or explicit anatomy
+              UNLESS the claim is clearly framed as a serious policy, educational, or medical debate.
+              By default, any casual reference to sex or anatomy should be treated as invalid,
               even if it could be technically debatable.
             - The claim must not contain spam, promotional content, or advertising.
             - The claim must not be nonsense, gibberish, or irrelevant platform meta-comments.
-            - The claim must not be frivolous, silly, or obviously low-value. 
+            - The claim must not be frivolous, silly, or obviously low-value.
               (Claims should be framed in a way that could lead to a meaningful debate.)
 
-            Extra Requirement:
-              - If the claim is valid, provide a normalized version:
-              - Correct spelling/grammar
-              - Remove emojis, special symbols, random punctuation
-              - Remove ALL CAPS shouting (convert to sentence case or title case if appropriate)
-              - Keep the wording faithful to the original meaning
+            Claim Normalization Requirements:
+            - If the claim is valid, provide a normalized version:
+            - Correct spelling/grammar
+            - Remove emojis, special symbols, random punctuation
+            - Remove ALL CAPS shouting (convert to sentence case or title case if appropriate)
+            - Normalize slang and contractions into standard English where possible.
+            - Clarify vague claims into specific, debatable statements while keeping intent
+            
+            Platform Claim Categories (categoryId / title):
+            - politics / Politics
+            - technology-innovation / Technology & Innovation
+            - social-issues-culture / Social Issues & Culture
+            - economy-environment / Economy & Environment
+            - sports-entertainment-lifestyle / Sports, Entertainment & Lifestyle
+            (Default: social-issues-culture if unsure)
+            
+            Tag requirements:
+            - Assign 1–2 subject tags (entities, groups, or concrete topics; Title Case; 1–3 words).
+            - Assign 1–2 domain tags (broad thematic areas: "Technology", "Law & Justice", "Economics", "Health", "Education", etc.).
+            - Optionally assign 0–1 sensitivity tag if applicable: ("Conspiracy", "Drugs", "Sex", "Violence", "Religion", "Controversial", etc.).
+            - Tags must not duplicate the main category. Tags must be distinct from one another.
 
             Instructions:
             For the given user claim: "$title"
 
             1. Check if the claim follows ALL platform rules.
             2. If invalid, list each violated rule explicitly.
-            3. Always respond ONLY in the following strict JSON format:
+            3. Assign exactly ONE main category.
+            4. Assign 2–5 tags (subject, domain, and sensitivity).
+            5. Respond ONLY with a single valid JSON object. No text outside JSON.
+            6. Reasoning must be concise (1–2 sentences).
 
+            Output Format:
             {
               "valid": true/false,
-              "violations": ["string", "string"],   // list of violated rules or empty if none
-              "reasoning": "short explanation of decision",
-              "confidence": 0.0-1.0, // confidence score
-              "normalized": "cleaned-up version (empty string if invalid)"
+              "violations": ["string", "string"],
+              "reasoning": "short explanation (1–2 sentences)",
+              "normalized": "cleaned-up version (empty string if invalid)",
+              "categoryId": "string",
+              "tags": ["string", "string", "string", "string"]
             }
             """.trimIndent()
 

@@ -12,7 +12,7 @@ import kotlin.jvm.optionals.getOrNull
 @Service
 class UserClaimSideService(
     private val userClaimSideRepository: UserClaimSideRepository,
-    private val claimRepository: ClaimRepository,
+    private val claimRepository: ClaimJpaRepository,
     private val idService: IdService,
     private val categoryJpaRepository: CategoryJpaRepository
 ) {

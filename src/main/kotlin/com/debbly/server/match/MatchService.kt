@@ -2,7 +2,7 @@ package com.debbly.server.match
 
 import com.debbly.server.IdService
 import com.debbly.server.category.repository.CategoryJpaRepository
-import com.debbly.server.claim.ClaimRepository
+import com.debbly.server.claim.ClaimJpaRepository
 import com.debbly.server.claim.ClaimSideUpdate
 import com.debbly.server.claim.UserClaimSideService
 import com.debbly.server.claim.model.ClaimSide
@@ -28,7 +28,7 @@ class MatchService(
     private val matchRepository: MatchRepository,
     private val userCachedRepository: UserCachedRepository,
     private val idService: IdService,
-    private val claimRepository: ClaimRepository,
+    private val claimRepository: ClaimJpaRepository,
     private val categoryJpaRepository: CategoryJpaRepository,
     private val userClaimSideService: UserClaimSideService,
     private val stageService: StageService

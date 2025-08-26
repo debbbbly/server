@@ -6,7 +6,7 @@ import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 
 @Repository
-interface ClaimRepository : JpaRepository<ClaimEntity, String> {
+interface ClaimJpaRepository : JpaRepository<ClaimEntity, String> {
     fun findByCategoryCategoryIdIn(categoryIds: List<String>): List<ClaimEntity>
 
     @Query("SELECT DISTINCT c FROM claims c LEFT JOIN FETCH c.category cat LEFT JOIN FETCH c.tags WHERE cat.categoryId IN :categoryIds")

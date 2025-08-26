@@ -1,8 +1,8 @@
 package com.debbly.server.stage
 
 import com.debbly.server.IdService
-import com.debbly.server.claim.ClaimRepository
 import com.debbly.server.claim.model.ClaimSide
+import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.repository.UserClaimSideRepository
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.livekit.LiveKitService
@@ -28,7 +28,7 @@ class StageService(
     private val liveStageRedisRepository: LiveStageRedisRepository,
     private val userCachedRepository: UserCachedRepository,
     private val idService: IdService,
-    private val claimRepository: ClaimRepository,
+    private val claimCachedRepository: ClaimCachedRepository,
     private val userClaimSideRepository: UserClaimSideRepository,
     private val liveKitService: LiveKitService
 ) {
@@ -37,7 +37,7 @@ class StageService(
 
     fun getStageDetails(stageId: String, userId: String?): StageDetails {
         val stage = stageRepository.getById(stageId)
-        val claim = stage.claimId?.let { claimRepository.findById(it).orElseThrow() }
+        val claim = stage.claimId?.let { claimCachedRepository.getById(it) }
         val hosts = stage.hosts.map { host ->
             val user = userCachedRepository.findById(host.userId) ?: throw Exception("User not found")
             val side = host.side
@@ -79,7 +79,7 @@ class StageService(
 
     fun createStage(claimId: String?, hosts: List<StageModel.StageHostModel>): StageModel {
         val stageId = idService.getId()
-        val claim = claimId?.let { claimRepository.findById(it).orElseThrow() }
+        val claim = claimId?.let { claimCachedRepository.getById(it) }
         val stage = StageModel(
             stageId = stageId,
             type = if (hosts.size == 1) StageType.SOLO else StageType.ONE_ON_ONE,
@@ -101,7 +101,7 @@ class StageService(
 
             liveKitService.createRoom(stageId)
 
-            val claim = claimRepository.findById(match.claim.claimId).orElseThrow()
+            val claim = claimCachedRepository.getById(match.claim.claimId)
 
             val hosts = match.sides.map {
                 StageModel.StageHostModel(
