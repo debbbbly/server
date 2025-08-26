@@ -79,9 +79,9 @@ class OpenAIService(
             Output Format:
             {
               "valid": true/false,
+              "normalized": "cleaned-up version (empty string if invalid)",
               "violations": ["string", "string"],
               "reasoning": "short explanation (1–2 sentences)",
-              "normalized": "cleaned-up version (empty string if invalid)",
               "categoryId": "string",
               "tags": ["string", "string", "string", "string"]
             }
@@ -98,127 +98,34 @@ class OpenAIService(
             logger.error("Error validating claim: ${e.message}", e)
             ClaimValidationResult(
                 valid = false,
-                violations = emptyList(),
-                reasoning = "AI validation failed, rejecting claim",
-                normalized = null,
-                confidence = 0.0
             )
         }
     }
 
-    fun generateTags(title: String): List<String> {
-        val prompt = """
-        Generate 2-4 tags for this debate claim following these guidelines:
-        - Tags should be breoad enough that multiple claims can share them
-        - Tags should be specific enough to be meaningful
-        - Use title case (e.g., "AI Regulation" not "ai regulation")
-        - Focus on the main topics/domains involved
-        - Avoid overly generic tags like "Politics" or "Technology"
-        
-        Claim: "$title"
-        
-        Respond ONLY with a JSON array of tag strings: ["Tag1", "Tag2", "Tag3"]
-        """.trimIndent()
-
-        return try {
-            val response = chatClient.prompt()
-                .user(prompt)
-                .call()
-                .content() ?: ""
-
-            parseTagsResponse(response)
-        } catch (e: Exception) {
-            logger.error("Error generating tags: ${e.message}", e)
-            listOf("General")
-        }
-    }
-
-    fun assignCategory(title: String): String {
-        val prompt = """
-        Classify this debate claim into ONE of these predefined categories:
-        
-        - social-issues-culture: Social topics, cultural issues, ethics, human rights
-        - economy-environment: Economic policy, environmental issues, business, sustainability  
-        - sports-entertainment-lifestyle: Sports, entertainment, lifestyle, health, fitness
-        - technology-innovation: Technology, AI, innovation, science, digital topics
-        - politics: Political topics, governance, elections, policy
-        
-        Claim: "$title"
-        
-        Respond with ONLY the category ID (no quotes): social-issues-culture
-        """.trimIndent()
-
-        return try {
-            val response = chatClient.prompt()
-                .user(prompt)
-                .call()
-                .content() ?: ""
-
-            parseCategoryResponse(response)
-        } catch (e: Exception) {
-            logger.error("Error assigning category: ${e.message}", e)
-            "social-issues-culture" // Default fallback
-        }
-    }
 
     private fun parseValidationResponse(response: String): ClaimValidationResult {
         return try {
-            val jsonResponse = objectMapper.readValue<ValidationResponse>(response)
-            ClaimValidationResult(
-                valid = jsonResponse.valid,
-                violations = jsonResponse.violations,
-                reasoning = jsonResponse.reasoning,
-                confidence = jsonResponse.confidence,
-                normalized = jsonResponse.normalized
-            )
+            objectMapper.readValue<ClaimValidationResult>(response)
         } catch (e: Exception) {
             logger.error("Error parsing validation response: ${e.message}. Response: $response", e)
             // Fallback parsing
             val valid = response.contains("\"valid\": true") || response.contains("\"valid\":true")
-            ClaimValidationResult(valid = valid, violations = emptyList(), reasoning = "Parse error", confidence = 0.0, normalized = null)
+            ClaimValidationResult(
+                valid = valid,
+                normalized = null,
+                categoryId = "social-issues-culture",
+                reasoning = "Parse error",
+            )
         }
     }
 
-    private fun parseTagsResponse(response: String): List<String> {
-        return try {
-            objectMapper.readValue<List<String>>(response.trim())
-        } catch (e: Exception) {
-            logger.error("Error parsing tags response: ${e.message}. Response: $response", e)
-            // Fallback parsing
-            try {
-                val tagsStr = response.substringAfter("[").substringBefore("]")
-                tagsStr.split(",").map { it.trim().removeSurrounding("\"") }.filter { it.isNotEmpty() }
-            } catch (e2: Exception) {
-                listOf("General")
-            }
-        }
-    }
-
-    private fun parseCategoryResponse(response: String): String {
-        val category = response.trim().removeSurrounding("\"")
-        val validCategories = setOf(
-            "social-issues-culture",
-            "economy-environment",
-            "sports-entertainment-lifestyle",
-            "technology-innovation",
-            "politics"
-        )
-        return if (category in validCategories) category else "social-issues-culture"
-    }
 }
-
-private data class ValidationResponse(
-    val valid: Boolean,
-    val violations: List<String>,
-    val reasoning: String,
-    val confidence: Double,
-    val normalized: String
-)
 
 data class ClaimValidationResult(
     val valid: Boolean,
-    val violations: List<String>,
-    val reasoning: String,
-    val confidence: Double,
-    val normalized: String?
+    val normalized: String? = null,
+    val violations: List<String> = emptyList(),
+    val reasoning: String? = null,
+    val categoryId: String? = null,
+    val tags: List<String> = emptyList(),
 )

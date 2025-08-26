@@ -39,21 +39,22 @@ class ClaimService(
     fun propose(title: String, userId: String): ClaimModel {
         logger.info("Processing claim proposal: '$title' by user: $userId")
 
-        // Step 1: AI validation
+        // AI validation, normalization, category assignment, and tag generation in one call
         val validationResult = openAIService.validateClaim(title)
         if (!validationResult.valid) {
             logger.warn("Claim rejected for user $userId: ${validationResult.violations}")
             throw ClaimValidationException(validationResult.violations, validationResult.reasoning)
         }
 
-        logger.info("Claim validation passed with confidence: ${validationResult.confidence}")
+        logger.info("Claim validation passed with category: ${validationResult.categoryId}, tags: ${validationResult.tags}")
 
-        val categoryId = openAIService.assignCategory(title)
+        // Get category from AI result
+        val categoryId = validationResult.categoryId ?: "social-issues-culture"
         val categoryModel = categoryCachedRepository.findById(categoryId)
             ?: throw IllegalArgumentException("Category not found: $categoryId")
 
-        val tagTitles = openAIService.generateTags(title)
-        val tags = tagTitles.mapNotNull { tagTitle ->
+        // Create tags from AI result
+        val tags = validationResult.tags.mapNotNull { tagTitle ->
             // Find existing tag or create new one
             tagRepository.findByTitle(tagTitle).getOrNull()?.let { existingTag ->
                 TagModel(existingTag.tagId, existingTag.title)
