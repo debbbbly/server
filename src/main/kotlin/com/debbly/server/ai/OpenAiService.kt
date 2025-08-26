@@ -31,9 +31,16 @@ class OpenAIService(
               (If it targets an immutable identity with exclusion or inferiority → invalid. 
                If it critiques behavior, policy, status, or law - valid, even if offensive.)
             - The claim must not actively promote committing illegal acts. 
-              (Debates about changing laws/policies are allowed, except if the change would legalize violence, exploitation, or denial of fundamental human rights.)
+              (Debates about changing laws/policies are allowed, 
+              except if the change would legalize violence, exploitation, or denial of fundamental human rights.)
+            - The claim must not mention sexual organs, sexual activity, or explicit anatomy 
+              UNLESS the claim is clearly framed as a serious policy, educational, or medical debate. 
+              By default, any casual reference to sex or anatomy should be treated as invalid, 
+              even if it could be technically debatable.
             - The claim must not contain spam, promotional content, or advertising.
             - The claim must not be nonsense, gibberish, or irrelevant platform meta-comments.
+            - The claim must not be frivolous, silly, or obviously low-value. 
+              (Claims should be framed in a way that could lead to a meaningful debate.)
 
             Extra Requirement:
               - If the claim is valid, provide a normalized version:

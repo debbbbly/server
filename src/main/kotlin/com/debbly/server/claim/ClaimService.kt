@@ -43,7 +43,7 @@ class ClaimService(
             logger.warn("Claim rejected for user $userId: ${validationResult.violations}")
             throw ClaimValidationException(validationResult.violations, validationResult.reasoning)
         }
-        
+
         logger.info("Claim validation passed with confidence: ${validationResult.confidence}")
 
         val categoryId = openAIService.assignCategory(title)
@@ -62,16 +62,13 @@ class ClaimService(
                 }
         }.toSet()
 
-        val newClaim = ClaimEntity(
-            claimId = idService.getId(),
-            category = categoryModel.toEntity(),
-            title = title,
-            tags = tags
+        return repository.save(
+            ClaimEntity(
+                claimId = idService.getId(),
+                category = categoryModel.toEntity(),
+                title = title,
+                tags = tags
+            )
         )
-
-        val savedClaim = repository.save(newClaim)
-        logger.info("Successfully created claim: ${savedClaim.claimId} with ${tags.size} tags")
-        
-        return savedClaim
     }
 }

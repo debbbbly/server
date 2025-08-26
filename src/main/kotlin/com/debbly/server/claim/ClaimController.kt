@@ -29,13 +29,12 @@ class ClaimController(
     fun proposeClaim(
         @RequestBody request: ProposeClaimRequest,
         @ExternalUserId externalUserId: String?
-    ): ResponseEntity<Void> {
-        authService.authenticate(externalUserId)?.let { user ->
+    ): ResponseEntity<ClaimEntity> {
+        val claim = authService.authenticate(externalUserId).let { user ->
             service.propose(request.title, user.userId)
         }
 
-
-        return ResponseEntity.ok().build()
+        return ResponseEntity.ok(claim)
     }
 
     data class ProposeClaimRequest(

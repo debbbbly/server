@@ -1,7 +1,13 @@
 package com.debbly.server.category.model
 
 import com.debbly.server.category.CategoryEntity
+import com.fasterxml.jackson.annotation.JsonTypeInfo
 
+@JsonTypeInfo(
+    use = JsonTypeInfo.Id.CLASS,
+    include = JsonTypeInfo.As.PROPERTY,
+    property = "@class"
+)
 data class CategoryModel(
     val categoryId: String,
     val title: String,
