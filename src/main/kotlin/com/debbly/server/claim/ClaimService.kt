@@ -5,11 +5,15 @@ import com.debbly.server.ai.OpenAIService
 import com.debbly.server.category.repository.CategoryCachedRepository
 import com.debbly.server.claim.exception.ClaimValidationException
 import com.debbly.server.claim.model.ClaimModel
+import com.debbly.server.claim.model.ClaimSide
 import com.debbly.server.claim.model.TagModel
+import com.debbly.server.claim.model.UserClaimSideModel
 import com.debbly.server.claim.repository.ClaimCachedRepository
+import com.debbly.server.claim.repository.UserClaimSideRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Instant
 import kotlin.jvm.optionals.getOrNull
 
 @Service
@@ -18,6 +22,7 @@ class ClaimService(
     private val categoryCachedRepository: CategoryCachedRepository,
     private val tagRepository: TagRepository,
     private val openAIService: OpenAIService,
+    private val userClaimSideRepository: UserClaimSideRepository,
     private val idService: IdService
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -36,7 +41,7 @@ class ClaimService(
     }
 
     @Transactional
-    fun propose(title: String, userId: String): ClaimModel {
+    fun propose(title: String, userId: String, side: ClaimSide? = null): ClaimModel {
         logger.info("Processing claim proposal: '$title' by user: $userId")
 
         // AI validation, normalization, category assignment, and tag generation in one call
@@ -67,13 +72,26 @@ class ClaimService(
             }
         }.toSet()
 
-        val newClaim = ClaimModel(
+        val claim = ClaimModel(
             claimId = idService.getId(),
             category = categoryModel,
             title = validationResult.normalized ?: title,
             tags = tags
         )
+        claimCachedRepository.save(claim)
 
-        return claimCachedRepository.save(newClaim)
+        side?.let {
+            userClaimSideRepository.save(
+                UserClaimSideModel(
+                    claimId = claim.claimId,
+                    categoryId = claim.category.categoryId,
+                    userId = userId,
+                    side = it,
+                    updatedAt = Instant.now()
+                )
+            )
+        }
+
+        return claim
     }
 }

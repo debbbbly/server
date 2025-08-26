@@ -3,6 +3,8 @@ package com.debbly.server.claim
 import com.debbly.server.auth.AuthService
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.claim.model.ClaimModel
+import com.debbly.server.claim.model.ClaimSide
+import jakarta.validation.constraints.Size
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -32,14 +34,16 @@ class ClaimController(
         @ExternalUserId externalUserId: String?
     ): ResponseEntity<ClaimModel> {
         val claim = authService.authenticate(externalUserId).let { user ->
-            service.propose(request.title, user.userId)
+            service.propose(request.title, user.userId, request.side)
         }
 
         return ResponseEntity.ok(claim)
     }
 
     data class ProposeClaimRequest(
+        @field:Size(max = 255, message = "Title must be at most 255 characters long")
         val title: String,
+        val side: ClaimSide
     )
 
     @PostMapping("/side")
