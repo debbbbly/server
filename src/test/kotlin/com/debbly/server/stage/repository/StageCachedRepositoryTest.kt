@@ -1,7 +1,7 @@
 package com.debbly.server.stage.repository
 
 import com.debbly.server.category.CategoryEntity
-import com.debbly.server.claim.ClaimEntity
+import com.debbly.server.claim.repository.ClaimEntity
 import com.debbly.server.stage.model.StageType
 import com.debbly.server.stage.repository.entities.StageEntity
 import jakarta.persistence.EntityManager

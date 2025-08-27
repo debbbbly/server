@@ -1,4 +1,4 @@
-package com.debbly.server.claim
+package com.debbly.server.claim.tag
 
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository

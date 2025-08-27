@@ -50,7 +50,7 @@ databaseChangeLog:
                     foreignKeyName: fk_stage_hosts_user
                     references: users(user_id)
               - column:
-                  name: side
+                  name: stance
                   type: varchar(16)
         - addPrimaryKey:
             tableName: stage_hosts

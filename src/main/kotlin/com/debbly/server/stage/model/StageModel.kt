@@ -1,6 +1,6 @@
 package com.debbly.server.stage.model
 
-import com.debbly.server.claim.model.ClaimSide
+import com.debbly.server.claim.user.ClaimStance
 import com.debbly.server.stage.model.StageModel.StageHostModel
 import com.debbly.server.stage.repository.entities.StageEntity
 import com.debbly.server.stage.repository.entities.StageHostEntity
@@ -24,7 +24,7 @@ data class StageModel(
 ) {
     data class StageHostModel(
         val userId: String,
-        val side: ClaimSide?
+        val stance: ClaimStance?
     )
 }
 
@@ -44,7 +44,7 @@ enum class StageType {
                 userId = model.userId,
                 stageId = this.stageId
             ),
-            side = model.side
+            stance = model.stance
         )
     },
     createdAt = this.createdAt,
@@ -59,7 +59,7 @@ enum class StageType {
     hosts = this.hosts.map { entity ->
         StageHostModel(
             userId = entity.id.userId,
-            side = entity.side
+            stance = entity.stance
         )
     },
     createdAt = this.createdAt,

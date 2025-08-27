@@ -61,18 +61,26 @@ class OpenAIService(
             (Default: social-issues-culture if unsure)
             
             Tag requirements:
-            - Assign 1–2 subject tags (entities, groups, or concrete topics; Title Case; 1–3 words).
-            - Assign 1–2 domain tags (broad thematic areas: "Technology", "Law & Justice", "Economics", "Health", "Education", etc.).
-            - Optionally assign 0–1 sensitivity tag if applicable: ("Conspiracy", "Drugs", "Sex", "Violence", "Religion", "Controversial", etc.).
-            - Tags must not duplicate the main category. Tags must be distinct from one another.
-
+            - Assign 1–2 subject tags (entities, groups, or concrete topics: AI, Twich, Climate Change, US, Vaccines, etc.)
+            - Assign 1–2 domain tags (broader thematic areas: Technology, Law & Justice, Economics, Health, Education, etc.)
+            - Optionally assign 0–1 sensitivity tag if applicable (Conspiracy, Drugs, Sex, Violence, Religion, Controversial, etc.)
+            - Tags must be distinct from one another
+            - Tags must be in singular form unless the entity is universally known in plural (e.g. Human Rights)
+            - Always apply formatting rules:
+                - Use the standard abbreviation instead of the full phrase for widely recognized terms:
+                    -- Artificial Intelligence → AI
+                    -- United States → US
+                    -- Information Technology → IT
+                - Always prefer common abbreviation over a long form
+                - Do not create uncommon or ambiguous abbreviations
+            
             Instructions:
             For the given user claim: "$title"
 
             1. Check if the claim follows ALL platform rules.
             2. If invalid, list each violated rule explicitly.
             3. Assign exactly ONE main category.
-            4. Assign 2–5 tags (subject, domain, and sensitivity).
+            4. Assign 2–5 tags (subject, domain, and sensitivity) applying Tag formatting rules.
             5. Respond ONLY with a single valid JSON object. No text outside JSON.
             6. Reasoning must be concise (1–2 sentences).
 
@@ -85,6 +93,42 @@ class OpenAIService(
               "categoryId": "string",
               "tags": ["string", "string", "string", "string"]
             }
+            
+            Examples:
+                Claim: "The benefits of artificial intelligence outweigh its risks to society"
+                Response: 
+                {
+                  "valid": true,
+                  "normalized": "The benefits of AI outweigh its risks to society.",
+                  "violations": [],
+                  "reasoning": "The claim is clear, specific, and debatable without violating any platform rules.",
+                  "categoryId": "technology-innovation",
+                  "tags": ["AI", "Technology", "Society"]
+                }
+                
+                Claim: "Governments should prioritize climate change mitigation over economic growth"
+                Response: 
+                {
+                  "valid": true,
+                  "normalized": "Governments should prioritize climate change mitigation over economic growth.",
+                  "violations": [],
+                  "reasoning": "The claim is specific and debatable, addressing a significant policy issue.",
+                  "categoryId": "economy-environment",
+                  "tags": ["Government", "Climate Change", "Environment", "Economy"]
+                }
+                
+                Claim: "The United States has a moral obligation to intervene in international conflicts"
+                Response: 
+                {
+                  "valid": true,
+                  "normalized": "The US has a moral obligation to intervene in international conflicts.",
+                  "violations": [],
+                  "reasoning": "The claim is debatable and pertains to international relations without violating platform rules.",
+                  "categoryId": "politics",
+                  "tags": ["US", "Politics", "War"]
+                }
+               
+               
             """.trimIndent()
 
         return try {

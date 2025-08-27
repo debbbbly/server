@@ -3,8 +3,8 @@ package com.debbly.server.claim.model
 import com.debbly.server.category.model.CategoryModel
 import com.debbly.server.category.model.toEntity
 import com.debbly.server.category.model.toModel
-import com.debbly.server.claim.ClaimEntity
-import com.debbly.server.claim.TagEntity
+import com.debbly.server.claim.repository.ClaimEntity
+import com.debbly.server.claim.tag.TagEntity
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 
 @JsonTypeInfo(

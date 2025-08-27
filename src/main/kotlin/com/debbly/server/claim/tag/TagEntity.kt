@@ -1,4 +1,4 @@
-package com.debbly.server.claim
+package com.debbly.server.claim.tag
 
 import jakarta.persistence.Entity
 import jakarta.persistence.Id

@@ -1,11 +1,11 @@
 package com.debbly.server.match.model
 
-import com.debbly.server.claim.model.ClaimSide
+import com.debbly.server.claim.user.ClaimStance
 import java.time.Instant
 
 data class MatchRequest(
     val userId: String,
-    val claimIdToSide: Map<String, ClaimSide>,
+    val claimIdToStance: Map<String, ClaimStance>,
     val skipClaimIds: Collection<String> = emptySet(),
     val joinedAt: Instant
 )

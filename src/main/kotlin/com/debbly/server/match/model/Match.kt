@@ -1,6 +1,6 @@
 package com.debbly.server.match.model
 
-import com.debbly.server.claim.model.ClaimSide
+import com.debbly.server.claim.user.ClaimStance
 
 import java.time.Instant
 
@@ -8,15 +8,15 @@ data class Match(
     val matchId: String,
     val claim: MatchClaim,
     val status: MatchStatus,
-    val sides: List<MatchSide>,
+    val opponents: List<MatchOpponent>,
     val createdAt: Instant
 ) {
-    data class MatchSide(
+    data class MatchOpponent(
         val userId: String,
         val username: String?,
         val avatarUrl: String?,
-        val side: ClaimSide?,
-        val status: MatchSideStatus
+        val stance: ClaimStance?,
+        val status: MatchOpponentStatus
     )
 
     data class MatchClaim(
@@ -29,6 +29,6 @@ enum class MatchStatus {
     PENDING, ACCEPTED, REJECTED
 }
 
-enum class MatchSideStatus {
+enum class MatchOpponentStatus {
     PENDING, ACCEPTED, REJECTED
 }

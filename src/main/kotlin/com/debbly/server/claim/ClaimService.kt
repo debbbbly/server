@@ -5,11 +5,13 @@ import com.debbly.server.ai.OpenAIService
 import com.debbly.server.category.repository.CategoryCachedRepository
 import com.debbly.server.claim.exception.ClaimValidationException
 import com.debbly.server.claim.model.ClaimModel
-import com.debbly.server.claim.model.ClaimSide
+import com.debbly.server.claim.user.ClaimStance
 import com.debbly.server.claim.model.TagModel
-import com.debbly.server.claim.model.UserClaimSideModel
+import com.debbly.server.claim.user.UserClaimModel
 import com.debbly.server.claim.repository.ClaimCachedRepository
-import com.debbly.server.claim.repository.UserClaimSideRepository
+import com.debbly.server.claim.tag.TagEntity
+import com.debbly.server.claim.tag.TagRepository
+import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -22,7 +24,7 @@ class ClaimService(
     private val categoryCachedRepository: CategoryCachedRepository,
     private val tagRepository: TagRepository,
     private val openAIService: OpenAIService,
-    private val userClaimSideRepository: UserClaimSideRepository,
+    private val userClaimCachedRepository: UserClaimCachedRepository,
     private val idService: IdService
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -40,8 +42,22 @@ class ClaimService(
             .filter { claim -> claim.category.active }
     }
 
+    fun getUserClaims(userId: String, categoryIds: List<String>?, limit: Int): List<UserClaimModel> {
+        val activeCategoryIds = categoryCachedRepository.findAll()
+            .filter { it.active }
+            .map { it.categoryId }
+            .toSet()
+
+        return (if (categoryIds.isNullOrEmpty()) {
+            userClaimCachedRepository.findByUserId(userId)
+        } else {
+            userClaimCachedRepository.findByIdUserIdAndCategoryIdIn(userId, categoryIds).take(limit)
+        })
+            .filter { it.categoryId in activeCategoryIds }
+    }
+
     @Transactional
-    fun propose(title: String, userId: String, side: ClaimSide? = null): ClaimModel {
+    fun propose(title: String, userId: String, stance: ClaimStance? = null): ClaimModel {
         logger.info("Processing claim proposal: '$title' by user: $userId")
 
         // AI validation, normalization, category assignment, and tag generation in one call
@@ -80,13 +96,14 @@ class ClaimService(
         )
         claimCachedRepository.save(claim)
 
-        side?.let {
-            userClaimSideRepository.save(
-                UserClaimSideModel(
+        stance?.let {
+            userClaimCachedRepository.save(
+                UserClaimModel(
                     claimId = claim.claimId,
                     categoryId = claim.category.categoryId,
                     userId = userId,
-                    side = it,
+                    stance = it,
+                    priority = null, // TODO set highest
                     updatedAt = Instant.now()
                 )
             )

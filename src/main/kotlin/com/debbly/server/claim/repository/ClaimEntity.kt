@@ -1,6 +1,7 @@
-package com.debbly.server.claim
+package com.debbly.server.claim.repository
 
 import com.debbly.server.category.CategoryEntity
+import com.debbly.server.claim.tag.TagEntity
 import jakarta.persistence.*
 
 @Entity(name = "claims")

@@ -23,8 +23,8 @@ class MatchRepository(
         redisTemplate.opsForSet().add(ALL_MATCHES_SET, matchKey)
 
         // link each userId to this matchId
-        match.sides.forEach { side ->
-            redisTemplate.opsForValue().set("$USER_MATCH_KEY_PREFIX${side.userId}", match.matchId)
+        match.opponents.forEach { opponent ->
+            redisTemplate.opsForValue().set("$USER_MATCH_KEY_PREFIX${opponent.userId}", match.matchId)
         }
     }
 
@@ -50,7 +50,7 @@ class MatchRepository(
         val matchKey = "$MATCH_KEY_PREFIX$matchId"
         redisTemplate.opsForValue().get(matchKey)
             ?.let { objectMapper.readValue(it, Match::class.java) }
-            ?.sides
+            ?.opponents
             ?.forEach { userId ->
                 redisTemplate.delete("$USER_MATCH_KEY_PREFIX$userId")
             }

@@ -1,6 +1,5 @@
 package com.debbly.server.claim.repository
 
-import com.debbly.server.claim.ClaimJpaRepository
 import com.debbly.server.claim.model.ClaimModel
 import com.debbly.server.claim.model.toEntity
 import com.debbly.server.claim.model.toModel
