@@ -1,8 +1,8 @@
 package com.debbly.server.match
 
 import com.debbly.server.IdService
-import com.debbly.server.category.repository.CategoryJpaRepository
-import com.debbly.server.claim.repository.ClaimJpaRepository
+import com.debbly.server.category.repository.CategoryCachedRepository
+import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.user.ClaimStance
 import com.debbly.server.claim.user.ClaimStanceUpdate
 import com.debbly.server.claim.user.UserClaimService
@@ -23,13 +23,13 @@ import java.time.Instant
 
 @Service
 class MatchService(
-    private val userClaimCachedRepository: UserClaimCachedRepository,
+    private val userClaimRepository: UserClaimCachedRepository,
     private val matchQueueRepository: MatchQueueRepository,
     private val matchRepository: MatchRepository,
-    private val userCachedRepository: UserCachedRepository,
+    private val userRepository: UserCachedRepository,
     private val idService: IdService,
-    private val claimRepository: ClaimJpaRepository,
-    private val categoryJpaRepository: CategoryJpaRepository,
+    private val claimRepository: ClaimCachedRepository,
+    private val categoryRepository: CategoryCachedRepository,
     private val userClaimService: UserClaimService,
     private val stageService: StageService
 ) {
@@ -44,17 +44,17 @@ class MatchService(
         withSkipClaimIds: Collection<String>? = null,
         withClaimIdToStance: Collection<Pair<String, ClaimStance>>? = null
     ): MatchRequest {
-        val activeCategoryIds = categoryJpaRepository.findAll()
+        val activeCategoryIds = categoryRepository.findAll()
             .filter { it.active }
             .map { it.categoryId }
             .toSet()
 
-        val userClaims = userClaimCachedRepository.findByUserId(user.userId)
-            .filter { it.categoryId in activeCategoryIds }
+        val userClaims = userClaimRepository.findByUserId(user.userId)
+            .filter { it.claim.category.categoryId in activeCategoryIds }
 
         return MatchRequest(
             userId = user.userId,
-            claimIdToStance = userClaims.associate { it.claimId to it.stance }.plus(withClaimIdToStance.orEmpty()),
+            claimIdToStance = userClaims.associate { it.claim.claimId to it.stance }.plus(withClaimIdToStance.orEmpty()),
             skipClaimIds = withSkipClaimIds.orEmpty(),
             joinedAt = Instant.now()
         )
@@ -70,7 +70,7 @@ class MatchService(
 
         match.opponents.filter { it.userId != user.userId }.forEach { otherUser ->
             removeMatch(otherUser.userId)
-            matchQueueRepository.save(request = buildMatchRequest(userCachedRepository.getById(otherUser.userId)))
+            matchQueueRepository.save(request = buildMatchRequest(userRepository.getById(otherUser.userId)))
         }
     }
 
@@ -99,7 +99,7 @@ class MatchService(
 
         match.opponents.filter { it.userId != user.userId }.forEach { otherUser ->
             removeMatch(otherUser.userId)
-            matchQueueRepository.save(request = buildMatchRequest(userCachedRepository.getById(otherUser.userId)))
+            matchQueueRepository.save(request = buildMatchRequest(userRepository.getById(otherUser.userId)))
         }
     }
 
@@ -152,7 +152,7 @@ class MatchService(
             } else if (match.createdAt.isBefore(matchDeadline)) {
                 matchRepository.remove(match.matchId)
                 match.opponents.forEach { opponent ->
-                    matchQueueRepository.save(buildMatchRequest(userCachedRepository.getById(opponent.userId)))
+                    matchQueueRepository.save(buildMatchRequest(userRepository.getById(opponent.userId)))
                 }
                 logger.info("Removed match: ${match.matchId} on ${match.claim.claimId}:${match.claim.title}.")
             }
@@ -220,9 +220,9 @@ class MatchService(
 
     private fun createAndStoreMatch(userA: MatchRequest, userB: MatchRequest, claimId: String) {
         val matchId = idService.getId()
-        val claim = claimRepository.findById(claimId).orElseThrow { Exception("Claim not found") }
-        val userAEntity = userCachedRepository.getById(userA.userId)
-        val userBEntity = userCachedRepository.getById(userB.userId)
+        val claim = claimRepository.getById(claimId)
+        val userAEntity = userRepository.getById(userA.userId)
+        val userBEntity = userRepository.getById(userB.userId)
         val now = Instant.now()
 
         val match = Match(

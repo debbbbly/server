@@ -17,12 +17,11 @@ class UserClaimController(
 
     @GetMapping("/user")
     fun getUserClaims(
-        @RequestParam(required = false) categoryIds: List<String>?,
         @RequestParam(defaultValue = "5") limit: Int,
         @ExternalUserId externalUserId: String?
     ): List<UserClaimModel> {
         return authService.authenticate(externalUserId)
-            .let { user -> service.getUserClaims(user.userId, categoryIds, limit) }
+            .let { user -> service.getUserClaims(user.userId, limit) }
     }
 
     data class ProposeClaimRequest(

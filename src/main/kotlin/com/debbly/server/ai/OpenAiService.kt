@@ -127,8 +127,6 @@ class OpenAIService(
                   "categoryId": "politics",
                   "tags": ["US", "Politics", "War"]
                 }
-               
-               
             """.trimIndent()
 
         return try {

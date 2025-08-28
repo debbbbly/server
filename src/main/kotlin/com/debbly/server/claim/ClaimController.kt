@@ -21,10 +21,9 @@ class ClaimController(
 
     @GetMapping("/top")
     fun getTopClaims(
-        @RequestParam(required = false) categoryIds: List<String>?,
-        @RequestParam(defaultValue = "5") limit: Int
+        @RequestParam(defaultValue = "100") limit: Int
     ): List<ClaimModel> {
-        return service.getTopClaims(categoryIds, limit)
+        return service.getTopClaims(limit)
     }
 
     @PostMapping("/propose")

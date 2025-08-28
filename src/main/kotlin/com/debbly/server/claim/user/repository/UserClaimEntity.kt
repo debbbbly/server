@@ -1,5 +1,6 @@
 package com.debbly.server.claim.user.repository
 
+import com.debbly.server.claim.repository.ClaimEntity
 import com.debbly.server.claim.user.ClaimStance
 import jakarta.persistence.*
 import java.io.Serializable
@@ -9,6 +10,10 @@ import java.time.Instant
 data class UserClaimEntity(
     @EmbeddedId
     val id: UserClaimId,
+    @ManyToOne(fetch = FetchType.EAGER)
+    @MapsId("claimId")
+    @JoinColumn(name = "claim_id")
+    val claim: ClaimEntity,
     @Enumerated(EnumType.STRING)
     val stance: ClaimStance,
     val categoryId: String,
@@ -18,6 +23,7 @@ data class UserClaimEntity(
 
 @Embeddable
 data class UserClaimId(
+
     val claimId: String,
     val userId: String
 ) : Serializable

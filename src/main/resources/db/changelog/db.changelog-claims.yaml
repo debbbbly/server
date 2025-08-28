@@ -520,3 +520,15 @@ databaseChangeLog:
             constraintName: fk_users_claims_category_id
             referencedColumnNames: category_id
             referencedTableName: categories
+  - changeSet:
+      id: 6
+      author: gemini
+      changes:
+        - addColumn:
+            tableName: claims
+            columns:
+              - column:
+                  name: popularity
+                  type: int
+                  constraints:
+                    nullable: true

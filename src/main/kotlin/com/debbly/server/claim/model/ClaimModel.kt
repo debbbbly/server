@@ -16,7 +16,8 @@ data class ClaimModel(
     val claimId: String,
     val category: CategoryModel,
     val title: String,
-    val tags: Set<TagModel>
+    val tags: Set<TagModel>,
+    val popularity: Int?
 )
 
 data class TagModel(
@@ -28,14 +29,16 @@ fun ClaimEntity.toModel(): ClaimModel = ClaimModel(
     claimId = claimId,
     category = category.toModel(),
     title = title,
-    tags = tags.map { it.toModel() }.toSet()
+    tags = tags.map { it.toModel() }.toSet(),
+    popularity = popularity,
 )
 
 fun ClaimModel.toEntity(): ClaimEntity = ClaimEntity(
     claimId = claimId,
     category = category.toEntity(),
     title = title,
-    tags = tags.map { it.toEntity() }.toSet()
+    tags = tags.map { it.toEntity() }.toSet(),
+    popularity = popularity
 )
 
 fun TagEntity.toModel(): TagModel = TagModel(

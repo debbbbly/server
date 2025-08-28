@@ -1,5 +1,6 @@
 package com.debbly.server.claim.user
 
+import com.debbly.server.claim.model.ClaimModel
 import java.time.Instant
 
 enum class ClaimStance {
@@ -9,8 +10,7 @@ enum class ClaimStance {
 }
 
 data class UserClaimModel(
-    val claimId: String,
-    val categoryId: String,
+    val claim: ClaimModel,
     val userId: String,
     val stance: ClaimStance,
     val priority: Int?,

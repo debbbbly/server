@@ -14,6 +14,7 @@ data class ClaimEntity(
     val category: CategoryEntity,
     val title: String,
     @ManyToMany(fetch = FetchType.EAGER)
-    val tags: Set<TagEntity>
+    val tags: Set<TagEntity>,
+    val popularity: Int?
 )
 

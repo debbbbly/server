@@ -20,11 +20,7 @@ import java.time.Instant
 
 @Service
 class StageService(
-//    private val stageRepository: stageRepository,
-//    private val stageHostJpaRepository: StageHostJpaRepository,
-    // private val liveStageRepository: LiveStageRepository,
     private val stageRepository: StageCachedRepository,
-
     private val liveStageRedisRepository: LiveStageRedisRepository,
     private val userCachedRepository: UserCachedRepository,
     private val idService: IdService,

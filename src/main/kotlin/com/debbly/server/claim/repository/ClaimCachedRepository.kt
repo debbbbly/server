@@ -5,6 +5,7 @@ import com.debbly.server.claim.model.toEntity
 import com.debbly.server.claim.model.toModel
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
+import org.springframework.cache.annotation.Caching
 import org.springframework.stereotype.Service
 import kotlin.jvm.optionals.getOrNull
 
@@ -25,20 +26,11 @@ class ClaimCachedRepository(
     fun findAll(): List<ClaimModel> =
         claimJpaRepository.findAllWithAllData().map { it.toModel() }
 
-    fun findByCategoryCategoryIdIn(categoryIds: List<String>): List<ClaimModel> =
-        claimJpaRepository.findByCategoryCategoryIdInWithAllData(categoryIds).map { it.toModel() }
-
-    @CacheEvict(value = ["claimsByClaimId"], key = "#claim.claimId")
+    @Caching(
+        evict = [
+            CacheEvict(value = ["claimsByClaimId"], key = "#claim.claimId"),
+            CacheEvict(value = ["allClaims"], allEntries = true)
+        ]
+    )
     fun save(claim: ClaimModel) = claimJpaRepository.save(claim.toEntity()).toModel()
-
-    @CacheEvict(value = ["claimsByClaimId"], key = "#claimId")
-    fun evictById(claimId: String) {
-        // This method only evicts the cache entry
-    }
-
-    @CacheEvict(value = ["claimsByClaimId", "allClaims"], allEntries = true)
-    fun evictAll() {
-        // This method evicts all cache entries for claims
-    }
-
 }

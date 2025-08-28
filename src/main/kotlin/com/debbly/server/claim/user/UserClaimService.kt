@@ -1,36 +1,35 @@
 package com.debbly.server.claim.user
 
 import com.debbly.server.IdService
-import com.debbly.server.category.repository.CategoryJpaRepository
-import com.debbly.server.claim.repository.ClaimEntity
-import com.debbly.server.claim.repository.ClaimJpaRepository
+import com.debbly.server.category.repository.CategoryCachedRepository
+import com.debbly.server.claim.model.ClaimModel
+import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.user.model.UserModel
 import org.springframework.stereotype.Service
 import java.time.Instant
-import kotlin.jvm.optionals.getOrNull
 
 @Service
 class UserClaimService(
-    private val userClaimCachedRepository: UserClaimCachedRepository,
-    private val claimRepository: ClaimJpaRepository,
+    private val userClaimRepository: UserClaimCachedRepository,
+    private val claimRepository: ClaimCachedRepository,
     private val idService: IdService,
-    private val categoryJpaRepository: CategoryJpaRepository
+    private val categoryRepository: CategoryCachedRepository
 ) {
     fun save(userClaimUpdates: List<ClaimStanceUpdate>, user: UserModel) {
 
         for (update in userClaimUpdates) {
             val claim = if (update.claimId != null) {
-                claimRepository.findById(update.claimId).orElseThrow { Exception("Claim not found") }
+                claimRepository.getById(update.claimId)
 
             } else if (update.title != null) {
-                val politicsCategory = categoryJpaRepository.findById("politics")
-                    .orElseThrow { Exception("Politics category not found") }
-                val newClaim = ClaimEntity(
+                val politicsCategory = categoryRepository.getById("politics")
+                val newClaim = ClaimModel(
                     claimId = idService.getId(),
                     title = update.title,
                     category = politicsCategory,
-                    tags = emptySet()
+                    tags = emptySet(),
+                    popularity = 0
                 )
                 claimRepository.save(newClaim)
 
@@ -38,28 +37,25 @@ class UserClaimService(
                 continue
             }
 
-            // TODO get category from the claim
             val userClaim = UserClaimModel(
-                claimId = claim.claimId,
+                claim = claim,
                 userId = user.userId,
                 stance = update.stance,
-                categoryId = claim.category.categoryId,
                 priority = 0,
                 updatedAt = Instant.now()
             )
-            userClaimCachedRepository.save(userClaim)
+            userClaimRepository.save(userClaim)
         }
     }
 
     fun save(update: ClaimStanceUpdate, user: UserModel) {
         require(update.claimId != null)
-        claimRepository.findById(update.claimId).getOrNull()?.let { claim ->
-            userClaimCachedRepository.save(
+        claimRepository.findById(update.claimId)?.let { claim ->
+            userClaimRepository.save(
                 UserClaimModel(
-                    claimId = update.claimId,
+                    claim = claim,
                     userId = user.userId,
                     stance = update.stance,
-                    categoryId = claim.category.categoryId,
                     priority = 0,
                     updatedAt = Instant.now()
                 )
@@ -69,14 +65,13 @@ class UserClaimService(
 
     fun updatePriorities(priorityUpdates: List<PriorityUpdate>, user: UserModel) {
         for (update in priorityUpdates) {
-            claimRepository.findById(update.claimId).getOrNull()?.let { claim ->
-                userClaimCachedRepository.save(
+            claimRepository.findById(update.claimId)?.let { claim ->
+                userClaimRepository.save(
                     UserClaimModel(
-                        claimId = update.claimId,
+                        claim = claim,
                         userId = user.userId,
-                        stance = userClaimCachedRepository.findByUserId(user.userId)
-                            .find { it.claimId == update.claimId }?.stance ?: ClaimStance.EITHER,
-                        categoryId = claim.category.categoryId,
+                        stance = userClaimRepository.findByUserId(user.userId)
+                            .find { it.claim.claimId == update.claimId }?.stance ?: ClaimStance.EITHER,
                         priority = update.priority,
                         updatedAt = Instant.now()
                     )
@@ -84,6 +79,5 @@ class UserClaimService(
             }
         }
     }
-
 
 }

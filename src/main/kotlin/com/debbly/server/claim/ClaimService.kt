@@ -5,12 +5,12 @@ import com.debbly.server.ai.OpenAIService
 import com.debbly.server.category.repository.CategoryCachedRepository
 import com.debbly.server.claim.exception.ClaimValidationException
 import com.debbly.server.claim.model.ClaimModel
-import com.debbly.server.claim.user.ClaimStance
 import com.debbly.server.claim.model.TagModel
-import com.debbly.server.claim.user.UserClaimModel
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.tag.TagEntity
 import com.debbly.server.claim.tag.TagRepository
+import com.debbly.server.claim.user.ClaimStance
+import com.debbly.server.claim.user.UserClaimModel
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -33,27 +33,19 @@ class ClaimService(
 
     fun save(claim: ClaimModel): ClaimModel = claimCachedRepository.save(claim)
 
-    fun getTopClaims(categoryIds: List<String>?, limit: Int): List<ClaimModel> {
-        return (if (categoryIds.isNullOrEmpty()) {
-            claimCachedRepository.findAll().take(limit)
-        } else {
-            claimCachedRepository.findByCategoryCategoryIdIn(categoryIds).take(limit)
-        })
+    fun getTopClaims(limit: Int): List<ClaimModel> {
+        return claimCachedRepository.findAll().take(limit)
             .filter { claim -> claim.category.active }
     }
 
-    fun getUserClaims(userId: String, categoryIds: List<String>?, limit: Int): List<UserClaimModel> {
+    fun getUserClaims(userId: String, limit: Int): List<UserClaimModel> {
         val activeCategoryIds = categoryCachedRepository.findAll()
             .filter { it.active }
             .map { it.categoryId }
             .toSet()
 
-        return (if (categoryIds.isNullOrEmpty()) {
-            userClaimCachedRepository.findByUserId(userId)
-        } else {
-            userClaimCachedRepository.findByIdUserIdAndCategoryIdIn(userId, categoryIds).take(limit)
-        })
-            .filter { it.categoryId in activeCategoryIds }
+        return userClaimCachedRepository.findByUserId(userId)
+            .filter { it.claim.category.categoryId in activeCategoryIds }
     }
 
     @Transactional
@@ -92,15 +84,15 @@ class ClaimService(
             claimId = idService.getId(),
             category = categoryModel,
             title = validationResult.normalized ?: title,
-            tags = tags
+            tags = tags,
+            popularity = 0
         )
         claimCachedRepository.save(claim)
 
         stance?.let {
             userClaimCachedRepository.save(
                 UserClaimModel(
-                    claimId = claim.claimId,
-                    categoryId = claim.category.categoryId,
+                    claim = claim,
                     userId = userId,
                     stance = it,
                     priority = null, // TODO set highest
