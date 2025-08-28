@@ -4,7 +4,6 @@ import com.debbly.server.IdService
 import com.debbly.server.category.repository.CategoryCachedRepository
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.user.ClaimStance
-import com.debbly.server.claim.user.ClaimStanceUpdate
 import com.debbly.server.claim.user.UserClaimService
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.match.MatchService.MatchingStatus.*
@@ -54,7 +53,8 @@ class MatchService(
 
         return MatchRequest(
             userId = user.userId,
-            claimIdToStance = userClaims.associate { it.claim.claimId to it.stance }.plus(withClaimIdToStance.orEmpty()),
+            claimIdToStance = userClaims.associate { it.claim.claimId to it.stance }
+                .plus(withClaimIdToStance.orEmpty()),
             skipClaimIds = withSkipClaimIds.orEmpty(),
             joinedAt = Instant.now()
         )
@@ -83,12 +83,10 @@ class MatchService(
         val withClaimIdToStance = userStance
             ?.let { match.claim.claimId to it }
             ?.also { (_, stance) ->
-                userClaimService.save(
-                    ClaimStanceUpdate(
-                        claimId = match.claim.claimId,
-                        title = null,
-                        stance = stance
-                    ), user
+                userClaimService.updateUserClaimStance(
+                    userId = user.userId,
+                    claimId = match.claim.claimId,
+                    stance = stance
                 )
             }
             ?.let { listOf(it) }

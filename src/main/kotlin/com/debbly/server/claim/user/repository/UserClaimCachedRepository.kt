@@ -7,6 +7,7 @@ import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.cache.annotation.Caching
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 @Service
 class UserClaimCachedRepository(
@@ -16,13 +17,29 @@ class UserClaimCachedRepository(
     fun findByUserId(userId: String): List<UserClaimModel> =
         jpaRepository.findByIdUserId(userId).map { it.toModel() }
 
+    @Cacheable(value = ["userClaim"], key = "#userId + '_' + #claimId")
+    fun findByUserIdClaimId(userId: String, claimId: String): UserClaimModel? =
+        jpaRepository.findByIdUserIdAndIdClaimId(userId, claimId)?.toModel()
+
     @Caching(
         evict = [
-            CacheEvict(value = ["userClaims"], key = "#model.userId")
+            CacheEvict(value = ["userClaims"], key = "#model.userId"),
+            CacheEvict(value = ["userClaim"], key = "#model.userId + '_' + #model.claim.claimId")
         ]
     )
     fun save(model: UserClaimModel) {
         jpaRepository.save(model.toEntity())
+    }
+
+    @Transactional
+    @Caching(
+        evict = [
+            CacheEvict(value = ["userClaims"], key = "#userId"),
+            CacheEvict(value = ["userClaim"], key = "#userId + '_' + #claimId")
+        ]
+    )
+    fun deleteByUserIdAndClaimId(userId: String, claimId: String) {
+        jpaRepository.deleteByIdUserIdAndIdClaimId(userId, claimId)
     }
 
     private fun UserClaimEntity.toModel(): UserClaimModel {
