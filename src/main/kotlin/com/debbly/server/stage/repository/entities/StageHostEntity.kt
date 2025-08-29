@@ -1,6 +1,6 @@
 package com.debbly.server.stage.repository.entities
 
-import com.debbly.server.claim.user.ClaimStance
+import com.debbly.server.claim.model.ClaimStance
 import jakarta.persistence.*
 import java.io.Serializable
 

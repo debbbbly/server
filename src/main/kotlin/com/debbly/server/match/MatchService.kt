@@ -2,8 +2,8 @@ package com.debbly.server.match
 
 import com.debbly.server.IdService
 import com.debbly.server.category.repository.CategoryCachedRepository
+import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.ClaimCachedRepository
-import com.debbly.server.claim.user.ClaimStance
 import com.debbly.server.claim.user.UserClaimService
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.match.MatchService.MatchingStatus.*

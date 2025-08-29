@@ -1,8 +1,8 @@
 package com.debbly.server.claim.user.repository
 
+import com.debbly.server.claim.model.UserClaimModel
 import com.debbly.server.claim.model.toEntity
 import com.debbly.server.claim.model.toModel
-import com.debbly.server.claim.user.UserClaimModel
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.cache.annotation.Caching

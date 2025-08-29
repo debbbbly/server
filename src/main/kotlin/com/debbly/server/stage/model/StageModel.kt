@@ -1,6 +1,6 @@
 package com.debbly.server.stage.model
 
-import com.debbly.server.claim.user.ClaimStance
+import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.stage.model.StageModel.StageHostModel
 import com.debbly.server.stage.repository.entities.StageEntity
 import com.debbly.server.stage.repository.entities.StageHostEntity
@@ -33,7 +33,7 @@ enum class StageType {
     ONE_ON_ONE
 }
 
- fun StageModel.toEntity() = StageEntity(
+fun StageModel.toEntity() = StageEntity(
     stageId = this.stageId,
     type = this.type,
     title = this.title,
@@ -51,7 +51,7 @@ enum class StageType {
     closedAt = this.closedAt,
 )
 
- fun StageEntity.toModel() = StageModel(
+fun StageEntity.toModel() = StageModel(
     stageId = this.stageId,
     type = this.type,
     title = this.title,

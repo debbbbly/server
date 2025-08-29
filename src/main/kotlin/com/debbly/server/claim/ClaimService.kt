@@ -5,12 +5,13 @@ import com.debbly.server.ai.OpenAIService
 import com.debbly.server.category.repository.CategoryCachedRepository
 import com.debbly.server.claim.exception.ClaimValidationException
 import com.debbly.server.claim.model.ClaimModel
+import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.model.TagModel
+import com.debbly.server.claim.model.UserClaimModel
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.tag.TagEntity
 import com.debbly.server.claim.tag.TagRepository
-import com.debbly.server.claim.user.ClaimStance
-import com.debbly.server.claim.user.UserClaimModel
+
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -48,6 +49,7 @@ class ClaimService(
             .filter { it.claim.category.categoryId in activeCategoryIds }
     }
 
+
     @Transactional
     fun propose(title: String, userId: String, stance: ClaimStance? = null): ClaimModel {
         logger.info("Processing claim proposal: '$title' by user: $userId")
@@ -78,14 +80,15 @@ class ClaimService(
                 logger.warn("Failed to create tag '$tagTitle': ${e.message}")
                 null
             }
-        }.toSet()
+        }.toList()
 
         val claim = ClaimModel(
             claimId = idService.getId(),
             category = categoryModel,
             title = validationResult.normalized ?: title,
             tags = tags,
-            popularity = 0
+            popularity = 0,
+            createdAt = Instant.now()
         )
         claimCachedRepository.save(claim)
 

@@ -1,7 +1,7 @@
 package com.debbly.server.stage
 
 import com.debbly.server.IdService
-import com.debbly.server.claim.user.ClaimStance
+import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.infra.error.UnauthorizedException

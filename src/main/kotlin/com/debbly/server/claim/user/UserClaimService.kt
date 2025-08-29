@@ -2,6 +2,8 @@ package com.debbly.server.claim.user
 
 import com.debbly.server.IdService
 import com.debbly.server.category.repository.CategoryCachedRepository
+import com.debbly.server.claim.model.ClaimStance
+import com.debbly.server.claim.model.UserClaimModel
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import org.springframework.stereotype.Service
@@ -15,13 +17,36 @@ class UserClaimService(
     private val categoryRepository: CategoryCachedRepository
 ) {
 
+    //    fun getUserClaimsWithUserData(userId: String, limit: Int): List<ClaimWithUserDataModel> {
+//        val activeCategoryIds = categoryRepository.findAll()
+//            .filter { it.active }
+//            .map { it.categoryId }
+//            .toSet()
+//
+//        return userClaimRepository.findByUserId(userId)
+//            .filter { it.claim.category.categoryId in activeCategoryIds }
+//            .map { userClaim ->
+//                ClaimWithUserDataModel(
+//                    claimId = userClaim.claim.claimId,
+//                    category = userClaim.claim.category,
+//                    title = userClaim.claim.title,
+//                    tags = userClaim.claim.tags,
+//                    popularity = userClaim.claim.popularity,
+//                    user = UserClaimDataModel(
+//                        userId = userClaim.userId,
+//                        stance = userClaim.stance,
+//                        priority = userClaim.priority,
+//                        updatedAt = userClaim.updatedAt
+//                    )
+//                )
+//            }
+//    }
+    fun getUserClaims(userId: String) = userClaimRepository.findByUserId(userId)
+
     fun updateUserClaimStance(userId: String, claimId: String, stance: ClaimStance) {
         userClaimRepository.findByUserIdClaimId(userId, claimId)?.let { userClaim ->
             userClaimRepository.save(userClaim.copy(stance = stance))
-        } ?: {
-            val priority = userClaimRepository.findByUserId(userId)
-                .mapNotNull { it.priority }
-                .maxOrNull() ?: 0
+        } ?: let {
 
             claimRepository.findById(claimId)?.let { claim ->
                 userClaimRepository.save(
@@ -29,7 +54,7 @@ class UserClaimService(
                         claim = claim,
                         userId = userId,
                         stance = stance,
-                        priority = priority,
+                        priority = null,
                         updatedAt = Instant.now()
                     )
                 )

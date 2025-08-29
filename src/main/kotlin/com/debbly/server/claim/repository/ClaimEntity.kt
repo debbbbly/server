@@ -3,6 +3,7 @@ package com.debbly.server.claim.repository
 import com.debbly.server.category.CategoryEntity
 import com.debbly.server.claim.tag.TagEntity
 import jakarta.persistence.*
+import java.time.Instant
 
 @Entity(name = "claims")
 data class ClaimEntity(
@@ -15,6 +16,7 @@ data class ClaimEntity(
     val title: String,
     @ManyToMany(fetch = FetchType.EAGER)
     val tags: Set<TagEntity>,
-    val popularity: Int?
+    val popularity: Int?,
+    val createdAt: Instant
 )
 

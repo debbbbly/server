@@ -1,6 +1,6 @@
 package com.debbly.server.match.model
 
-import com.debbly.server.claim.user.ClaimStance
+import com.debbly.server.claim.model.ClaimStance
 import java.time.Instant
 
 data class MatchRequest(

@@ -33,7 +33,9 @@ class StageCachedRepositoryTest {
             claimId = "claim1",
             title = "Test Claim",
             category = category,
-            tags = emptySet()
+            tags = emptySet(),
+            popularity = 0,
+            createdAt = Instant.now()
         )
         entityManager.persist(claim)
 

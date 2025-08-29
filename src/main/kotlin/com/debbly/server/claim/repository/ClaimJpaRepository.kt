@@ -12,6 +12,6 @@ interface ClaimJpaRepository : JpaRepository<ClaimEntity, String> {
     @Query("SELECT DISTINCT c FROM claims c LEFT JOIN FETCH c.category cat LEFT JOIN FETCH c.tags WHERE cat.categoryId IN :categoryIds")
     fun findByCategoryCategoryIdInWithAllData(@Param("categoryIds") categoryIds: List<String>): List<ClaimEntity>
 
-    @Query("SELECT c FROM claims c LEFT JOIN FETCH c.category LEFT JOIN FETCH c.tags")
+    @Query("SELECT c FROM claims c LEFT JOIN FETCH c.category LEFT JOIN FETCH c.tags ORDER BY c.createdAt DESC")
     fun findAllWithAllData(): List<ClaimEntity>
 }

@@ -1,7 +1,7 @@
 package com.debbly.server.claim.user.repository
 
+import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.ClaimEntity
-import com.debbly.server.claim.user.ClaimStance
 import jakarta.persistence.*
 import java.io.Serializable
 import java.time.Instant

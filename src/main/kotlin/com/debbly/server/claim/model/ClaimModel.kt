@@ -6,6 +6,7 @@ import com.debbly.server.category.model.toModel
 import com.debbly.server.claim.repository.ClaimEntity
 import com.debbly.server.claim.tag.TagEntity
 import com.fasterxml.jackson.annotation.JsonTypeInfo
+import java.time.Instant
 
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.CLASS,
@@ -16,9 +17,16 @@ data class ClaimModel(
     val claimId: String,
     val category: CategoryModel,
     val title: String,
-    val tags: Set<TagModel>,
-    val popularity: Int?
+    val tags: List<TagModel>,
+    val popularity: Int?,
+    val createdAt: Instant
 )
+
+enum class ClaimStance {
+    FOR,
+    EITHER,
+    AGAINST,
+}
 
 data class TagModel(
     val tagId: String,
@@ -29,8 +37,9 @@ fun ClaimEntity.toModel(): ClaimModel = ClaimModel(
     claimId = claimId,
     category = category.toModel(),
     title = title,
-    tags = tags.map { it.toModel() }.toSet(),
+    tags = tags.map { it.toModel() }.toList(),
     popularity = popularity,
+    createdAt = createdAt
 )
 
 fun ClaimModel.toEntity(): ClaimEntity = ClaimEntity(
@@ -38,7 +47,8 @@ fun ClaimModel.toEntity(): ClaimEntity = ClaimEntity(
     category = category.toEntity(),
     title = title,
     tags = tags.map { it.toEntity() }.toSet(),
-    popularity = popularity
+    popularity = popularity,
+    createdAt = createdAt
 )
 
 fun TagEntity.toModel(): TagModel = TagModel(
@@ -49,4 +59,12 @@ fun TagEntity.toModel(): TagModel = TagModel(
 fun TagModel.toEntity(): TagEntity = TagEntity(
     tagId = tagId,
     title = title
+)
+
+data class UserClaimModel(
+    val claim: ClaimModel,
+    val userId: String,
+    val stance: ClaimStance,
+    val priority: Int?,
+    val updatedAt: Instant
 )

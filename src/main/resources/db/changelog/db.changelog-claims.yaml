@@ -532,3 +532,16 @@ databaseChangeLog:
                   type: int
                   constraints:
                     nullable: true
+  - changeSet:
+      id: 7
+      author: gemini
+      changes:
+        - addColumn:
+            tableName: claims
+            columns:
+              - column:
+                  name: created_at
+                  type: timestamp
+                  defaultValueComputed: "CURRENT_TIMESTAMP"
+                  constraints:
+                    nullable: false

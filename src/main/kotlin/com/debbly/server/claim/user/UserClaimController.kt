@@ -2,7 +2,11 @@ package com.debbly.server.claim.user
 
 import com.debbly.server.auth.AuthService
 import com.debbly.server.auth.ExternalUserId
+import com.debbly.server.category.model.CategoryModel
 import com.debbly.server.claim.ClaimService
+import com.debbly.server.claim.model.ClaimStance
+import com.debbly.server.claim.model.TagModel
+import com.debbly.server.claim.user.UserClaimController.GetUserClaimsResponse.GetUserClaimsResponse
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -18,9 +22,21 @@ class UserClaimController(
     fun getUserClaims(
         @RequestParam(defaultValue = "5") limit: Int,
         @ExternalUserId externalUserId: String?
-    ): List<UserClaimModel> {
+    ): List<GetUserClaimsResponse> {
         return authService.authenticate(externalUserId)
-            .let { user -> service.getUserClaims(user.userId, limit) }
+            .let { user ->
+                userClaimService.getUserClaims(user.userId).map { userClaim ->
+                    GetUserClaimsResponse(
+                        claimId = userClaim.claim.claimId,
+                        category = userClaim.claim.category,
+                        title = userClaim.claim.title,
+                        tags = userClaim.claim.tags,
+                        userClaim = GetUserClaimsResponse(
+                            stance = userClaim.stance,
+                        )
+                    )
+                }
+            }
     }
 
     @PostMapping("/{claimId}/stance")
@@ -73,5 +89,15 @@ class UserClaimController(
         return ResponseEntity.ok().build()
     }
 
+    data class GetUserClaimsResponse(
+        val claimId: String,
+        val category: CategoryModel,
+        val title: String,
+        val tags: List<TagModel>,
+        val userClaim: GetUserClaimsResponse
+    ) {
+        data class GetUserClaimsResponse(
+            val stance: ClaimStance,
+        )
+    }
 }
-
