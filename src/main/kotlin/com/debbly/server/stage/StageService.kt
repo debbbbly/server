@@ -13,6 +13,7 @@ import com.debbly.server.stage.model.StageModel
 import com.debbly.server.stage.model.StageType
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageCachedRepository
+import com.debbly.server.stage.repository.entities.StageStatus
 import com.debbly.server.user.repository.UserCachedRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -83,7 +84,9 @@ class StageService(
             title = claim?.title,
             hosts = hosts,
             createdAt = Instant.now(),
-            closedAt = null,
+            status = StageStatus.PENDING,
+            openedAt = null,
+            closedAt = null
         )
 
         stageRepository.save(stage)
@@ -95,7 +98,12 @@ class StageService(
         val stageId = match.matchId
         return stageRepository.findById(stageId) ?: let {
 
-            liveKitService.createRoom(stageId)
+            val room = liveKitService.createRoom(stageId)
+            if (room == null) {
+                logger.error("Failed to create LiveKit room for stage: $stageId")
+            } else {
+                logger.info("Successfully created LiveKit room for stage: $stageId")
+            }
 
             val claim = claimCachedRepository.getById(match.claim.claimId)
 
@@ -113,7 +121,9 @@ class StageService(
                 title = claim.title,
                 hosts = hosts,
                 createdAt = Instant.now(),
-                closedAt = null,
+                status = StageStatus.PENDING,
+                openedAt = null,
+                closedAt = null
             )
 
             stageRepository.save(stage)
@@ -134,7 +144,10 @@ class StageService(
                     ),
                     title = null,
                     claimId = null,
-                    createdAt = Instant.now()
+                    createdAt = Instant.now(),
+                    status = StageStatus.PENDING,
+                    openedAt = null,
+                    closedAt = null
                 )
             )
         } else {
@@ -149,19 +162,24 @@ class StageService(
 
         val users = stage.hosts.mapNotNull { userCachedRepository.findById(it.userId) }.associateBy { it.userId }
 
+        val claim = stage.claimId?.let { claimCachedRepository.getById(it) }
         liveStageRedisRepository.save(
             LiveStageEntity(
                 stageId = stageId,
                 type = stage.type,
-                hosts = stage.hosts.mapNotNull { it ->
-                    users[it.userId]?.let { user ->
+                hosts = stage.hosts.mapNotNull { host ->
+                    users[host.userId]?.let { user ->
                         LiveStageHost(
-                            user.userId,
-                            user.username ?: "unknown"
+                            userId = user.userId,
+                            username = user.username ?: "unknown",
+                            userUrl = user.avatarUrl,
+                            stance = host.stance
                         )
                     }
                 },
                 claimId = stage.claimId,
+                title = claim?.title,
+                openedAt = Instant.now(),
                 heartbeatAt = Instant.now()
             )
         )
@@ -183,14 +201,35 @@ class StageService(
             if (stage.hosts.none { it.userId == userId }) {
                 throw UnauthorizedException("User is not a host of this stage")
             }
-            stageRepository.save(stage.copy(closedAt = Instant.now()))
+            stageRepository.save(stage.copy(
+                status = StageStatus.CLOSED,
+                closedAt = Instant.now()
+            ))
             liveStageRedisRepository.deleteById(stageId)
         }
     }
 
     fun onUserLeft(userId: String, stageId: String) {
         logger.info("User: '$userId' left from stage: '$stageId'.")
-        // Implement any additional logic needed when a participant leaves
+        
+        val stage = stageRepository.getById(stageId)
+        val allHostUserIds = stage.hosts.map { it.userId }
+        val liveKitParticipants = liveKitService.getParticipants(stageId)
+        
+        // Check if any hosts are still connected
+        val connectedHosts = liveKitParticipants
+            .map { it.identity }
+            .filter { it in allHostUserIds }
+        
+        if (connectedHosts.isEmpty() && stage.status == StageStatus.OPEN) {
+            // All hosts left, close the stage
+            logger.info("All hosts left stage: '$stageId'. Closing stage.")
+            stageRepository.save(stage.copy(
+                status = StageStatus.CLOSED,
+                closedAt = Instant.now()
+            ))
+            liveStageRedisRepository.deleteById(stageId)
+        }
     }
 
     fun onUserJoined(userId: String, stageId: String) {
@@ -200,9 +239,47 @@ class StageService(
         val allHostUserIds = stage.hosts.map { it.userId }
         val liveKitParticipants = liveKitService.getParticipants(stageId)
 
-        if (liveKitParticipants.map { it.identity }.toSet().containsAll(allHostUserIds)) {
+        if (liveKitParticipants.map { it.identity }.toSet().containsAll(allHostUserIds) && stage.status == StageStatus.PENDING) {
+            // All hosts joined, open the stage
+            logger.info("All hosts joined stage: '$stageId'. Opening stage.")
+            val openedAt = Instant.now()
+            val updatedStage = stage.copy(
+                status = StageStatus.OPEN,
+                openedAt = openedAt
+            )
+            stageRepository.save(updatedStage)
+            
+            // Create live stage in Redis
+            createLiveStage(updatedStage, openedAt)
+            
             // start egress
         }
+    }
+
+    private fun createLiveStage(stage: StageModel, openedAt: Instant) {
+        val users = stage.hosts.mapNotNull { userCachedRepository.findById(it.userId) }.associateBy { it.userId }
+        val claim = stage.claimId?.let { claimCachedRepository.getById(it) }
+        
+        liveStageRedisRepository.save(
+            LiveStageEntity(
+                stageId = stage.stageId,
+                type = stage.type,
+                hosts = stage.hosts.mapNotNull { host ->
+                    users[host.userId]?.let { user ->
+                        LiveStageHost(
+                            userId = user.userId,
+                            username = user.username ?: "unknown",
+                            userUrl = user.avatarUrl,
+                            stance = host.stance
+                        )
+                    }
+                },
+                claimId = stage.claimId,
+                title = claim?.title,
+                openedAt = openedAt,
+                heartbeatAt = Instant.now()
+            )
+        )
     }
 
     data class StageDetails(

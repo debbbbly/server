@@ -4,6 +4,7 @@ import com.debbly.server.category.CategoryEntity
 import com.debbly.server.claim.repository.ClaimEntity
 import com.debbly.server.stage.model.StageType
 import com.debbly.server.stage.repository.entities.StageEntity
+import com.debbly.server.stage.repository.entities.StageStatus
 import jakarta.persistence.EntityManager
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -45,7 +46,10 @@ class StageCachedRepositoryTest {
             title = "Test Topic",
             hosts = emptyList(),
             claimId = "claim1",
-            createdAt = Instant.now()
+            createdAt = Instant.now(),
+            status = StageStatus.PENDING,
+            openedAt = null,
+            closedAt = null
         )
 
         entityManager.persist(stage)

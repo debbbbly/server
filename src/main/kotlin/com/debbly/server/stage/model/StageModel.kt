@@ -5,6 +5,7 @@ import com.debbly.server.stage.model.StageModel.StageHostModel
 import com.debbly.server.stage.repository.entities.StageEntity
 import com.debbly.server.stage.repository.entities.StageHostEntity
 import com.debbly.server.stage.repository.entities.StageHostId
+import com.debbly.server.stage.repository.entities.StageStatus
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import java.time.Instant
 
@@ -19,8 +20,10 @@ data class StageModel(
     val title: String?,
     val claimId: String?,
     val hosts: List<StageHostModel>,
+    val status: StageStatus,
     val createdAt: Instant,
-    val closedAt: Instant? = null
+    val openedAt: Instant?,
+    val closedAt: Instant?,
 ) {
     data class StageHostModel(
         val userId: String,
@@ -48,7 +51,9 @@ fun StageModel.toEntity() = StageEntity(
         )
     },
     createdAt = this.createdAt,
-    closedAt = this.closedAt,
+    status = this.status,
+    openedAt = this.openedAt,
+    closedAt = this.closedAt
 )
 
 fun StageEntity.toModel() = StageModel(
@@ -63,5 +68,7 @@ fun StageEntity.toModel() = StageModel(
         )
     },
     createdAt = this.createdAt,
-    closedAt = this.closedAt,
+    status = this.status,
+    openedAt = this.openedAt,
+    closedAt = this.closedAt
 )

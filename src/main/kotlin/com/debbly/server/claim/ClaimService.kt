@@ -9,6 +9,8 @@ import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.model.TagModel
 import com.debbly.server.claim.model.UserClaimModel
 import com.debbly.server.claim.repository.ClaimCachedRepository
+import com.debbly.server.claim.repository.ClaimProposalEntity
+import com.debbly.server.claim.repository.ClaimProposalJpaRepository
 import com.debbly.server.claim.tag.TagEntity
 import com.debbly.server.claim.tag.TagRepository
 
@@ -26,6 +28,7 @@ class ClaimService(
     private val tagRepository: TagRepository,
     private val openAIService: OpenAIService,
     private val userClaimCachedRepository: UserClaimCachedRepository,
+    private val claimProposalRepository: ClaimProposalJpaRepository,
     private val idService: IdService
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -54,21 +57,28 @@ class ClaimService(
     fun propose(title: String, userId: String, stance: ClaimStance? = null): ClaimModel {
         logger.info("Processing claim proposal: '$title' by user: $userId")
 
-        // AI validation, normalization, category assignment, and tag generation in one call
         val validationResult = openAIService.validateClaim(title)
+
         if (!validationResult.valid) {
+            saveProposal(
+                proposalId = idService.getId(),
+                userId = userId,
+                originalTitle = title,
+                validationResult = validationResult,
+                requestedStance = stance,
+                resultingClaimId = null
+            )
+
             logger.warn("Claim rejected for user $userId: ${validationResult.violations}")
             throw ClaimValidationException(validationResult.violations, validationResult.reasoning)
         }
 
         logger.info("Claim validation passed with category: ${validationResult.categoryId}, tags: ${validationResult.tags}")
 
-        // Get category from AI result
         val categoryId = validationResult.categoryId ?: "social-issues-culture"
         val categoryModel = categoryCachedRepository.findById(categoryId)
             ?: throw IllegalArgumentException("Category not found: $categoryId")
 
-        // Create tags from AI result
         val tags = validationResult.tags.mapNotNull { tagTitle ->
             // Find existing tag or create new one
             tagRepository.findByTitle(tagTitle).getOrNull()?.let { existingTag ->
@@ -92,6 +102,15 @@ class ClaimService(
         )
         claimCachedRepository.save(claim)
 
+        saveProposal(
+            proposalId = idService.getId(),
+            userId = userId,
+            originalTitle = title,
+            validationResult = validationResult,
+            requestedStance = stance,
+            resultingClaimId = claim.claimId
+        )
+
         stance?.let {
             userClaimCachedRepository.save(
                 UserClaimModel(
@@ -105,5 +124,31 @@ class ClaimService(
         }
 
         return claim
+    }
+
+    private fun saveProposal(
+        proposalId: String,
+        userId: String,
+        originalTitle: String,
+        validationResult: com.debbly.server.ai.ClaimValidationResult,
+        requestedStance: ClaimStance?,
+        resultingClaimId: String?
+    ) {
+        claimProposalRepository.save(
+            ClaimProposalEntity(
+                proposalId = proposalId,
+                userId = userId,
+                originalTitle = originalTitle,
+                normalizedTitle = validationResult.normalized,
+                isValid = validationResult.valid,
+                failureReasons = if (!validationResult.valid) validationResult.violations.joinToString("; ") else null,
+                reasoning = validationResult.reasoning,
+                categoryId = validationResult.categoryId,
+                tags = validationResult.tags.joinToString(","),
+                userStance = requestedStance,
+                claimId = resultingClaimId,
+                createdAt = Instant.now()
+            )
+        )
     }
 }

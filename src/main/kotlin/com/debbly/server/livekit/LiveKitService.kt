@@ -35,18 +35,35 @@ class LiveKitService(
     }
 
     fun getParticipants(stageId: String): List<LivekitModels.ParticipantInfo> {
-        val call = livekitRoomService.listParticipants(stageId)
-        val response = call.execute()
+        logger.debug("Attempting to get participants for room: $stageId")
         
-        if (response.isSuccessful) {
-            val listParticipantsResponse = response.body()
-            val participantsList = listParticipantsResponse ?: emptyList()
-            logger.info("Retrieved ${participantsList.size} participants for room: $stageId")
-            return participantsList
-        } else {
-            logger.error("Failed to get participants for room $stageId: ${response.code()} ${response.message()}")
-            return emptyList()
+        repeat(3) { attempt ->
+            val call = livekitRoomService.listParticipants(stageId)
+            val response = call.execute()
+            
+            if (response.isSuccessful) {
+                val listParticipantsResponse = response.body()
+                val participantsList = listParticipantsResponse ?: emptyList()
+                if (attempt > 0) {
+                    logger.info("Retrieved ${participantsList.size} participants for room: $stageId (after ${attempt + 1} attempts)")
+                } else {
+                    logger.info("Retrieved ${participantsList.size} participants for room: $stageId")
+                }
+                return participantsList
+            } else if (response.code() == 404) {
+                if (attempt < 2) {
+                    logger.debug("Room $stageId not found (404) - retrying in 500ms (attempt ${attempt + 1}/3)")
+                    Thread.sleep(500)
+                } else {
+                    logger.warn("Room $stageId not found in LiveKit (404) after 3 attempts. Room exists for joining but listParticipants API fails. This may be a LiveKit API configuration issue.")
+                    return emptyList()
+                }
+            } else {
+                logger.error("Failed to get participants for room $stageId: ${response.code()} ${response.message()}")
+                return emptyList()
+            }
         }
+        return emptyList()
     }
 
     fun startRoomEgress(

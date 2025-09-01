@@ -73,3 +73,21 @@ databaseChangeLog:
             constraintName: fk_stages_claim_id
             referencedColumnNames: claim_id
             referencedTableName: claims
+  - changeSet:
+      id: 4
+      author: gemini
+      changes:
+        - addColumn:
+            tableName: stages
+            columns:
+              - column:
+                  name: status
+                  type: varchar(16)
+                  defaultValue: "PENDING"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: opened_at
+                  type: timestamp
+                  constraints:
+                    nullable: true

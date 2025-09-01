@@ -4,6 +4,12 @@ import com.debbly.server.stage.model.StageType
 import jakarta.persistence.*
 import java.time.Instant
 
+enum class StageStatus {
+    PENDING,
+    OPEN,
+    CLOSED
+}
+
 @Entity(name = "stages")
 data class StageEntity(
     @Id
@@ -16,5 +22,8 @@ data class StageEntity(
     @JoinColumn(name = "stageId")
     val hosts: List<StageHostEntity>,
     val createdAt: Instant,
-    val closedAt: Instant? = null
+    @Enumerated(EnumType.STRING)
+    val status: StageStatus,
+    val openedAt: Instant?,
+    val closedAt: Instant?
 )
