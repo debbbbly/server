@@ -17,6 +17,11 @@ data class ClaimEntity(
     @ManyToMany(fetch = FetchType.EAGER)
     val tags: Set<TagEntity>,
     val popularity: Int?,
-    val createdAt: Instant
+    val createdAt: Instant,
+    var scoreFreshness: Double? = null,
+    var scoreStancesRecent: Double? = null,
+    var scoreDebatesRecent: Double? = null,
+    var scoreBaseline: Double? = null,
+    var scoreTotal: Double? = null
 )
 

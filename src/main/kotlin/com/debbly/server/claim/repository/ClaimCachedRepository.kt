@@ -33,4 +33,5 @@ class ClaimCachedRepository(
         ]
     )
     fun save(claim: ClaimModel) = claimJpaRepository.save(claim.toEntity()).toModel()
+
 }

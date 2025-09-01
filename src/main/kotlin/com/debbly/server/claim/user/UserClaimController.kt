@@ -20,7 +20,7 @@ class UserClaimController(
 
     @GetMapping
     fun getUserClaims(
-        @RequestParam(defaultValue = "5") limit: Int,
+        @RequestParam(defaultValue = "50") limit: Int,
         @ExternalUserId externalUserId: String?
     ): List<GetUserClaimsResponse> {
         return authService.authenticate(externalUserId)

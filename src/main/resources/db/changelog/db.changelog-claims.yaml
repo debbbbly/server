@@ -626,3 +626,35 @@ databaseChangeLog:
             constraintName: fk_claim_proposals_resulting_claim_id
             referencedColumnNames: claim_id
             referencedTableName: claims
+  - changeSet:
+      id: 9
+      author: claude
+      changes:
+        - addColumn:
+            tableName: claims
+            columns:
+              - column:
+                  name: score_freshness
+                  type: double
+                  constraints:
+                    nullable: true
+              - column:
+                  name: score_stances_recent
+                  type: double
+                  constraints:
+                    nullable: true
+              - column:
+                  name: score_debates_recent
+                  type: double
+                  constraints:
+                    nullable: true
+              - column:
+                  name: score_baseline
+                  type: double
+                  constraints:
+                    nullable: true
+              - column:
+                  name: score_total
+                  type: double
+                  constraints:
+                    nullable: true

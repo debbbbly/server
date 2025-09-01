@@ -19,7 +19,12 @@ data class ClaimModel(
     val title: String,
     val tags: List<TagModel>,
     val popularity: Int?,
-    val createdAt: Instant
+    val createdAt: Instant,
+    val scoreFreshness: Double? = null,
+    val scoreStancesRecent: Double? = null,
+    val scoreDebatesRecent: Double? = null,
+    val scoreBaseline: Double? = null,
+    val scoreTotal: Double? = null
 )
 
 enum class ClaimStance {
@@ -39,7 +44,12 @@ fun ClaimEntity.toModel(): ClaimModel = ClaimModel(
     title = title,
     tags = tags.map { it.toModel() }.toList(),
     popularity = popularity,
-    createdAt = createdAt
+    createdAt = createdAt,
+    scoreFreshness = scoreFreshness,
+    scoreStancesRecent = scoreStancesRecent,
+    scoreDebatesRecent = scoreDebatesRecent,
+    scoreBaseline = scoreBaseline,
+    scoreTotal = scoreTotal
 )
 
 fun ClaimModel.toEntity(): ClaimEntity = ClaimEntity(
@@ -48,7 +58,12 @@ fun ClaimModel.toEntity(): ClaimEntity = ClaimEntity(
     title = title,
     tags = tags.map { it.toEntity() }.toSet(),
     popularity = popularity,
-    createdAt = createdAt
+    createdAt = createdAt,
+    scoreFreshness = scoreFreshness,
+    scoreStancesRecent = scoreStancesRecent,
+    scoreDebatesRecent = scoreDebatesRecent,
+    scoreBaseline = scoreBaseline,
+    scoreTotal = scoreTotal
 )
 
 fun TagEntity.toModel(): TagModel = TagModel(
