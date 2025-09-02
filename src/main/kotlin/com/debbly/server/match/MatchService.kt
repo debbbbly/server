@@ -415,6 +415,23 @@ class MatchService(
         val userBEntity = userRepository.getById(userB.userId)
         val now = Instant.now()
 
+        val stanceA = userA.claimIdToStance[claimId] ?: ClaimStance.EITHER
+        val stanceB = userB.claimIdToStance[claimId] ?: ClaimStance.EITHER
+
+        val (finalA, finalB) = when {
+            stanceA != ClaimStance.EITHER && stanceB == ClaimStance.EITHER ->
+                stanceA to stanceA.opposite()
+
+            stanceA == ClaimStance.EITHER && stanceB != ClaimStance.EITHER ->
+                stanceB.opposite() to stanceB
+
+            stanceA == ClaimStance.EITHER && stanceB == ClaimStance.EITHER ->
+                ClaimStance.FOR to ClaimStance.AGAINST
+
+            else ->
+                stanceA to stanceB // already set and not EITHER
+        }
+
         val match = Match(
             matchId = matchId,
             claim = Match.MatchClaim(claim.claimId, claim.title),
@@ -424,14 +441,14 @@ class MatchService(
                     userId = userAEntity.userId,
                     username = userAEntity.username,
                     avatarUrl = userAEntity.avatarUrl,
-                    stance = userA.claimIdToStance[claimId],
+                    stance = finalA,
                     status = MatchOpponentStatus.PENDING
                 ),
                 Match.MatchOpponent(
                     userId = userBEntity.userId,
                     username = userBEntity.username,
                     avatarUrl = userBEntity.avatarUrl,
-                    stance = userB.claimIdToStance[claimId],
+                    stance = finalB,
                     status = MatchOpponentStatus.PENDING
                 )
             ),
@@ -441,5 +458,11 @@ class MatchService(
 
         matchRepository.save(match)
         matchNotificationService.notifyMatchFound(match)
+    }
+
+    private fun ClaimStance.opposite(): ClaimStance = when (this) {
+        ClaimStance.FOR -> ClaimStance.AGAINST
+        ClaimStance.AGAINST -> ClaimStance.FOR
+        ClaimStance.EITHER -> error("No opposite for EITHER")
     }
 }
