@@ -42,11 +42,11 @@ class UserServiceTest {
 
         // First call - should hit the repository
         var result = userCachedRepository.findById(userId)
-        assertEquals(user, result)
+        assertEquals(user.toModel(), result)
 
         // Second call - should be cached
         result = userCachedRepository.findById(userId)
-        assertEquals(user, result)
+        assertEquals(user.toModel(), result)
 
         verify(userJpaRepository, times(1)).findById(userId)
     }
@@ -61,11 +61,11 @@ class UserServiceTest {
 
         // First call - should hit the repository
         var result = userCachedRepository.findByExternalUserId(externalId)
-        assertEquals(user, result)
+        assertEquals(user.toModel(), result)
 
         // Second call - should be cached
         result = userCachedRepository.findByExternalUserId(externalId)
-        assertEquals(user, result)
+        assertEquals(user.toModel(), result)
 
         verify(userJpaRepository, times(1)).findByExternalUserId(externalId)
     }
@@ -79,11 +79,11 @@ class UserServiceTest {
 
         // First call - should hit the repository
         var result = userCachedRepository.findByUsername(username)
-        assertEquals(user, result)
+        assertEquals(user.toModel(), result)
 
         // Second call - should be cached
         result = userCachedRepository.findByUsername(username)
-        assertEquals(user, result)
+        assertEquals(user.toModel(), result)
 
         verify(userJpaRepository, times(1)).findByUsername(username)
     }

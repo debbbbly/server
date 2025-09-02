@@ -16,5 +16,14 @@ data class UserEntity(
     var username: String? = null,
     var birthdate: LocalDate? = null,
     var avatarUrl: String? = null,
-)
+) {
+    fun toModel() = com.debbly.server.user.model.UserModel(
+        userId = userId,
+        externalUserId = externalUserId,
+        email = email,
+        username = username,
+        birthdate = birthdate,
+        avatarUrl = avatarUrl,
+    )
+}
 

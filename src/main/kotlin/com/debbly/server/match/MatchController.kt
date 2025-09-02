@@ -75,6 +75,7 @@ class MatchController(
     ): ResponseEntity<Void> {
         authorize(externalUserId, matchId)
             .let { (user, match) -> matchService.skip(match, user) }
+
         return ResponseEntity.ok().build()
     }
 

@@ -23,6 +23,7 @@ data class StageModel(
     val status: StageStatus,
     val createdAt: Instant,
     val openedAt: Instant?,
+    
     val closedAt: Instant?,
 ) {
     data class StageHostModel(

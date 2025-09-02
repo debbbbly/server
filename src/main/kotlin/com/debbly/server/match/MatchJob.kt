@@ -13,11 +13,11 @@ class MatchJob(
 
     @Scheduled(fixedRate = 5000)
     fun scheduleRunMatching() {
-        matchService.runMatching()
+  //      matchService.runMatching()
     }
 
     @Scheduled(initialDelay = 2500, fixedRate = 5000)
     fun scheduleRunMatchingConfirmation() {
-        matchService.runMatchingConfirmation()
+  //      matchService.runMatchingConfirmation()
     }
 }

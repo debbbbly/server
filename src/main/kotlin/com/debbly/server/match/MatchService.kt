@@ -7,19 +7,12 @@ import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.user.UserClaimService
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.match.MatchService.MatchingStatus.*
-import com.debbly.server.match.model.Match
-import com.debbly.server.match.model.MatchOpponentStatus
-import com.debbly.server.match.model.MatchReason
-import com.debbly.server.match.model.MatchRequest
-import com.debbly.server.match.model.MatchStatus
+import com.debbly.server.match.model.*
 import com.debbly.server.match.repository.MatchQueueRepository
 import com.debbly.server.match.repository.MatchRepository
 import com.debbly.server.stage.StageService
 import com.debbly.server.user.model.UserModel
 import com.debbly.server.user.repository.UserCachedRepository
-import com.debbly.server.websocket.MatchingWebSocketHandler
-import com.debbly.server.websocket.MatchingMessage
-import com.debbly.server.websocket.MessageType
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.Instant
@@ -35,7 +28,7 @@ class MatchService(
     private val categoryRepository: CategoryCachedRepository,
     private val userClaimService: UserClaimService,
     private val stageService: StageService,
-    private val webSocketHandler: MatchingWebSocketHandler
+    private val matchNotificationService: MatchNotificationService
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -70,17 +63,17 @@ class MatchService(
     }
 
     fun skip(match: Match, user: UserModel) {
-        removeMatch(user.userId)
-        matchQueueRepository.save(buildMatchRequest(user, setOf(match.claim.claimId)))
+        matchNotificationService.notifyMatchCancelled(match, user.userId, "skip")
 
+        matchRepository.delete(match.matchId)
+
+        matchQueueRepository.save(buildMatchRequest(user, withSkipClaimIds = setOf(match.claim.claimId)))
         match.opponents.filter { it.userId != user.userId }.forEach { otherUser ->
-            removeMatch(otherUser.userId)
             matchQueueRepository.save(request = buildMatchRequest(userRepository.getById(otherUser.userId)))
         }
     }
 
     fun switch(match: Match, user: UserModel) {
-
         val userStance = match.opponents
             .firstOrNull() { it.userId == user.userId }
             ?.stance
@@ -97,36 +90,32 @@ class MatchService(
             ?.let { listOf(it) }
             .orEmpty()
 
-        removeMatch(user.userId)
-        matchQueueRepository.save(buildMatchRequest(user, withClaimIdToStance = withClaimIdToStance))
+        matchRepository.delete(match.matchId)
+        matchNotificationService.notifyMatchCancelled(match, user.userId, "switch")
 
+        matchQueueRepository.save(buildMatchRequest(user, withClaimIdToStance = withClaimIdToStance))
         match.opponents.filter { it.userId != user.userId }.forEach { otherUser ->
-            removeMatch(otherUser.userId)
             matchQueueRepository.save(request = buildMatchRequest(userRepository.getById(otherUser.userId)))
         }
     }
 
     fun accept(match: Match, user: UserModel) {
-        val updatedOpponents = match.opponents.map { opponent ->
-            if (opponent.userId == user.userId) opponent.copy(status = MatchOpponentStatus.ACCEPTED) else opponent
+        val acceptedMatch = match.copy(
+            opponents = match.opponents
+                .map { opponent ->
+                    if (opponent.userId == user.userId) opponent.copy(status = MatchOpponentStatus.ACCEPTED) else opponent
+                })
+
+        if (acceptedMatch.opponents.any { it.status != MatchOpponentStatus.ACCEPTED }) {
+            matchRepository.save(acceptedMatch)
+            matchNotificationService.notifyOpponentAccepted(acceptedMatch, user.userId)
+        } else {
+            stageService.createStage(acceptedMatch)
+
+            val allAcceptedMatch = acceptedMatch.copy(status = MatchStatus.ACCEPTED)
+            matchRepository.save(allAcceptedMatch)
+            matchNotificationService.notifyMatchConfirmedAll(allAcceptedMatch)
         }
-        val updatedMatch = match.copy(opponents = updatedOpponents)
-        matchRepository.save(updatedMatch)
-
-        // Notify other users about the acceptance
-        val otherUserIds = match.opponents.filter { it.userId != user.userId }.map { it.userId }
-        webSocketHandler.sendMessageToUsers(otherUserIds, MatchingMessage(
-            type = MessageType.MATCH_CONFIRMED,
-            message = "Opponent has accepted the match",
-            data = mapOf(
-                "matchId" to match.matchId,
-                "acceptedBy" to user.userId
-            )
-        ))
-    }
-
-    private fun removeMatch(userId: String) {
-        matchRepository.remove(userId)
     }
 
     fun getQueue(): List<MatchRequest> = matchQueueRepository.findAll()
@@ -163,9 +152,10 @@ class MatchService(
             } else if (match.opponents.all { it.status == MatchOpponentStatus.ACCEPTED }) {
                 stageService.createStage(match)
                 matchRepository.save(match.copy(status = MatchStatus.ACCEPTED))
+                matchNotificationService.notifyMatchConfirmedAll(match)
 
             } else if (match.createdAt.isBefore(matchDeadline)) {
-                matchRepository.remove(match.matchId)
+                matchNotificationService.notifyMatchTimeout(match)
                 match.opponents.forEach { opponent ->
                     matchQueueRepository.save(buildMatchRequest(userRepository.getById(opponent.userId)))
                 }
@@ -203,7 +193,7 @@ class MatchService(
                         val stanceB = userB.claimIdToStance[claimId]
                         areOpposite(stanceA, stanceB)
                     }
-                    .filter { claimId -> 
+                    .filter { claimId ->
                         // Exclude claims that are in skipClaimIds for either user
                         claimId !in userA.skipClaimIds && claimId !in userB.skipClaimIds
                     }
@@ -211,14 +201,16 @@ class MatchService(
                 if (matchingClaimIds.isNotEmpty()) {
                     // Use weighted random selection giving priority to claims closer to the beginning
                     val selectedClaimId = selectClaimWithPriority(matchingClaimIds, userA.claimIdToStance.keys.toList())
-                    
+
                     matchedUsers.add(userA.userId)
                     matchedUsers.add(userB.userId)
 
                     createAndStoreMatch(userA, userB, selectedClaimId, MatchReason.COMMON_STANCE_OPPOSITE)
-                    
-                    logger.debug("Matched users {} and {} on claim {} (selected from {} options with priority)", 
-                               userA.userId, userB.userId, selectedClaimId, matchingClaimIds.size)
+
+                    logger.debug(
+                        "Matched users {} and {} on claim {} (selected from {} options with priority)",
+                        userA.userId, userB.userId, selectedClaimId, matchingClaimIds.size
+                    )
                     break
                 }
             }
@@ -242,9 +234,11 @@ class MatchService(
         if (finalRemainingUsers.isNotEmpty()) {
             finalRemainingUsers.forEach { matchQueueRepository.save(it) }
         }
-        
-        logger.info("Matching complete: {} users matched, {} users remain in queue", 
-                   matchedUsers.size, finalRemainingUsers.size)
+
+        logger.info(
+            "Matching complete: {} users matched, {} users remain in queue",
+            matchedUsers.size, finalRemainingUsers.size
+        )
     }
 
     /**
@@ -277,7 +271,7 @@ class MatchService(
             if (suitableClaims.isNotEmpty()) {
                 // Randomly select one claim from top suitable claims
                 val selectedClaim = suitableClaims.random()
-                
+
                 // Assign random opposing stances to users
                 val stances = listOf(ClaimStance.FOR, ClaimStance.AGAINST).shuffled()
                 val userAStance = stances[0]
@@ -294,11 +288,18 @@ class MatchService(
                 matchedUsers.add(userA.userId)
                 matchedUsers.add(userB.userId)
 
-                createAndStoreMatch(userAWithStance, userBWithStance, selectedClaim.claimId, MatchReason.TOP_CLAIM_RANDOM)
-                
-                logger.debug("Fallback matched users {} ({}) and {} ({}) on top claim {} with score {}", 
-                           userA.userId, userAStance, userB.userId, userBStance, 
-                           selectedClaim.claimId, selectedClaim.scoreTotal)
+                createAndStoreMatch(
+                    userAWithStance,
+                    userBWithStance,
+                    selectedClaim.claimId,
+                    MatchReason.TOP_CLAIM_RANDOM
+                )
+
+                logger.debug(
+                    "Fallback matched users {} ({}) and {} ({}) on top claim {} with score {}",
+                    userA.userId, userAStance, userB.userId, userBStance,
+                    selectedClaim.claimId, selectedClaim.scoreTotal
+                )
             } else {
                 // No suitable claims found, put users back for next iteration
                 availableUsers.add(0, userB)
@@ -313,7 +314,7 @@ class MatchService(
      */
     private fun selectClaimWithPriority(availableClaims: List<String>, userClaimOrder: List<String>): String {
         if (availableClaims.size == 1) return availableClaims.first()
-        
+
         // Create weights based on position in user's claim list (earlier = higher weight)
         val weights = availableClaims.map { claimId ->
             val position = userClaimOrder.indexOf(claimId)
@@ -329,7 +330,7 @@ class MatchService(
         // Weighted random selection
         val totalWeight = weights.sumOf { it.second }
         val random = kotlin.random.Random.nextDouble() * totalWeight
-        
+
         var currentWeight = 0.0
         for ((claimId, weight) in weights) {
             currentWeight += weight
@@ -337,7 +338,7 @@ class MatchService(
                 return claimId
             }
         }
-        
+
         // Fallback to last claim if something goes wrong
         return availableClaims.last()
     }
@@ -355,7 +356,7 @@ class MatchService(
 
             // Combine both users' stances, prioritizing userA's order, then userB's
             val allUserStances = (userA.claimIdToStance.keys.toList() + userB.claimIdToStance.keys.toList()).distinct()
-            
+
             // Find suitable claims that neither user has skipped
             val suitableClaims = allUserStances.filter { claimId ->
                 claimId !in userA.skipClaimIds && claimId !in userB.skipClaimIds
@@ -364,11 +365,11 @@ class MatchService(
             if (suitableClaims.isNotEmpty()) {
                 // Use weighted selection giving priority to claims closer to beginning of combined list
                 val selectedClaimId = selectClaimWithPriority(suitableClaims, allUserStances)
-                
+
                 // Determine stances
                 val userAStance = userA.claimIdToStance[selectedClaimId]
                 val userBStance = userB.claimIdToStance[selectedClaimId]
-                
+
                 val finalUserAStance = userAStance ?: ClaimStance.FOR
                 val finalUserBStance = userBStance ?: ClaimStance.AGAINST
 
@@ -384,9 +385,11 @@ class MatchService(
                 matchedUsers.add(userB.userId)
 
                 createAndStoreMatch(userAWithStance, userBWithStance, selectedClaimId, MatchReason.USER_STANCE_ASSIGNED)
-                
-                logger.debug("User-stance matched users {} ({}) and {} ({}) on claim {}", 
-                           userA.userId, finalUserAStance, userB.userId, finalUserBStance, selectedClaimId)
+
+                logger.debug(
+                    "User-stance matched users {} ({}) and {} ({}) on claim {}",
+                    userA.userId, finalUserAStance, userB.userId, finalUserBStance, selectedClaimId
+                )
             } else {
                 // No suitable claims found, put users back
                 availableUsers.add(0, userB)
@@ -437,5 +440,6 @@ class MatchService(
         )
 
         matchRepository.save(match)
+        matchNotificationService.notifyMatchFound(match)
     }
 }

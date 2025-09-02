@@ -35,9 +35,8 @@ class MatchRepository(
     }
 
     fun findByMatchId(matchId: String): Match? {
-        return redisTemplate.opsForValue().get("$MATCH_KEY_PREFIX$matchId")?.let {
-            objectMapper.readValue(it, Match::class.java)
-        }
+        val matchJson = redisTemplate.opsForValue().get("$MATCH_KEY_PREFIX$matchId") ?: return null
+        return objectMapper.readValue(matchJson, Match::class.java)
     }
 
     fun findAll(): List<Match> {
@@ -46,16 +45,17 @@ class MatchRepository(
             .mapNotNull { objectMapper.readValue(it, Match::class.java) }
     }
 
-    fun remove(matchId: String) {
+    fun delete(matchId: String) {
+        val match = findByMatchId(matchId) ?: return
+        
         val matchKey = "$MATCH_KEY_PREFIX$matchId"
-        redisTemplate.opsForValue().get(matchKey)
-            ?.let { objectMapper.readValue(it, Match::class.java) }
-            ?.opponents
-            ?.forEach { userId ->
-                redisTemplate.delete("$USER_MATCH_KEY_PREFIX$userId")
-            }
-
+        // Remove the match data
         redisTemplate.delete(matchKey)
         redisTemplate.opsForSet().remove(ALL_MATCHES_SET, matchKey)
+        
+        // Remove user-to-match mappings
+        match.opponents.forEach { opponent ->
+            redisTemplate.delete("$USER_MATCH_KEY_PREFIX${opponent.userId}")
+        }
     }
 }
