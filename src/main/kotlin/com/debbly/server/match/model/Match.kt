@@ -8,7 +8,7 @@ data class Match(
     val claim: MatchClaim,
     val status: MatchStatus,
     val opponents: List<MatchOpponent>,
-    val createdAt: Instant
+    val createdAt: Instant,
 ) {
     data class MatchOpponent(
         val userId: String,
@@ -30,4 +30,10 @@ enum class MatchStatus {
 
 enum class MatchOpponentStatus {
     PENDING, ACCEPTED, REJECTED
+}
+
+enum class MatchReason {
+    COMMON_STANCE_OPPOSITE,   // Users had common claims with opposing stances
+    USER_STANCE_ASSIGNED,     // One user had stance, other was assigned opposing stance
+    TOP_CLAIM_RANDOM          // Both users assigned random stances on top-scored claim
 }
