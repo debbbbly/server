@@ -17,6 +17,9 @@ import com.debbly.server.match.repository.MatchRepository
 import com.debbly.server.stage.StageService
 import com.debbly.server.user.model.UserModel
 import com.debbly.server.user.repository.UserCachedRepository
+import com.debbly.server.websocket.MatchingWebSocketHandler
+import com.debbly.server.websocket.MatchingMessage
+import com.debbly.server.websocket.MessageType
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.Instant
@@ -31,7 +34,8 @@ class MatchService(
     private val claimRepository: ClaimCachedRepository,
     private val categoryRepository: CategoryCachedRepository,
     private val userClaimService: UserClaimService,
-    private val stageService: StageService
+    private val stageService: StageService,
+    private val webSocketHandler: MatchingWebSocketHandler
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -103,10 +107,22 @@ class MatchService(
     }
 
     fun accept(match: Match, user: UserModel) {
-        val opponents = match.opponents.map { opponent ->
+        val updatedOpponents = match.opponents.map { opponent ->
             if (opponent.userId == user.userId) opponent.copy(status = MatchOpponentStatus.ACCEPTED) else opponent
         }
-        matchRepository.save(match.copy(opponents = opponents))
+        val updatedMatch = match.copy(opponents = updatedOpponents)
+        matchRepository.save(updatedMatch)
+
+        // Notify other users about the acceptance
+        val otherUserIds = match.opponents.filter { it.userId != user.userId }.map { it.userId }
+        webSocketHandler.sendMessageToUsers(otherUserIds, MatchingMessage(
+            type = MessageType.MATCH_CONFIRMED,
+            message = "Opponent has accepted the match",
+            data = mapOf(
+                "matchId" to match.matchId,
+                "acceptedBy" to user.userId
+            )
+        ))
     }
 
     private fun removeMatch(userId: String) {
