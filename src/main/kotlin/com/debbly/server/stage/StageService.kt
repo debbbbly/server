@@ -70,7 +70,11 @@ class StageService(
             },
             isHost = isHost,
             hosts = hosts,
-            token = livekitToken
+            token = livekitToken,
+            status = stage.status,
+            createdAt = stage.createdAt,
+            openedAt = stage.openedAt,
+            closedAt = stage.closedAt
         )
     }
 
@@ -201,33 +205,37 @@ class StageService(
             if (stage.hosts.none { it.userId == userId }) {
                 throw UnauthorizedException("User is not a host of this stage")
             }
-            stageRepository.save(stage.copy(
-                status = StageStatus.CLOSED,
-                closedAt = Instant.now()
-            ))
+            stageRepository.save(
+                stage.copy(
+                    status = StageStatus.CLOSED,
+                    closedAt = Instant.now()
+                )
+            )
             liveStageRedisRepository.deleteById(stageId)
         }
     }
 
     fun onUserLeft(userId: String, stageId: String) {
         logger.info("User: '$userId' left from stage: '$stageId'.")
-        
+
         val stage = stageRepository.getById(stageId)
         val allHostUserIds = stage.hosts.map { it.userId }
         val liveKitParticipants = liveKitService.getParticipants(stageId)
-        
+
         // Check if any hosts are still connected
         val connectedHosts = liveKitParticipants
             .map { it.identity }
             .filter { it in allHostUserIds }
-        
+
         if (connectedHosts.isEmpty() && stage.status == StageStatus.OPEN) {
             // All hosts left, close the stage
             logger.info("All hosts left stage: '$stageId'. Closing stage.")
-            stageRepository.save(stage.copy(
-                status = StageStatus.CLOSED,
-                closedAt = Instant.now()
-            ))
+            stageRepository.save(
+                stage.copy(
+                    status = StageStatus.CLOSED,
+                    closedAt = Instant.now()
+                )
+            )
             liveStageRedisRepository.deleteById(stageId)
         }
     }
@@ -239,7 +247,9 @@ class StageService(
         val allHostUserIds = stage.hosts.map { it.userId }
         val liveKitParticipants = liveKitService.getParticipants(stageId)
 
-        if (liveKitParticipants.map { it.identity }.toSet().containsAll(allHostUserIds) && stage.status == StageStatus.PENDING) {
+        if (liveKitParticipants.map { it.identity }.toSet()
+                .containsAll(allHostUserIds) && stage.status == StageStatus.PENDING
+        ) {
             // All hosts joined, open the stage
             logger.info("All hosts joined stage: '$stageId'. Opening stage.")
             val openedAt = Instant.now()
@@ -248,10 +258,10 @@ class StageService(
                 openedAt = openedAt
             )
             stageRepository.save(updatedStage)
-            
+
             // Create live stage in Redis
             createLiveStage(updatedStage, openedAt)
-            
+
             // start egress
         }
     }
@@ -259,7 +269,7 @@ class StageService(
     private fun createLiveStage(stage: StageModel, openedAt: Instant) {
         val users = stage.hosts.mapNotNull { userCachedRepository.findById(it.userId) }.associateBy { it.userId }
         val claim = stage.claimId?.let { claimCachedRepository.getById(it) }
-        
+
         liveStageRedisRepository.save(
             LiveStageEntity(
                 stageId = stage.stageId,
@@ -287,7 +297,11 @@ class StageService(
         val claim: Claim?,
         val isHost: Boolean,
         val hosts: List<Host>,
-        val token: String?
+        val token: String?,
+        val status: StageStatus,
+        val createdAt: Instant,
+        val openedAt: Instant?,
+        val closedAt: Instant?,
     ) {
         data class Host(
             val userId: String,
