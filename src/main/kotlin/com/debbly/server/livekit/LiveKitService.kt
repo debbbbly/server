@@ -142,8 +142,69 @@ class LiveKitService(
         return token.toJwt()
     }
 
+    /**
+     * End a room - kicks all participants and closes the room
+     */
+    fun endRoom(stageId: String): Boolean {
+        val call = livekitRoomService.deleteRoom(stageId)
+        val response = call.execute()
+        
+        if (response.isSuccessful) {
+            logger.info("Successfully ended room: $stageId")
+            return true
+        } else {
+            logger.error("Failed to end room $stageId: ${response.code()} ${response.message()}")
+            return false
+        }
+    }
 
+    /**
+     * Remove a specific participant from a room
+     */
+    fun removeParticipant(stageId: String, participantIdentity: String): Boolean {
+        val call = livekitRoomService.removeParticipant(stageId, participantIdentity)
+        val response = call.execute()
+        
+        if (response.isSuccessful) {
+            logger.info("Successfully removed participant $participantIdentity from room: $stageId")
+            return true
+        } else {
+            logger.error("Failed to remove participant $participantIdentity from room $stageId: ${response.code()} ${response.message()}")
+            return false
+        }
+    }
 
+    /**
+     * Mute a participant (audio, video, or both)
+     */
+    fun muteParticipant(stageId: String, participantIdentity: String, muted: Boolean): Boolean {
+        val call = livekitRoomService.mutePublishedTrack(stageId, participantIdentity, "", muted)
+        val response = call.execute()
+        
+        if (response.isSuccessful) {
+            logger.info("Successfully ${if (muted) "muted" else "unmuted"} participant $participantIdentity in room: $stageId")
+            return true
+        } else {
+            logger.error("Failed to ${if (muted) "mute" else "unmute"} participant $participantIdentity in room $stageId: ${response.code()} ${response.message()}")
+            return false
+        }
+    }
+
+    /**
+     * Get room info including metadata and settings
+     */
+    fun getRoomInfo(stageId: String): LivekitModels.Room? {
+        val call = livekitRoomService.listRooms(listOf(stageId))
+        val response = call.execute()
+        
+        if (response.isSuccessful) {
+            val rooms = response.body()
+            return rooms?.firstOrNull()
+        } else {
+            logger.error("Failed to get room info for $stageId: ${response.code()} ${response.message()}")
+            return null
+        }
+    }
 }
 
 

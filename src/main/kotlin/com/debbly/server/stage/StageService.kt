@@ -230,16 +230,8 @@ class StageService(
             .map { it.identity }
             .filter { it in allHostUserIds }
 
-        if (connectedHosts.isEmpty() && stage.status == StageStatus.OPEN) {
-            // All hosts left, close the stage
-            logger.info("All hosts left stage: '$stageId'. Closing stage.")
-            stageRepository.save(
-                stage.copy(
-                    status = StageStatus.CLOSED,
-                    closedAt = Instant.now()
-                )
-            )
-            liveStageRedisRepository.deleteById(stageId)
+        if (connectedHosts.isEmpty() && stage.status != StageStatus.CLOSED) {
+            closeStage(stage)
         }
     }
 
@@ -293,6 +285,58 @@ class StageService(
                 heartbeatAt = Instant.now()
             )
         )
+    }
+
+    /**
+     * Check for stages that have exceeded their time limit and close them
+     * Uses Redis LiveStage cache for better performance
+     */
+    fun closeExpiredStages() {
+        val now = Instant.now()
+        val timeLimitSeconds = stageProperties.limitMinutes * 60L
+        val cutoffTime = now.minusSeconds(timeLimitSeconds)
+
+        // Find live stages (Redis) that have exceeded the time limit
+        val expiredLiveStages = liveStageRedisRepository.findAll()
+            .filter { liveStage -> liveStage.openedAt.isBefore(cutoffTime) }
+
+        logger.info("Found ${expiredLiveStages.size} expired live stages to close")
+
+        expiredLiveStages.forEach { liveStage ->
+            try {
+                // Get the full stage model from database for closeStage()
+                val stage = stageRepository.findById(liveStage.stageId)
+                if (stage != null) {
+                    closeStage(stage)
+                } else {
+                    logger.warn("Stage ${liveStage.stageId} found in Redis but not in database, cleaning up Redis")
+                    liveStageRedisRepository.deleteById(liveStage.stageId)
+                }
+            } catch (e: Exception) {
+                logger.error("Error closing expired stage ${liveStage.stageId}", e)
+            }
+        }
+    }
+
+    private fun closeStage(stage: StageModel) {
+        logger.info("Closing stage ${stage.stageId} due to time limit (${stageProperties.limitMinutes} minutes)")
+
+        val roomClosed = liveKitService.endRoom(stage.stageId)
+        if (!roomClosed) {
+            logger.warn("Failed to end LiveKit room for stage ${stage.stageId}")
+        }
+
+        val closedStage = stage.copy(
+            status = StageStatus.CLOSED,
+            closedAt = Instant.now()
+        )
+        stageRepository.save(closedStage)
+        liveStageRedisRepository.deleteById(stage.stageId)
+
+        // TODO: Send WebSocket notification to participants about timeout
+        // notifyStageTimeoutToParticipants(stage)
+
+        logger.info("Successfully closed stage ${stage.stageId} due to timeout")
     }
 
     data class StageDetails(
