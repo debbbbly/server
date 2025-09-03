@@ -7,6 +7,7 @@ import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.livekit.LiveKitService
 import com.debbly.server.match.model.Match
+import com.debbly.server.stage.config.StageProperties
 import com.debbly.server.stage.model.LiveStageEntity
 import com.debbly.server.stage.model.LiveStageHost
 import com.debbly.server.stage.model.StageModel
@@ -27,7 +28,8 @@ class StageService(
     private val idService: IdService,
     private val claimCachedRepository: ClaimCachedRepository,
     private val userClaimCachedRepository: UserClaimCachedRepository,
-    private val liveKitService: LiveKitService
+    private val liveKitService: LiveKitService,
+    private val stageProperties: StageProperties
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -74,7 +76,8 @@ class StageService(
             status = stage.status,
             createdAt = stage.createdAt,
             openedAt = stage.openedAt,
-            closedAt = stage.closedAt
+            closedAt = stage.closedAt,
+            limitMinutes = stageProperties.limitMinutes
         )
     }
 
@@ -302,6 +305,7 @@ class StageService(
         val createdAt: Instant,
         val openedAt: Instant?,
         val closedAt: Instant?,
+        val limitMinutes: Int
     ) {
         data class Host(
             val userId: String,
