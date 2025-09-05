@@ -41,9 +41,9 @@ class UserClaimService(
 //                )
 //            }
 //    }
-    fun getUserClaims(userId: String) = userClaimRepository.findByUserId(userId)
+    fun getClaims(userId: String) = userClaimRepository.findByUserId(userId)
 
-    fun updateUserClaimStance(userId: String, claimId: String, stance: ClaimStance) {
+    fun updateStance(userId: String, claimId: String, stance: ClaimStance) {
         userClaimRepository.findByUserIdClaimId(userId, claimId)?.let { userClaim ->
             userClaimRepository.save(userClaim.copy(stance = stance))
         } ?: let {
@@ -79,7 +79,7 @@ class UserClaimService(
         }
     }
 
-    fun removeUserClaim(userId: String, claimId: String) {
+    fun removeStance(userId: String, claimId: String) {
         userClaimRepository.deleteByUserIdAndClaimId(userId, claimId)
     }
 

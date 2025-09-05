@@ -81,7 +81,7 @@ class MatchService(
         val withClaimIdToStance = userStance
             ?.let { match.claim.claimId to it }
             ?.also { (_, stance) ->
-                userClaimService.updateUserClaimStance(
+                userClaimService.updateStance(
                     userId = user.userId,
                     claimId = match.claim.claimId,
                     stance = stance

@@ -27,7 +27,7 @@ class ClaimController(
         val userId = externalUserId?.let { authService.authenticate(it).userId }
 
         val claimIdToUserClaim = userId?.let {
-            userClaimService.getUserClaims(it).associateBy { userClaim -> userClaim.claim.claimId }
+            userClaimService.getClaims(it).associateBy { userClaim -> userClaim.claim.claimId }
         }
             ?: emptyMap()
 

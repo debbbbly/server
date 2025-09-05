@@ -18,7 +18,7 @@ class UserController(
 ) {
 
     @GetMapping("/me")
-    fun me(@ExternalUserId externalUserId: String?): ResponseEntity<UserResponse> {
+    fun me(@ExternalUserId externalUserId: String?): ResponseEntity<UserMeResponse> {
         if (externalUserId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
         }
@@ -32,14 +32,28 @@ class UserController(
                 )
             )
 
-        return ResponseEntity.ok(UserResponse(user.userId, user.username, user.email, user.birthdate))
+        return ResponseEntity.ok(UserMeResponse(user.userId, user.username, user.email, user.birthdate))
     }
 
-    data class UserResponse(
+    data class UserMeResponse(
         val id: String,
         val username: String?,
         val email: String,
         val birthdate: LocalDate?
+    )
+
+    @GetMapping
+    fun getUserByUsername(@RequestParam username: String): ResponseEntity<UserPublicResponse> {
+        val user = userCachedRepository.findByUsername(username.trim())
+            ?: return ResponseEntity.notFound().build()
+        
+        return ResponseEntity.ok(UserPublicResponse(user.userId, user.username, user.avatarUrl))
+    }
+
+    data class UserPublicResponse(
+        val id: String,
+        val username: String?,
+        val avatarUrl: String?
     )
 
     @PostMapping("/verify-username")
