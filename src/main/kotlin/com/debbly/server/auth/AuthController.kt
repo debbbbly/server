@@ -3,10 +3,10 @@ package com.debbly.server.auth
 import com.debbly.server.IdService
 import com.debbly.server.auth.AuthErrorCode.*
 import com.debbly.server.auth.config.CognitoConfig
-import com.debbly.server.user.model.UserModel
 import com.debbly.server.user.UserValidator.isUserComplete
 import com.debbly.server.user.UserValidator.isValidBirthdate
 import com.debbly.server.user.UserValidator.isValidUsername
+import com.debbly.server.user.model.UserModel
 import com.debbly.server.user.repository.UserCachedRepository
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.constraints.NotBlank
@@ -317,13 +317,13 @@ class AuthController(
 
     @PostMapping("/set-cookie")
     fun setCookie(
-        @RequestBody tokenResponse: TokenResponse,
+        @RequestBody request: SetCookie,
         response: HttpServletResponse
     ): ResponseEntity<Void> {
         val secure = "dev" !in env.activeProfiles
-        response.setCookie("accessToken", tokenResponse.accessToken, 60 * 60, "Lax", secure)
-        response.setCookie("idToken", tokenResponse.idToken, 60 * 60, "Lax", secure)
-        response.setCookie("refreshToken", tokenResponse.refreshToken, 60 * 60 * 24 * 30, "Strict", secure)
+        response.setCookie("accessToken", request.accessToken, 60 * 60, "Lax", secure)
+        response.setCookie("idToken", request.idToken, 60 * 60, "Lax", secure)
+        response.setCookie("refreshToken", request.refreshToken, 60 * 60 * 24 * 30, "Strict", secure)
 
         return ResponseEntity.ok().build()
     }
@@ -384,6 +384,12 @@ class AuthController(
         val idToken: String? = null,
         val refreshToken: String? = null,
         val error: AuthErrorCode? = null
+    )
+
+    data class SetCookie(
+        val accessToken: String,
+        val idToken: String,
+        val refreshToken: String,
     )
 
     data class RefreshTokenRequest(
