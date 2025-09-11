@@ -82,5 +82,4 @@ class UserController(
         val isValid: Boolean,
         val errorMessage: String? = null
     )
-
 }

@@ -4,6 +4,10 @@ spring:
   threads:
     virtual:
       enabled: true
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+      write-date-timestamps-as-nanoseconds: false
   security:
     oauth2:
       resourceserver:
@@ -15,9 +19,17 @@ spring:
     password: ${DB_PASSWORD}
   liquibase:
     change-log: classpath:/db/changelog/db.changelog-master.yaml
-  redis:
-    host: localhost
-    port: 6379
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-3.5-turbo
+          temperature: 0.0
 
 server:
   port: 8080
@@ -32,6 +44,7 @@ cognito:
   region: us-west-2
   client-id: 3kjpccjofeesv4bv8hjsqliple
   user-pool-id: us-west-2_Fm2VsaCqc
-#  domain: debbly-auth
+  domain: debbly-auth
 
-
+stage:
+  limit-minutes: 15

@@ -300,7 +300,7 @@ class StageService(
         val expiredLiveStages = liveStageRedisRepository.findAll()
             .filter { liveStage -> liveStage.openedAt.isBefore(cutoffTime) }
 
-        logger.info("Found ${expiredLiveStages.size} expired live stages to close")
+//        logger.info("Found ${expiredLiveStages.size} expired live stages to close")
 
         expiredLiveStages.forEach { liveStage ->
             try {

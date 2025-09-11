@@ -235,7 +235,7 @@ class MatchService(
             finalRemainingUsers.forEach { matchQueueRepository.save(it) }
         }
 
-        logger.info(
+        logger.debug(
             "Matching complete: {} users matched, {} users remain in queue",
             matchedUsers.size, finalRemainingUsers.size
         )

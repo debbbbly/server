@@ -6,7 +6,7 @@ import java.time.Period
 
 object UserValidator {
     fun isValidBirthdate(birthdate: LocalDate) =
-        Period.between(birthdate, LocalDate.now()).years >= 18
+        Period.between(birthdate, LocalDate.now()).years >= 14
 
     fun isValidUsername(username: String) =
         username.trim().matches(Regex("^[a-zA-Z0-9_]{5,30}$"))

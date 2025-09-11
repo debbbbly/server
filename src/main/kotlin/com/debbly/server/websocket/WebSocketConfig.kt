@@ -23,7 +23,7 @@ class WebSocketConfig(
 
     override fun registerWebSocketHandlers(registry: WebSocketHandlerRegistry) {
         registry.addHandler(matchingWebSocketHandler, "/ws/matching")
-            .setAllowedOrigins("http://localhost:3000") // Frontend origin
+            .setAllowedOrigins("http://localhost:3000", "https://debbly.com") // Frontend origin
             .setHandshakeHandler(object : DefaultHandshakeHandler() {
                 override fun determineUser(request: ServerHttpRequest, wsHandler: WebSocketHandler, attributes: MutableMap<String, Any>): Principal? {
                     val tokenResolver = CookieAndHeaderBearerTokenResolver()
