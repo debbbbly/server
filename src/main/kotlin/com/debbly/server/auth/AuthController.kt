@@ -10,6 +10,7 @@ import com.debbly.server.user.model.UserModel
 import com.debbly.server.user.repository.UserCachedRepository
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.constraints.NotBlank
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.HttpStatus.BAD_REQUEST
 import org.springframework.http.HttpStatus.UNAUTHORIZED
@@ -33,6 +34,7 @@ class AuthController(
     private val jwtDecoder: JwtDecoder,
     private val env: org.springframework.core.env.Environment
 ) {
+    private val logger = LoggerFactory.getLogger(javaClass)
 
     @PostMapping("/login")
     fun login(@RequestBody req: LoginRequest): ResponseEntity<TokenResponse> {

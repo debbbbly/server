@@ -658,3 +658,51 @@ databaseChangeLog:
                   type: double
                   constraints:
                     nullable: true
+  - changeSet:
+      id: 10
+      author: claude
+      changes:
+        - addColumn:
+            tableName: claim_proposals
+            columns:
+              - column:
+                  name: claim_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: true
+        - renameColumn:
+            tableName: claim_proposals
+            oldColumnName: ai_reasoning
+            newColumnName: reasoning
+            columnDataType: text
+        - renameColumn:
+            tableName: claim_proposals
+            oldColumnName: suggested_category_id
+            newColumnName: category_id
+            columnDataType: varchar(64)
+        - renameColumn:
+            tableName: claim_proposals
+            oldColumnName: requested_stance
+            newColumnName: user_stance
+            columnDataType: varchar(16)
+        - addForeignKeyConstraint:
+            baseColumnNames: claim_id
+            baseTableName: claim_proposals
+            constraintName: fk_claim_proposals_claim_id
+            referencedColumnNames: claim_id
+            referencedTableName: claims
+  - changeSet:
+      id: 11
+      author: claude
+      changes:
+        - renameColumn:
+            tableName: claim_proposals
+            oldColumnName: suggested_tags
+            newColumnName: tags
+            columnDataType: text
+        - dropColumn:
+            tableName: claim_proposals
+            columnName: resulting_claim_id
+        - dropForeignKeyConstraint:
+            baseTableName: claim_proposals
+            constraintName: fk_claim_proposals_resulting_claim_id

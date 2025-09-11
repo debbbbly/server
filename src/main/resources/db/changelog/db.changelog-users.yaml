@@ -87,3 +87,11 @@ databaseChangeLog:
             columns:
               - column:
                   name: following_user_id
+
+  - changeSet:
+      id: 3
+      author: claude
+      changes:
+        - renameTable:
+            oldTableName: user_follows
+            newTableName: followers
