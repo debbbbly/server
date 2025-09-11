@@ -703,6 +703,3 @@ databaseChangeLog:
         - dropColumn:
             tableName: claim_proposals
             columnName: resulting_claim_id
-        - dropForeignKeyConstraint:
-            baseTableName: claim_proposals
-            constraintName: fk_claim_proposals_resulting_claim_id
