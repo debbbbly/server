@@ -2,18 +2,18 @@ package com.debbly.server.match
 
 import com.debbly.server.match.model.Match
 import com.debbly.server.websocket.MatchingMessage
-import com.debbly.server.websocket.MatchingWebSocketHandler
+import com.debbly.server.websocket.MatchingService
 import com.debbly.server.websocket.MessageType
 import org.springframework.stereotype.Service
 
 @Service
 class MatchNotificationService(
-    private val webSocketHandler: MatchingWebSocketHandler
+    private val matchingService: MatchingService
 ) {
 
     fun notifyMatchFound(match: Match) {
         val userIds = match.opponents.map { it.userId }
-        webSocketHandler.sendMessage(userIds, MatchingMessage(
+        matchingService.sendMatchingMessage(userIds, MatchingMessage(
             type = MessageType.MATCH_FOUND,
             message = "Match found!",
             data = match
@@ -22,7 +22,7 @@ class MatchNotificationService(
 
     fun notifyOpponentAccepted(match: Match, userId: String) {
         val otherUserIds = match.opponents.filter { it.userId != userId }.map { it.userId }
-        webSocketHandler.sendMessage(otherUserIds, MatchingMessage(
+        matchingService.sendMatchingMessage(otherUserIds, MatchingMessage(
             type = MessageType.MATCH_ACCEPTED,
             message = "Opponent has accepted the match",
             data = mapOf(
@@ -34,7 +34,7 @@ class MatchNotificationService(
 
     fun notifyMatchConfirmedAll(match: Match) {
         val userIds = match.opponents.map { it.userId }
-        webSocketHandler.sendMessage(userIds, MatchingMessage(
+        matchingService.sendMatchingMessage(userIds, MatchingMessage(
             type = MessageType.MATCH_ACCEPTED_ALL,
             message = "Match confirmed! Starting debate room...",
             data = match
@@ -43,7 +43,7 @@ class MatchNotificationService(
 
     fun notifyMatchTimeout(match: Match) {
         val userIds = match.opponents.map { it.userId }
-        webSocketHandler.sendMessage(userIds, MatchingMessage(
+        matchingService.sendMatchingMessage(userIds, MatchingMessage(
             type = MessageType.MATCH_EXPIRED,
             message = "Match expired, returning to queue",
             data = mapOf("reason" to "timeout")
@@ -52,7 +52,7 @@ class MatchNotificationService(
 
     fun notifyMatchCancelled(match: Match, cancelledBy: String, reason: String) {
         val userIds = match.opponents.map { it.userId }
-        webSocketHandler.sendMessage(userIds, MatchingMessage(
+        matchingService.sendMatchingMessage(userIds, MatchingMessage(
             type = MessageType.MATCH_EXPIRED,
             message = "Match cancelled, returning to queue",
             data = mapOf(

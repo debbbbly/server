@@ -1,0 +1,56 @@
+services:
+  # Database Services
+#  postgres:
+#    image: postgres:15-alpine
+#    container_name: debbly-postgres
+#    restart: always
+#    environment:
+#      POSTGRES_DB: ${POSTGRES_DB}
+#      POSTGRES_USER: ${POSTGRES_USER}
+#      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+#    volumes:
+#      - postgres_data:/var/lib/postgresql/data
+#    ports:
+#      - "5432:5432" # Only expose if needed for external access
+#    healthcheck:
+#      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 5
+
+#  redis:
+#    image: redis:7-alpine
+#    container_name: debbly-redis
+#    restart: always
+#    command: redis-server --appendonly yes
+#    volumes:
+#      - redis_data:/data
+#    ports:
+#      - "6379:6379" # Only expose if needed for external access
+#    healthcheck:
+#      test: ["CMD", "redis-cli", "ping"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 5
+
+  # LiveKit Services
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: debbly-livekit
+    restart: always
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "6000-6100:6000-6100/udp"
+    volumes:
+      - ./livekit.yaml:/livekit.yaml
+    command: ["--config", "/livekit.yaml"]
+
+  egress:
+    image: livekit/egress:latest
+    container_name: debbly-egress
+    restart: always
+    volumes:
+      - ./egress.yaml:/egress.yaml
+    environment:
+      - EGRESS_CONFIG_FILE=/egress.yaml

@@ -15,6 +15,7 @@ import java.time.LocalDate
 class UserController(
     private val userCachedRepository: UserCachedRepository,
     private val idService: IdService,
+    private val onlineUsersService: OnlineUsersService,
 ) {
 
     @GetMapping("/me")
@@ -81,5 +82,16 @@ class UserController(
     data class VerifyUsernameResponse(
         val isValid: Boolean,
         val errorMessage: String? = null
+    )
+
+    @GetMapping("/online")
+    fun getOnlineUsers(): ResponseEntity<OnlineUsersResponse> {
+        val onlineUsers = onlineUsersService.getOnlineUsers()
+        return ResponseEntity.ok(OnlineUsersResponse(onlineUsers, onlineUsers.size))
+    }
+
+    data class OnlineUsersResponse(
+        val users: List<OnlineUserResponse>,
+        val count: Int
     )
 }

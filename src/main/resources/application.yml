@@ -35,7 +35,7 @@ server:
   port: 8080
 
 livekit:
-  wss: ${LIVEKIT_WS_URL}
+  ws: ${LIVEKIT_WS_URL}
   http: ${LIVEKIT_API_URL}
   api-key: ${LIVEKIT_API_KEY}
   api-secret: ${LIVEKIT_API_SECRET}
@@ -48,3 +48,10 @@ cognito:
 
 stage:
   limit-minutes: 15
+
+logging:
+  level:
+    root: INFO
+    com.debbly: DEBUG
+    org.springframework.web.socket: DEBUG
+    okhttp3: DEBUG

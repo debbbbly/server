@@ -141,29 +141,6 @@ class MatchService(
                 }
             }
 
-    fun runMatchingConfirmation() {
-        val matches = matchRepository.findAll()
-        val matchDeadline = Instant.now().minusSeconds(15)
-
-        for (match in matches) {
-            if (match.status == MatchStatus.ACCEPTED) {
-                stageService.createStage(match)
-
-            } else if (match.opponents.all { it.status == MatchOpponentStatus.ACCEPTED }) {
-                stageService.createStage(match)
-                matchRepository.save(match.copy(status = MatchStatus.ACCEPTED))
-                matchNotificationService.notifyMatchConfirmedAll(match)
-
-            } else if (match.createdAt.isBefore(matchDeadline)) {
-                matchNotificationService.notifyMatchTimeout(match)
-                match.opponents.forEach { opponent ->
-                    matchQueueRepository.save(buildMatchRequest(userRepository.getById(opponent.userId)))
-                }
-                logger.info("Removed match: ${match.matchId} on ${match.claim.claimId}:${match.claim.title}.")
-            }
-        }
-    }
-
     data class MatchingState(
         val status: MatchingStatus,
         val matches: List<Match> = emptyList()

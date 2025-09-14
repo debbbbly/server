@@ -7,7 +7,6 @@ data class CognitoConfig(
     val region: String,
     val clientId: String,
     val userPoolId: String,
-//    val domain: String,
 ) {
     val jwks: String
         get() = "https://cognito-idp.$region.amazonaws.com/$userPoolId/.well-known/jwks.json"

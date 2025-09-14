@@ -7,52 +7,53 @@ import org.springframework.web.socket.CloseStatus
 import org.springframework.web.socket.TextMessage
 import org.springframework.web.socket.WebSocketSession
 import org.springframework.web.socket.handler.TextWebSocketHandler
-import java.util.concurrent.ConcurrentHashMap
 
 @Component
 class MatchingWebSocketHandler(
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val webSocketSessionService: WebSocketSessionService
 ) : TextWebSocketHandler() {
 
     private val logger = LoggerFactory.getLogger(javaClass)
-    private val userSessions = ConcurrentHashMap<String, WebSocketSession>()
 
     override fun afterConnectionEstablished(session: WebSocketSession) {
         val userId = extractUserIdFromSession(session)
-        if (userId != null) {
-            userSessions[userId] = session
-            logger.info("WebSocket connection established for user: {}", userId)
+        webSocketSessionService.registerSession(userId, session)
 
-            sendMessage(userId, MatchingMessage(
+        if (userId.startsWith("guest_")) {
+            logger.info("WebSocket connection established for guest: {}", userId)
+            webSocketSessionService.sendMessageToUser(userId, MatchingMessage(
+                type = MessageType.CONNECTION_ESTABLISHED,
+                message = "Connected to matching service as guest"
+            ))
+        } else {
+            logger.info("WebSocket connection established for authenticated user: {}", userId)
+            webSocketSessionService.sendMessageToUser(userId, MatchingMessage(
                 type = MessageType.CONNECTION_ESTABLISHED,
                 message = "Connected to matching service"
             ))
-        } else {
-            logger.warn("No userId found in WebSocket session, closing connection")
-            session.close()
         }
     }
 
     override fun afterConnectionClosed(session: WebSocketSession, status: CloseStatus) {
-        val userId = findUserIdBySession(session)
-        if (userId != null) {
-            userSessions.remove(userId)
-            logger.info("WebSocket connection closed for user: {}", userId)
-        }
+        val userId = extractUserIdFromSession(session)
+        webSocketSessionService.unregisterSession(userId, session)
+        logger.info("WebSocket connection closed for user: {}", userId)
     }
 
     override fun handleTextMessage(session: WebSocketSession, message: TextMessage) {
-        val userId = findUserIdBySession(session)
+        val userId = extractUserIdFromSession(session)
         logger.debug("Received message from user {}: {}", userId, message.payload)
-        
-        // Handle incoming messages if needed (e.g., ping/pong, acknowledgments)
+
+        // Handle incoming messages if needed (e.g., ping/pong, heartbeat responses)
         try {
             val incomingMessage = objectMapper.readValue(message.payload, IncomingMessage::class.java)
             when (incomingMessage.type) {
                 "PING" -> {
-                    if (userId != null) {
-                        sendMessage(userId, MatchingMessage(MessageType.PONG, "pong"))
-                    }
+                    webSocketSessionService.sendMessageToUser(userId, MatchingMessage(MessageType.PONG, "pong"))
+                }
+                "PONG" -> {
+                    webSocketSessionService.handlePongResponse(session.id)
                 }
                 else -> {
                     logger.debug("Unhandled message type: {}", incomingMessage.type)
@@ -63,46 +64,12 @@ class MatchingWebSocketHandler(
         }
     }
 
-    /**
-     * Send a message to a specific user
-     */
-    fun sendMessage(userId: String, message: MatchingMessage) {
-        val session = userSessions[userId]
-        if (session?.isOpen == true) {
-            try {
-                val jsonMessage = objectMapper.writeValueAsString(message)
-                session.sendMessage(TextMessage(jsonMessage))
-                logger.debug("Sent message to user {}: {}", userId, message.type)
-            } catch (e: Exception) {
-                logger.error("Error sending WebSocket message to user {}: {}", userId, e.message)
-            }
-        } else {
-            logger.warn("No active WebSocket session for user: {}", userId)
-        }
-    }
+    private fun extractUserIdFromSession(session: WebSocketSession): String {
+        // Try authenticated user first
+        session.principal?.name?.let { return it }
 
-    /**
-     * Send a message to multiple users
-     */
-    fun sendMessage(userIds: List<String>, message: MatchingMessage) {
-        userIds.forEach { userId ->
-            sendMessage(userId, message)
-        }
-    }
-
-    /**
-     * Get all connected user IDs
-     */
-    fun getConnectedUserIds(): Set<String> {
-        return userSessions.keys.toSet()
-    }
-
-    private fun extractUserIdFromSession(session: WebSocketSession): String? {
-        return session.principal?.name
-    }
-
-    private fun findUserIdBySession(session: WebSocketSession): String? {
-        return userSessions.entries.find { it.value == session }?.key
+        // Generate guest ID for unauthenticated users
+        return "guest_${session.id}"
     }
 
     data class IncomingMessage(
@@ -117,6 +84,7 @@ enum class MessageType {
     MATCH_ACCEPTED,
     MATCH_ACCEPTED_ALL,
     MATCH_EXPIRED,
+    PING,
     PONG
 }
 
