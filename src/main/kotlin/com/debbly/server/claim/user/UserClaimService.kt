@@ -7,6 +7,7 @@ import com.debbly.server.claim.model.UserClaimModel
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import org.springframework.stereotype.Service
+import java.time.Clock
 import java.time.Instant
 
 @Service
@@ -14,7 +15,8 @@ class UserClaimService(
     private val userClaimRepository: UserClaimCachedRepository,
     private val claimRepository: ClaimCachedRepository,
     private val idService: IdService,
-    private val categoryRepository: CategoryCachedRepository
+    private val categoryRepository: CategoryCachedRepository,
+    private val clock: Clock
 ) {
 
     //    fun getUserClaimsWithUserData(userId: String, limit: Int): List<ClaimWithUserDataModel> {
@@ -55,7 +57,7 @@ class UserClaimService(
                         userId = userId,
                         stance = stance,
                         priority = null,
-                        updatedAt = Instant.now()
+                        updatedAt = Instant.now(clock)
                     )
                 )
             }
@@ -72,7 +74,7 @@ class UserClaimService(
                         stance = userClaimRepository.findByUserId(userId)
                             .find { it.claim.claimId == claimId }?.stance ?: ClaimStance.EITHER,
                         priority = priority,
-                        updatedAt = Instant.now()
+                        updatedAt = Instant.now(clock)
                     )
                 )
             }

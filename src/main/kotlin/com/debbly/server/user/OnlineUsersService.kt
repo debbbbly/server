@@ -1,6 +1,5 @@
 package com.debbly.server.user
 
-import com.debbly.server.user.model.UserModel
 import com.debbly.server.user.repository.UserCachedRepository
 import com.debbly.server.websocket.WebSocketSessionService
 import org.springframework.stereotype.Service
@@ -11,13 +10,13 @@ class OnlineUsersService(
     private val userCachedRepository: UserCachedRepository
 ) {
 
-    fun getOnlineUsers(): List<OnlineUserResponse> {
+    fun getOnlineUsers(): List<ListUserResponse> {
         val connectedUserIds = webSocketSessionService.getOnlineUserIds()
 
         return connectedUserIds.mapNotNull { userId ->
             userCachedRepository.findById(userId)?.let { user ->
-                OnlineUserResponse(
-                    id = user.userId,
+                ListUserResponse(
+                    userId = user.userId,
                     username = user.username,
                     avatarUrl = user.avatarUrl
                 )
@@ -34,8 +33,9 @@ class OnlineUsersService(
     }
 }
 
-data class OnlineUserResponse(
-    val id: String,
+data class ListUserResponse(
+    val userId: String,
     val username: String?,
-    val avatarUrl: String?
+    val avatarUrl: String?,
+    val rank: Int? = 0
 )

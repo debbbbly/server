@@ -7,6 +7,7 @@ import com.debbly.server.user.model.toModel
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.cache.annotation.Caching
+import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import kotlin.jvm.optionals.getOrNull
 
@@ -35,5 +36,10 @@ class UserCachedRepository(
         ]
     )
     fun save(user: UserModel): UserModel = userJpaRepository.save(user.toEntity()).toModel()
+
+    fun findTop100ByRankDesc(): List<UserModel> {
+        return userJpaRepository.findTop100ByRankDesc(PageRequest.of(0, 100))
+            .map { it.toModel() }
+    }
 
 }

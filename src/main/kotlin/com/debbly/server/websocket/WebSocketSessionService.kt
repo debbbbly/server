@@ -6,12 +6,14 @@ import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.web.socket.TextMessage
 import org.springframework.web.socket.WebSocketSession
+import java.time.Clock
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 
 @Service
 class WebSocketSessionService(
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val clock: Clock
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -149,7 +151,7 @@ class WebSocketSessionService(
     fun cleanupExpiredSessions() {
         logger.debug("Running session cleanup...")
 
-        val currentTime = Instant.now().epochSecond
+        val currentTime = Instant.now(clock).epochSecond
         val expiredSessions = mutableListOf<String>()
 
         // Check in-memory heartbeats for expired sessions
@@ -191,7 +193,7 @@ class WebSocketSessionService(
      * Update the heartbeat timestamp for a session
      */
     private fun updateSessionHeartbeat(sessionId: String) {
-        sessionHeartbeats[sessionId] = Instant.now().epochSecond
+        sessionHeartbeats[sessionId] = Instant.now(clock).epochSecond
     }
 
     /**

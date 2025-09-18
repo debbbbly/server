@@ -47,7 +47,7 @@ class UserController(
     fun getUserByUsername(@RequestParam username: String): ResponseEntity<UserPublicResponse> {
         val user = userCachedRepository.findByUsername(username.trim())
             ?: return ResponseEntity.notFound().build()
-        
+
         return ResponseEntity.ok(UserPublicResponse(user.userId, user.username, user.avatarUrl))
     }
 
@@ -85,13 +85,28 @@ class UserController(
     )
 
     @GetMapping("/online")
-    fun getOnlineUsers(): ResponseEntity<OnlineUsersResponse> {
+    fun getOnlineUsers(): ResponseEntity<ListUsersResponse> {
         val onlineUsers = onlineUsersService.getOnlineUsers()
-        return ResponseEntity.ok(OnlineUsersResponse(onlineUsers, onlineUsers.size))
+        return ResponseEntity.ok(ListUsersResponse(onlineUsers, onlineUsers.size))
     }
 
-    data class OnlineUsersResponse(
-        val users: List<OnlineUserResponse>,
+    data class ListUsersResponse(
+        val users: List<ListUserResponse>,
         val count: Int
     )
+
+    @GetMapping("/top")
+    fun getTopUsers(): ResponseEntity<ListUsersResponse> {
+        val topUsers = userCachedRepository.findTop100ByRankDesc()
+            .map { user ->
+                ListUserResponse(
+                    userId = user.userId,
+                    username = user.username ?: "Anonymous",
+                    avatarUrl = user.avatarUrl,
+                    rank = user.rank
+                )
+            }
+        return ResponseEntity.ok(ListUsersResponse(topUsers, topUsers.size))
+    }
+
 }

@@ -9,12 +9,14 @@ import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.cache.annotation.Caching
 import org.springframework.stereotype.Service
+import java.time.Clock
 import java.time.Instant
 
 @Service
 class FollowersCachedRepository(
     private val followersJpaRepository: FollowersJpaRepository,
-    private val userJpaRepository: UserJpaRepository
+    private val userJpaRepository: UserJpaRepository,
+    private val clock: Clock
 ) {
 
     @Cacheable(value = ["userFollowing"], key = "#userId", unless = "#result.isEmpty()")
@@ -45,7 +47,7 @@ class FollowersCachedRepository(
     fun followUser(followerUserId: String, followingUserId: String): FollowerModel {
         val followEntity = FollowerEntity(
             id = FollowerEntityId(followerUserId, followingUserId,),
-            Instant.now()
+            Instant.now(clock)
         )
         return followersJpaRepository.save(followEntity).toModel()
     }

@@ -15,6 +15,7 @@ import com.debbly.server.user.model.UserModel
 import com.debbly.server.user.repository.UserCachedRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import java.time.Clock
 import java.time.Instant
 
 @Service
@@ -28,8 +29,13 @@ class MatchService(
     private val categoryRepository: CategoryCachedRepository,
     private val userClaimService: UserClaimService,
     private val stageService: StageService,
-    private val matchNotificationService: MatchNotificationService
+    private val matchNotificationService: MatchNotificationService,
+    private val clock: Clock
 ) {
+    companion object {
+        private const val MATCH_EXPIRATION_THRESHOLD_SECONDS = 10L
+    }
+
     private val logger = LoggerFactory.getLogger(javaClass)
 
     fun join(user: UserModel) {
@@ -54,7 +60,7 @@ class MatchService(
             claimIdToStance = userClaims.associate { it.claim.claimId to it.stance }
                 .plus(withClaimIdToStance.orEmpty()),
             skipClaimIds = withSkipClaimIds.orEmpty(),
-            joinedAt = Instant.now()
+            joinedAt = Instant.now(clock)
         )
     }
 
@@ -104,7 +110,9 @@ class MatchService(
             opponents = match.opponents
                 .map { opponent ->
                     if (opponent.userId == user.userId) opponent.copy(status = MatchOpponentStatus.ACCEPTED) else opponent
-                })
+                },
+            updatedAt = Instant.now(clock)
+        )
 
         if (acceptedMatch.opponents.any { it.status != MatchOpponentStatus.ACCEPTED }) {
             matchRepository.save(acceptedMatch)
@@ -150,7 +158,44 @@ class MatchService(
         MATCHING, MATCHED, NOT_MATCHING
     }
 
+    private fun cleanupExpiredMatches() {
+        val now = Instant.now(clock)
+        val expirationThreshold = now.minusSeconds(MATCH_EXPIRATION_THRESHOLD_SECONDS - 1)
+
+        val expiredMatches = matchRepository.findAll()
+            .filter { it.status == MatchStatus.PENDING && it.updatedAt.isBefore(expirationThreshold) }
+
+        if (expiredMatches.isNotEmpty()) {
+            logger.debug("Found {} expired matches to clean up", expiredMatches.size)
+
+            expiredMatches.forEach { match ->
+
+                // Notify users about match timeout
+                matchNotificationService.notifyMatchTimeout(match)
+
+                try {
+                    match.opponents.forEach { opponent ->
+                        val user = userRepository.getById(opponent.userId)
+                        matchQueueRepository.save(buildMatchRequest(user))
+                    }
+                } catch (e: Exception) {
+                    logger.error("Error cleaning up expired match ${match.matchId}", e)
+                }
+
+                // Delete the expired match
+                matchRepository.delete(match.matchId)
+
+                logger.debug(
+                    "Cleaned up expired match {} for users: {}",
+                    match.matchId, match.opponents.map { it.userId })
+
+            }
+        }
+    }
+
     fun runMatching() {
+        cleanupExpiredMatches()
+
         val waitingUsers = matchQueueRepository.findAll().sortedBy { it.joinedAt }
         val matchedUsers = mutableSetOf<String>()
 
@@ -390,7 +435,7 @@ class MatchService(
         val claim = claimRepository.getById(claimId)
         val userAEntity = userRepository.getById(userA.userId)
         val userBEntity = userRepository.getById(userB.userId)
-        val now = Instant.now()
+        val now = Instant.now(clock)
 
         val stanceA = userA.claimIdToStance[claimId] ?: ClaimStance.EITHER
         val stanceB = userB.claimIdToStance[claimId] ?: ClaimStance.EITHER
@@ -429,7 +474,7 @@ class MatchService(
                     status = MatchOpponentStatus.PENDING
                 )
             ),
-            createdAt = now,
+            updatedAt = now,
             // reason = reason
         )
 

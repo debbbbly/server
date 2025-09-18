@@ -18,6 +18,7 @@ import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Clock
 import java.time.Instant
 import kotlin.jvm.optionals.getOrNull
 
@@ -29,7 +30,8 @@ class ClaimService(
     private val openAIService: OpenAIService,
     private val userClaimCachedRepository: UserClaimCachedRepository,
     private val claimProposalRepository: ClaimProposalJpaRepository,
-    private val idService: IdService
+    private val idService: IdService,
+    private val clock: Clock
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -98,7 +100,7 @@ class ClaimService(
             title = validationResult.normalized ?: title,
             tags = tags,
             popularity = 0,
-            createdAt = Instant.now()
+            createdAt = Instant.now(clock)
         )
         claimCachedRepository.save(claim)
 
@@ -118,7 +120,7 @@ class ClaimService(
                     userId = userId,
                     stance = it,
                     priority = null, // TODO set highest
-                    updatedAt = Instant.now()
+                    updatedAt = Instant.now(clock)
                 )
             )
         }
@@ -147,7 +149,7 @@ class ClaimService(
                 tags = validationResult.tags.joinToString(","),
                 userStance = requestedStance,
                 claimId = resultingClaimId,
-                createdAt = Instant.now()
+                createdAt = Instant.now(clock)
             )
         )
     }

@@ -16,6 +16,7 @@ data class UserModel(
     var username: String? = null,
     var birthdate: LocalDate? = null,
     var avatarUrl: String? = null,
+    var rank: Int = 0,
 )
 
 fun UserEntity.toModel() = UserModel(
@@ -24,7 +25,8 @@ fun UserEntity.toModel() = UserModel(
     email = this.email,
     username = this.username,
     birthdate = this.birthdate,
-    avatarUrl = this.avatarUrl
+    avatarUrl = this.avatarUrl,
+    rank = this.rank
 )
 
 fun UserModel.toEntity() = UserEntity(
@@ -33,6 +35,7 @@ fun UserModel.toEntity() = UserEntity(
     email = this.email,
     username = this.username,
     birthdate = this.birthdate,
-    avatarUrl = this.avatarUrl
+    avatarUrl = this.avatarUrl,
+    rank = this.rank
 )
 

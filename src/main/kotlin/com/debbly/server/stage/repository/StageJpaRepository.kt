@@ -19,4 +19,7 @@ interface StageJpaRepository : CrudRepository<StageEntity, String> {
     
     @Query("SELECT s.claimId, COUNT(DISTINCT h.id.userId) FROM stages s JOIN s.hosts h WHERE s.claimId IS NOT NULL GROUP BY s.claimId")
     fun countUniqueDebatersByClaimId(): List<Array<Any>>
+
+    @Query("SELECT s FROM stages s LEFT JOIN FETCH s.hosts h WHERE h.id.userId = :userId AND s.createdAt >= :since AND s.openedAt is not null ORDER BY s.createdAt DESC")
+    fun findAllByHostUserIdAndCreatedAtAfter(@Param("userId") userId: String, @Param("since") since: Instant): List<StageEntity>
 }

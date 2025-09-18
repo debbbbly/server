@@ -61,13 +61,6 @@ class MatchController(
         return ResponseEntity.ok(state)
     }
 
-    // TODO: remove ??? looks like a backdoor
-    @PostMapping("/match")
-    fun match(): ResponseEntity<Void> {
-        matchService.runMatching()
-        return ResponseEntity.ok().build()
-    }
-
     @PostMapping("/{matchId}/skip")
     fun skip(
         @ExternalUserId externalUserId: String?,

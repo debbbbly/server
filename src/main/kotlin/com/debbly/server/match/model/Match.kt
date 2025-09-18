@@ -8,7 +8,7 @@ data class Match(
     val claim: MatchClaim,
     val status: MatchStatus,
     val opponents: List<MatchOpponent>,
-    val createdAt: Instant,
+    val updatedAt: Instant,
 ) {
     data class MatchOpponent(
         val userId: String,

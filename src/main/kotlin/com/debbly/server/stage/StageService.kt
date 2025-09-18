@@ -18,6 +18,7 @@ import com.debbly.server.stage.repository.entities.StageStatus
 import com.debbly.server.user.repository.UserCachedRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import java.time.Clock
 import java.time.Instant
 
 @Service
@@ -29,7 +30,8 @@ class StageService(
     private val claimCachedRepository: ClaimCachedRepository,
     private val userClaimCachedRepository: UserClaimCachedRepository,
     private val liveKitService: LiveKitService,
-    private val stageProperties: StageProperties
+    private val stageProperties: StageProperties,
+    private val clock: Clock
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -90,7 +92,7 @@ class StageService(
             claimId = claim?.claimId,
             title = claim?.title,
             hosts = hosts,
-            createdAt = Instant.now(),
+            createdAt = Instant.now(clock),
             status = StageStatus.PENDING,
             openedAt = null,
             closedAt = null
@@ -127,7 +129,7 @@ class StageService(
                 claimId = claim.claimId,
                 title = claim.title,
                 hosts = hosts,
-                createdAt = Instant.now(),
+                createdAt = Instant.now(clock),
                 status = StageStatus.PENDING,
                 openedAt = null,
                 closedAt = null
@@ -151,7 +153,7 @@ class StageService(
                     ),
                     title = null,
                     claimId = null,
-                    createdAt = Instant.now(),
+                    createdAt = Instant.now(clock),
                     status = StageStatus.PENDING,
                     openedAt = null,
                     closedAt = null
@@ -186,8 +188,8 @@ class StageService(
                 },
                 claimId = stage.claimId,
                 title = claim?.title,
-                openedAt = Instant.now(),
-                heartbeatAt = Instant.now()
+                openedAt = Instant.now(clock),
+                heartbeatAt = Instant.now(clock)
             )
         )
 
@@ -199,7 +201,7 @@ class StageService(
         if (liveStage.hosts.none { it.userId == userId }) {
             throw UnauthorizedException("User is not a host of this stage")
         }
-        liveStage.heartbeatAt = Instant.now()
+        liveStage.heartbeatAt = Instant.now(clock)
         liveStageRedisRepository.save(liveStage)
     }
 
@@ -211,7 +213,7 @@ class StageService(
             stageRepository.save(
                 stage.copy(
                     status = StageStatus.CLOSED,
-                    closedAt = Instant.now()
+                    closedAt = Instant.now(clock)
                 )
             )
             liveStageRedisRepository.deleteById(stageId)
@@ -247,17 +249,38 @@ class StageService(
         ) {
             // All hosts joined, open the stage
             logger.info("All hosts joined stage: '$stageId'. Opening stage.")
-            val openedAt = Instant.now()
+            val openedAt = Instant.now(clock)
             val updatedStage = stage.copy(
                 status = StageStatus.OPEN,
                 openedAt = openedAt
             )
             stageRepository.save(updatedStage)
 
+            // Update ranks for all hosts
+            updateUserRanks(allHostUserIds)
+
             // Create live stage in Redis
             createLiveStage(updatedStage, openedAt)
 
             // start egress
+        }
+    }
+
+    private fun updateUserRanks(userIds: List<String>) {
+        userIds.forEach { userId ->
+            try {
+                val stagesHosted = stageRepository.findAllByHostUserIdInLast30Days(userId)
+                val newRank = stagesHosted.size
+
+                val user = userCachedRepository.findById(userId)
+                if (user != null) {
+                    val updatedUser = user.copy(rank = newRank)
+                    userCachedRepository.save(updatedUser)
+                    logger.debug("Updated rank for user $userId to $newRank")
+                }
+            } catch (e: Exception) {
+                logger.error("Error updating rank for user $userId", e)
+            }
         }
     }
 
@@ -282,7 +305,7 @@ class StageService(
                 claimId = stage.claimId,
                 title = claim?.title,
                 openedAt = openedAt,
-                heartbeatAt = Instant.now()
+                heartbeatAt = Instant.now(clock)
             )
         )
     }
@@ -292,7 +315,7 @@ class StageService(
      * Uses Redis LiveStage cache for better performance
      */
     fun closeExpiredStages() {
-        val now = Instant.now()
+        val now = Instant.now(clock)
         val timeLimitSeconds = stageProperties.limitMinutes * 60L
         val cutoffTime = now.minusSeconds(timeLimitSeconds)
 
@@ -328,7 +351,7 @@ class StageService(
 
         val closedStage = stage.copy(
             status = StageStatus.CLOSED,
-            closedAt = Instant.now()
+            closedAt = Instant.now(clock)
         )
         stageRepository.save(closedStage)
         liveStageRedisRepository.deleteById(stage.stageId)

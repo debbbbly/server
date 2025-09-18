@@ -95,3 +95,24 @@ databaseChangeLog:
         - renameTable:
             oldTableName: user_follows
             newTableName: followers
+
+  - changeSet:
+      id: 4
+      author: claude
+      changes:
+        - addColumn:
+            tableName: users
+            columns:
+              - column:
+                  name: rank
+                  type: int
+                  defaultValue: 0
+                  constraints:
+                    nullable: false
+        - createIndex:
+            tableName: users
+            indexName: idx_users_rank
+            columns:
+              - column:
+                  name: rank
+                  descending: true

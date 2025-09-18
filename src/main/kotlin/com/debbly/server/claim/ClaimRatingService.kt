@@ -8,6 +8,7 @@ import com.debbly.server.claim.model.ClaimModel
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import kotlin.math.exp
@@ -21,7 +22,8 @@ class ClaimRatingService(
     private val claimRepository: ClaimCachedRepository,
     private val claimJpaRepository: ClaimJpaRepository,
     private val userClaimJpaRepository: UserClaimJpaRepository,
-    private val stageJpaRepository: StageJpaRepository
+    private val stageJpaRepository: StageJpaRepository,
+    private val clock: Clock
 ) {
     
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -43,7 +45,7 @@ class ClaimRatingService(
     fun updateAllClaimRatings() {
         logger.info("Starting claim rating calculation for all claims")
 
-        val since = Instant.now().minusSeconds(DAYS_TO_CALCULATE * 24 * 60 * 60)
+        val since = Instant.now(clock).minusSeconds(DAYS_TO_CALCULATE * 24 * 60 * 60)
         val factors = calculateNormalizationFactors(since)
 
         claimRepository.findAll().forEach { claim ->
@@ -56,7 +58,7 @@ class ClaimRatingService(
      * Calculate and update the score for a single claim.
      */
     fun calculateClaimRating(claimId: String){
-        val since = Instant.now().minusSeconds(DAYS_TO_CALCULATE * 24 * 60 * 60)
+        val since = Instant.now(clock).minusSeconds(DAYS_TO_CALCULATE * 24 * 60 * 60)
         val factors = calculateNormalizationFactors(since)
 
         calculateAndUpdateClaimScore(claimRepository.getById(claimId), factors)
@@ -130,7 +132,7 @@ class ClaimRatingService(
      * Uses exponential decay: exp(-age_days / 14.0)
      */
     private fun calculateFreshnessNorm(createdAt: Instant): Double {
-        val ageDays = Duration.between(createdAt, Instant.now()).toDays()
+        val ageDays = Duration.between(createdAt, Instant.now(clock)).toDays()
         return exp(-ageDays.toDouble() / 14.0)
     }
     
