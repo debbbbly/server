@@ -35,8 +35,7 @@ server:
   port: 8080
 
 livekit:
-  ws: ${LIVEKIT_WS_URL}
-  http: ${LIVEKIT_API_URL}
+  url: ${LIVEKIT_API_URL}
   api-key: ${LIVEKIT_API_KEY}
   api-secret: ${LIVEKIT_API_SECRET}
 

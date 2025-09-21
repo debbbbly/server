@@ -11,8 +11,7 @@ import org.springframework.stereotype.Component
 @Component
 @ConfigurationProperties(prefix = "livekit")
 class LiveKitConfig {
-    lateinit var ws: String
-    lateinit var http: String
+    lateinit var url: String
     lateinit var apiKey: String
     lateinit var apiSecret: String
 }
@@ -25,11 +24,11 @@ class LiveKitClientConfig(
 
     @Bean
     fun roomServiceClient(): RoomServiceClient {
-        return RoomServiceClient.createClient(liveKitConfig.http, liveKitConfig.apiKey, liveKitConfig.apiSecret)
+        return RoomServiceClient.createClient(liveKitConfig.url, liveKitConfig.apiKey, liveKitConfig.apiSecret)
     }
 
     @Bean
     fun egressServiceClient(): EgressServiceClient {
-        return EgressServiceClient.createClient(liveKitConfig.http, liveKitConfig.apiKey, liveKitConfig.apiSecret)
+        return EgressServiceClient.createClient(liveKitConfig.url, liveKitConfig.apiKey, liveKitConfig.apiSecret)
     }
 }
