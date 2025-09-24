@@ -1,14 +1,14 @@
 redis:
   address: redis:6379
 
-api_key: ${LIVEKIT_API_KEY}
-api_secret: ${LIVEKIT_API_SECRET}
+api_key: dev-livekit-api-key-for-development
+api_secret: dev-livekit-api-secret-for-development
 ws_url: ws://livekit:7880
 
 s3:
-  endpoint: ${S3_ENDPOINT}
-  region: ${S3_REGION}
-  access_key: ${S3_ACCESS_KEY}
-  secret: ${S3_SECRET}
-  bucket: ${S3_BUCKET}
+  endpoint: https://zhrclcryabanraaadfty.storage.supabase.co/storage/v1/s3
+  region: us-east-1
+  access_key: 8972584cd105818a2a9a5fd67e5f153c
+  secret: 724690b9353ba2926e38ea99db196525c67b5e3364ffc474ae5192cc8e5a2809
+  bucket: egress
 
