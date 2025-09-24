@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import java.time.LocalDate
+import java.util.*
 
 @RestController
 @RequestMapping("/users")
@@ -98,6 +99,7 @@ class UserController(
     @GetMapping("/top")
     fun getTopUsers(): ResponseEntity<ListUsersResponse> {
         val topUsers = userCachedRepository.findTop100ByRankDesc()
+            .filter { !it.deleted }
             .map { user ->
                 ListUserResponse(
                     userId = user.userId,
@@ -109,4 +111,35 @@ class UserController(
         return ResponseEntity.ok(ListUsersResponse(topUsers, topUsers.size))
     }
 
+    @DeleteMapping("/delete")
+    fun deleteUser(@ExternalUserId externalUserId: String?): ResponseEntity<DeleteUserResponse> {
+        if (externalUserId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+        }
+
+        val user = userCachedRepository.findByExternalUserId(externalUserId)
+            ?: return ResponseEntity.notFound().build()
+
+        if (user.deleted) {
+            return ResponseEntity.status(HttpStatus.GONE).body(
+                DeleteUserResponse(false, "User is already deleted")
+            )
+        }
+
+        val username = UUID.randomUUID().toString().substring(0, 6)
+
+        user.deleted = true
+        user.username = "deleted_$username"
+        user.email = "deleted_$username@deleted.com"
+        user.avatarUrl = null
+
+        userCachedRepository.save(user)
+
+        return ResponseEntity.ok(DeleteUserResponse(true, "User successfully deleted"))
+    }
+
+    data class DeleteUserResponse(
+        val success: Boolean,
+        val message: String
+    )
 }

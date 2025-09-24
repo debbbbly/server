@@ -12,11 +12,12 @@ import java.time.LocalDate
 data class UserModel(
     val userId: String,
     val externalUserId: String,
-    val email: String,
+    var email: String,
     var username: String? = null,
     var birthdate: LocalDate? = null,
     var avatarUrl: String? = null,
     var rank: Int = 0,
+    var deleted: Boolean = false,
 )
 
 fun UserEntity.toModel() = UserModel(
@@ -26,7 +27,8 @@ fun UserEntity.toModel() = UserModel(
     username = this.username,
     birthdate = this.birthdate,
     avatarUrl = this.avatarUrl,
-    rank = this.rank
+    rank = this.rank,
+    deleted = this.deleted
 )
 
 fun UserModel.toEntity() = UserEntity(
@@ -36,6 +38,7 @@ fun UserModel.toEntity() = UserEntity(
     username = this.username,
     birthdate = this.birthdate,
     avatarUrl = this.avatarUrl,
-    rank = this.rank
+    rank = this.rank,
+    deleted = this.deleted
 )
 

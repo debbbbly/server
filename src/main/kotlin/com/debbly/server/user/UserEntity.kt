@@ -11,12 +11,13 @@ data class UserEntity(
     val userId: String,
     @Column(unique = true)
     val externalUserId: String,
-    val email: String,
+    var email: String,
     @Column(unique = true)
     var username: String? = null,
     var birthdate: LocalDate? = null,
     var avatarUrl: String? = null,
     var rank: Int = 0,
+    var deleted: Boolean = false,
 ) {
     fun toModel() = com.debbly.server.user.model.UserModel(
         userId = userId,
@@ -26,6 +27,7 @@ data class UserEntity(
         birthdate = birthdate,
         avatarUrl = avatarUrl,
         rank = rank,
+        deleted = deleted,
     )
 }
 

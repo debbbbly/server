@@ -42,7 +42,9 @@ class SecurityConfig(
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
         val config = CorsConfiguration()
-        config.allowedOrigins = listOf("http://localhost:3000", "https://debbly.com")
+        config.addAllowedOriginPattern("https://*.debbly.com")
+        config.addAllowedOrigin("http://localhost:3000")
+
         config.allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS")
         config.allowedHeaders = listOf("*")
         config.allowCredentials = true

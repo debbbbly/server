@@ -116,3 +116,17 @@ databaseChangeLog:
               - column:
                   name: rank
                   descending: true
+
+  - changeSet:
+      id: 5
+      author: claude
+      changes:
+        - addColumn:
+            tableName: users
+            columns:
+              - column:
+                  name: deleted
+                  type: boolean
+                  defaultValue: false
+                  constraints:
+                    nullable: false
