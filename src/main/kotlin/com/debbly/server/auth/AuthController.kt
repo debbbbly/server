@@ -324,6 +324,25 @@ class AuthController(
         return ResponseEntity.ok().build()
     }
 
+    @PostMapping("/google/signin")
+    fun initiateGoogleOAuth(@RequestBody request: GoogleOAuthRequest): ResponseEntity<GoogleOAuthResponse> {
+        return try {
+            val oauthResponse = supabaseAuthService.initiateGoogleOAuth(request.redirectUrl)
+
+            if (oauthResponse.success && oauthResponse.authUrl != null) {
+                ResponseEntity.ok(GoogleOAuthResponse(authUrl = oauthResponse.authUrl))
+            } else {
+                ResponseEntity.status(BAD_REQUEST)
+                    .body(GoogleOAuthResponse(error = AUTH_OAUTH_INITIATION_FAILED))
+            }
+        } catch (e: Exception) {
+            logger.error("Google OAuth initiation failed", e)
+            ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(GoogleOAuthResponse(error = AUTH_GENERIC_ERROR))
+        }
+    }
+
+
 
     fun HttpServletResponse.setCookie(
         name: String,
@@ -405,6 +424,15 @@ class AuthController(
         val email: String,
         val username: String?,
         val isComplete: Boolean
+    )
+
+    data class GoogleOAuthRequest(
+        val redirectUrl: String?
+    )
+
+    data class GoogleOAuthResponse(
+        val authUrl: String? = null,
+        val error: AuthErrorCode? = null
     )
 
 }

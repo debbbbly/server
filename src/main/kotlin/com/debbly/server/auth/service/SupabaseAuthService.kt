@@ -227,6 +227,23 @@ class SupabaseAuthService(
         )
     }
 
+    fun initiateGoogleOAuth(redirectUrl: String? = null): SupabaseOAuthResponse {
+        val baseUrl = "${supabaseConfig.authUrl}/authorize"
+        val params = mutableMapOf(
+            "provider" to "google"
+        )
+
+        redirectUrl?.let { params["redirect_to"] = it }
+
+        val queryString = params.entries.joinToString("&") { "${it.key}=${java.net.URLEncoder.encode(it.value, "UTF-8")}" }
+        val authUrl = "$baseUrl?$queryString"
+
+        return SupabaseOAuthResponse(
+            authUrl = authUrl,
+            success = true
+        )
+    }
+
     private fun parseUser(userData: Map<String, Any>): SupabaseUser {
         return SupabaseUser(
             id = userData["id"] as String,
@@ -245,6 +262,12 @@ data class SupabaseAuthResponse(
     val expiresIn: Int? = null,
     val expiresAt: Instant? = null,
     val user: SupabaseUser? = null,
+    val success: Boolean = false,
+    val error: String? = null
+)
+
+data class SupabaseOAuthResponse(
+    val authUrl: String? = null,
     val success: Boolean = false,
     val error: String? = null
 )
