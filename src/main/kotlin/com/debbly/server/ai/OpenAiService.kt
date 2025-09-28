@@ -1,6 +1,7 @@
 package com.debbly.server.ai
 
 import com.debbly.server.category.repository.CategoryCachedRepository
+import com.debbly.server.user.UserValidator.usernameRegex
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import org.slf4j.LoggerFactory
@@ -161,6 +162,33 @@ class OpenAIService(
         }
     }
 
+    fun generateUsernames(seed: String): List<String> {
+        val normalizedSeed = seed.replace(usernameRegex, "").take(15)
+        val prompt = """
+            Generate 5 funny and memorable usernames for a debating platform.
+            Make them short, easy to read, and inspired by debating or argument styles.
+            Examples: "LogicNinja", "HotTakeHero", "DevilsAdvocate".
+
+            Seed word: "$normalizedSeed"
+
+            Output only in JSON array format, like this:
+            ["Name1", "Name2", "Name3", "Name4", "Name5"]
+        """.trimIndent()
+
+        val usernames = try {
+            val response = chatClient.prompt()
+                .user(prompt)
+                .call()
+                .content() ?: "[]"
+
+            objectMapper.readValue<List<String>>(response)
+        } catch (e: Exception) {
+            logger.error("Error generating usernames: ${e.message}", e)
+            emptyList()
+        }
+
+        return usernames.takeIf { it.isNotEmpty() } ?: listOf(normalizedSeed)
+    }
 }
 
 data class ClaimValidationResult(

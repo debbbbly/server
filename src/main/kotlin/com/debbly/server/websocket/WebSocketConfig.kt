@@ -37,7 +37,7 @@ class WebSocketConfig(
                             val jwt = jwtDecoder.decode(token)
                             val externalUserId = jwt.subject
 
-                            // Look up platform userId by externalUserId (AWS Cognito ID)
+                            // Look up platform userId by externalUserId (Supabase ID)
                             val user = userRepository.findByExternalUserId(externalUserId)
                             return user?.let { Principal { it.userId } }
                         }

@@ -1,6 +1,6 @@
 package com.debbly.server.livekit
 
-import com.debbly.server.LiveKitConfig
+import com.debbly.server.config.LiveKitConfig
 import io.livekit.server.*;
 import livekit.LivekitWebhook
 import org.slf4j.LoggerFactory

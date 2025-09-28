@@ -1,7 +1,7 @@
 package com.debbly.server.livekit
 
 import com.debbly.server.IdService
-import com.debbly.server.LiveKitConfig
+import com.debbly.server.config.LiveKitConfig
 import io.livekit.server.*
 import livekit.LivekitModels
 import livekit.LivekitEgress

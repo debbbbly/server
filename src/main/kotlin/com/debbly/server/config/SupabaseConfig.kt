@@ -1,0 +1,48 @@
+package com.debbly.server.config
+
+import org.slf4j.LoggerFactory
+import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm
+import org.springframework.security.oauth2.jwt.JwtDecoder
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
+
+@ConfigurationProperties(prefix = "supabase")
+data class SupabaseConfigProperties(
+    val url: String = "",
+    val publishableKey: String = "",
+    val secretKey: String = "",
+) {
+    val authUrl: String
+        get() = "$url/auth/v1"
+
+    val jwksUrl: String
+        get() = "$url/auth/v1/.well-known/jwks.json"
+}
+
+@Configuration
+@EnableConfigurationProperties(SupabaseConfigProperties::class)
+class SupabaseConfig(private val supabaseConfigProperties: SupabaseConfigProperties) {
+
+    private val logger = LoggerFactory.getLogger(javaClass)
+
+    @Bean
+    fun jwtDecoder(): JwtDecoder {
+        return try {
+            logger.info("Configuring JWT decoder for Supabase with JWKS URL: ${supabaseConfigProperties.jwksUrl}")
+
+            NimbusJwtDecoder
+                .withJwkSetUri(supabaseConfigProperties.jwksUrl)
+                .jwsAlgorithm(SignatureAlgorithm.ES256)
+                .build()
+                .apply {
+                    logger.info("JWT decoder configured successfully")
+                }
+        } catch (e: Exception) {
+            logger.error("Failed to configure JWT decoder for Supabase", e)
+            throw IllegalStateException("Could not configure JWT decoder for Supabase authentication", e)
+        }
+    }
+}

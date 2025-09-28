@@ -1,4 +1,4 @@
-package com.debbly.server
+package com.debbly.server.config
 
 import io.livekit.server.EgressServiceClient
 import io.livekit.server.RoomServiceClient

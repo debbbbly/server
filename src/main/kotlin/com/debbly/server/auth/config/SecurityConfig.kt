@@ -18,9 +18,7 @@ import java.beans.Customizer
 
 @Configuration
 @EnableWebSecurity
-class SecurityConfig(
-    private val jwtDecoder: JwtDecoder
-) {
+class SecurityConfig {
     @Bean
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
         http
@@ -33,10 +31,24 @@ class SecurityConfig(
             }
             .oauth2ResourceServer { oauth2 ->
                 oauth2.bearerTokenResolver(CookieAndHeaderBearerTokenResolver())
-                oauth2.jwt { }
+                oauth2.jwt { jwt ->
+                    jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())
+                }
             }
 
         return http.build()
+    }
+
+    @Bean
+    fun jwtAuthenticationConverter(): JwtAuthenticationConverter {
+        val converter = JwtAuthenticationConverter()
+        converter.setJwtGrantedAuthoritiesConverter { jwt ->
+            val role = jwt.getClaimAsString("role")
+                ?: jwt.getClaimAsString("aud")
+                ?: "authenticated"
+            listOf(SimpleGrantedAuthority("ROLE_$role"))
+        }
+        return converter
     }
 
     @Bean

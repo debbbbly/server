@@ -42,3 +42,7 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC"
 
 # Start the app
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+
+#  docker buildx build --platform linux/amd64 -t debbly-api:latest .
+#  docker save debbly-api:latest -o debbly-api.tar
+#  scp debbly-api.tar root@178.156.183.33:/opt/services

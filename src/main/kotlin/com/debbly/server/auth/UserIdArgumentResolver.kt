@@ -1,5 +1,6 @@
 package com.debbly.server.auth
 
+import org.slf4j.LoggerFactory
 import org.springframework.core.MethodParameter
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.oauth2.jwt.Jwt
@@ -12,6 +13,8 @@ import org.springframework.web.method.support.ModelAndViewContainer
 @Component
 class UserIdArgumentResolver : HandlerMethodArgumentResolver {
 
+    private val logger = LoggerFactory.getLogger(javaClass)
+
     override fun supportsParameter(parameter: MethodParameter): Boolean {
         return parameter.getParameterAnnotation(ExternalUserId::class.java) != null
     }
@@ -23,10 +26,16 @@ class UserIdArgumentResolver : HandlerMethodArgumentResolver {
         binderFactory: WebDataBinderFactory?
     ): Any? {
         val authentication = SecurityContextHolder.getContext().authentication
+        logger.debug("Authentication: $authentication")
         val principal = authentication.principal
+        logger.debug("Principal type: ${principal?.javaClass?.simpleName}, value: $principal")
+
         return if (principal is Jwt) {
-            principal.subject
+            val subject = principal.subject
+            logger.debug("Extracted subject from JWT: $subject")
+            subject
         } else {
+            logger.debug("Principal is not a JWT, returning null")
             null
         }
     }

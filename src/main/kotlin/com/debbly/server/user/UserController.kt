@@ -21,6 +21,8 @@ class UserController(
 
     @GetMapping("/me")
     fun me(@ExternalUserId externalUserId: String?): ResponseEntity<UserMeResponse> {
+        // Temporary: log the externalUserId to debug JWT validation
+        println("DEBUG: externalUserId = $externalUserId")
         if (externalUserId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
         }
