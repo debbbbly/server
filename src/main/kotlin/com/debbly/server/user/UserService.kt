@@ -5,6 +5,7 @@ import com.debbly.server.ai.OpenAIService
 import com.debbly.server.user.model.UserModel
 import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.stereotype.Service
+import kotlin.random.Random
 
 @Service
 class UserService(
@@ -20,7 +21,7 @@ class UserService(
         }
 
         val generatedUsernames = openAIService.generateUsernames(email)
-        val username = generatedUsernames.firstOrNull() ?: "User${idService.getId().take(6)}"
+        val username = takeAvailable(generatedUsernames)
         val avatarUrl = "https://api.dicebear.com/9.x/initials/svg?seed=${username}"
 
         val newUser = UserModel(
@@ -32,5 +33,15 @@ class UserService(
         )
 
         return userCachedRepository.save(newUser)
+    }
+
+    private fun takeAvailable(generatedUsernames: List<String>): String {
+        for (username in generatedUsernames) {
+            if (userCachedRepository.findByUsername(username) == null) {
+                return username
+            }
+        }
+
+        return (generatedUsernames.firstOrNull() ?: "User") + Random.nextInt(100000, 999999)
     }
 }

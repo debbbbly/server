@@ -3,6 +3,7 @@ package com.debbly.server.auth
 import com.debbly.server.IdService
 import com.debbly.server.auth.AuthErrorCode.*
 import com.debbly.server.auth.service.SupabaseAuthService
+import com.debbly.server.auth.UserStatus
 import com.debbly.server.user.UserService
 import com.debbly.server.user.UserValidator.isUserComplete
 import com.debbly.server.user.repository.UserCachedRepository
@@ -77,29 +78,75 @@ class AuthController(
         ResponseEntity.status(HttpStatus.BAD_REQUEST).body(TokenResponse(error = error))
 
     @PostMapping("/signup")
-    fun signup(@RequestBody request: SignupRequest): ResponseEntity<ApiResponse> {
+    fun signup(@RequestBody request: SignupRequest): ResponseEntity<UnifiedAuthResponse> {
         if (!AuthRateLimiter.tryConsume(request.email)) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .body(ApiResponse(false, error = AUTH_TOO_MANY_ATTEMPTS))
+                .body(UnifiedAuthResponse(error = AUTH_TOO_MANY_ATTEMPTS))
         }
 
         try {
-            val authResponse = supabaseAuthService.signUp(request.email, request.password)
+            // First try to sign in (existing user)
+            val signInResponse = supabaseAuthService.signIn(request.email, request.password)
 
-            return if (authResponse.error != null) {
-                if (authResponse.error.contains("already", ignoreCase = true)) {
-                    ResponseEntity.status(HttpStatus.CONFLICT)
-                        .body(ApiResponse(false, AUTH_EMAIL_ALREADY_REGISTERED))
+            if (signInResponse.error == null && signInResponse.user != null) {
+                // User exists and credentials are correct - return tokens
+                val userId = signInResponse.user.id
+                val userEmail = signInResponse.user.email ?: request.email
+
+                return if (!isUserComplete(userService.createUser(userId, userEmail))) {
+                    ResponseEntity.status(BAD_REQUEST)
+                        .body(UnifiedAuthResponse(error = AUTH_USER_INCOMPLETE))
                 } else {
-                    ResponseEntity.badRequest().body(ApiResponse(false, AUTH_GENERIC_ERROR))
+                    ResponseEntity.ok(
+                        UnifiedAuthResponse(
+                            accessToken = signInResponse.accessToken,
+                            idToken = signInResponse.accessToken,
+                            refreshToken = signInResponse.refreshToken,
+                            isNewUser = false,
+                            success = true
+                        )
+                    )
                 }
+            }
+
+            // Sign in failed - check user status to determine the reason
+            val userStatus = supabaseAuthService.getUserStatusByEmail(request.email)
+
+            when (userStatus) {
+                UserStatus.CONFIRMED -> {
+                    return ResponseEntity.status(UNAUTHORIZED)
+                        .body(UnifiedAuthResponse(error = AUTH_LOGIN_FAILED))
+                }
+                UserStatus.UNCONFIRMED -> {
+                    logger.info("User ${request.email} exists but is unconfirmed, allowing re-registration")
+                }
+                UserStatus.NOT_FOUND -> {
+                    // User doesn't exist - continue to signup
+                    // Fall through to signup logic
+                }
+            }
+
+            // User doesn't exist - try to sign up
+            val signUpResponse = supabaseAuthService.signUp(request.email, request.password)
+
+            return if (signUpResponse.error != null) {
+                logger.warn("Signup failed for new user: ${signUpResponse.error}")
+                ResponseEntity.badRequest()
+                    .body(UnifiedAuthResponse(error = AUTH_GENERIC_ERROR))
             } else {
-                ResponseEntity.ok(ApiResponse(true))
+                // Signup successful - new user needs to confirm email
+                ResponseEntity.ok(
+                    UnifiedAuthResponse(
+                        isNewUser = true,
+                        needsEmailConfirmation = true,
+                        success = true
+                    )
+                )
             }
         } catch (e: Exception) {
-            logger.error("Signup failed", e)
+            logger.error("Unified signup/login failed", e)
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse(false, AUTH_GENERIC_ERROR))
+                .body(UnifiedAuthResponse(error = AUTH_GENERIC_ERROR))
         }
     }
 
@@ -391,6 +438,16 @@ class AuthController(
         val accessToken: String? = null,
         val idToken: String? = null,
         val refreshToken: String? = null,
+        val error: AuthErrorCode? = null
+    )
+
+    data class UnifiedAuthResponse(
+        val accessToken: String? = null,
+        val idToken: String? = null,
+        val refreshToken: String? = null,
+        val isNewUser: Boolean = false,
+        val needsEmailConfirmation: Boolean = false,
+        val success: Boolean = false,
         val error: AuthErrorCode? = null
     )
 

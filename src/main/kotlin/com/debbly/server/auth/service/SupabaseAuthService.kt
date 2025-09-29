@@ -1,5 +1,6 @@
 package com.debbly.server.auth.service
 
+import com.debbly.server.auth.UserStatus
 import com.debbly.server.config.SupabaseConfigProperties
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
@@ -197,11 +198,55 @@ class SupabaseAuthService(
         }
     }
 
+    fun getUserStatusByEmail(email: String): UserStatus {
+        val url = "${supabaseConfig.authUrl}/admin/users"
+        val headers = createAdminHeaders()
+
+        return try {
+            val entity = HttpEntity<String>(null, headers)
+            val response = restTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, Map::class.java)
+
+            if (response.statusCode.is2xxSuccessful) {
+                val responseBody = response.body as? Map<String, Any>
+                val users = responseBody?.get("users") as? List<Map<String, Any>>
+
+                val user = users?.find { user ->
+                    val userEmail = user["email"] as? String
+                    userEmail?.equals(email, ignoreCase = true) == true
+                }
+
+                when {
+                    user == null -> UserStatus.NOT_FOUND
+                    user["email_confirmed_at"] != null -> UserStatus.CONFIRMED
+                    else -> UserStatus.UNCONFIRMED
+                }
+            } else {
+                logger.warn("Failed to check user status: ${response.statusCode}")
+                UserStatus.NOT_FOUND
+            }
+        } catch (e: RestClientException) {
+            logger.error("Error checking user status for email: $email", e)
+            UserStatus.NOT_FOUND
+        }
+    }
+
+    fun userExistsByEmail(email: String): Boolean {
+        return getUserStatusByEmail(email) != UserStatus.NOT_FOUND
+    }
+
     private fun createHeaders(): HttpHeaders {
         val headers = HttpHeaders()
         headers.contentType = MediaType.APPLICATION_JSON
         headers["apikey"] = supabaseConfig.publishableKey
         //headers["Authorization"] = "Bearer ${supabaseConfig.publishableKey}"
+        return headers
+    }
+
+    private fun createAdminHeaders(): HttpHeaders {
+        val headers = HttpHeaders()
+        headers.contentType = MediaType.APPLICATION_JSON
+        headers["apikey"] = supabaseConfig.secretKey
+        headers["Authorization"] = "Bearer ${supabaseConfig.secretKey}"
         return headers
     }
 
@@ -279,3 +324,4 @@ data class SupabaseUser(
     val createdAt: String?,
     val updatedAt: String?
 )
+
