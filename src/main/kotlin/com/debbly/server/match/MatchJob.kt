@@ -11,7 +11,7 @@ class MatchJob(
 //    ShedLock: library built exactly for this (works with Redis, JDBC, Mongo, etc.).
 //    Simple to add, widely used.
 
-    // @Scheduled(fixedRate = 5000)
+    @Scheduled(fixedRate = 5000)
     fun scheduleMatching() {
         matchService.runMatching()
     }

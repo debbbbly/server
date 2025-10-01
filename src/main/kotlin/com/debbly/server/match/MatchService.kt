@@ -392,8 +392,8 @@ class MatchService(
                 val userAStance = userA.claimIdToStance[selectedClaimId]
                 val userBStance = userB.claimIdToStance[selectedClaimId]
 
-                val finalUserAStance = userAStance ?: ClaimStance.FOR
-                val finalUserBStance = userBStance ?: ClaimStance.AGAINST
+                val finalUserAStance = userAStance ?: userBStance?.opposite() ?: ClaimStance.FOR
+                val finalUserBStance = userBStance ?: userAStance?.opposite() ?: ClaimStance.AGAINST
 
                 // Create match requests with determined stances
                 val userAWithStance = userA.copy(

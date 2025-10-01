@@ -221,19 +221,29 @@ class StageService(
     }
 
     fun onUserLeft(userId: String, stageId: String) {
-        logger.info("User: '$userId' left from stage: '$stageId'.")
+        logger.info("👋 User: '$userId' left from stage: '$stageId'.")
 
         val stage = stageRepository.getById(stageId)
         val allHostUserIds = stage.hosts.map { it.userId }
+        logger.info("📋 Stage hosts: $allHostUserIds")
+
         val liveKitParticipants = liveKitService.getParticipants(stageId)
+        logger.info("🔗 LiveKit participants: ${liveKitParticipants.map { it.identity }}")
 
         // Check if any hosts are still connected
         val connectedHosts = liveKitParticipants
             .map { it.identity }
             .filter { it in allHostUserIds }
 
+        logger.info("🏠 Connected hosts: $connectedHosts")
+
         if (connectedHosts.isEmpty() && stage.status != StageStatus.CLOSED) {
+            logger.info("🚨 No hosts remaining! Stopping egress and closing stage $stageId")
+            // Stop egress recording before closing stage
+            stopEgressIfActive(stageId)
             closeStage(stage)
+        } else {
+            logger.info("⏳ ${connectedHosts.size} hosts still connected, keeping stage open")
         }
     }
 
@@ -259,10 +269,8 @@ class StageService(
             // Update ranks for all hosts
             updateUserRanks(allHostUserIds)
 
-            // Create live stage in Redis
-            createLiveStage(updatedStage, openedAt)
-
-            // start egress
+            // Create live stage in Redis and start egress
+            createLiveStageWithEgress(updatedStage, openedAt)
         }
     }
 
@@ -284,9 +292,24 @@ class StageService(
         }
     }
 
-    private fun createLiveStage(stage: StageModel, openedAt: Instant) {
+    private fun createLiveStageWithEgress(stage: StageModel, openedAt: Instant) {
         val users = stage.hosts.mapNotNull { userCachedRepository.findById(it.userId) }.associateBy { it.userId }
         val claim = stage.claimId?.let { claimCachedRepository.getById(it) }
+
+        // Start egress recording
+        val egressInfo = try {
+            liveKitService.startRoomEgress(stage.stageId)
+        } catch (e: Exception) {
+            logger.error("Failed to start egress for stage ${stage.stageId}", e)
+            null
+        }
+
+        val egressId = egressInfo?.egressId
+        if (egressId != null) {
+            logger.info("Started egress recording for stage ${stage.stageId}, egressId: $egressId")
+        } else {
+            logger.warn("Failed to start egress recording for stage ${stage.stageId}")
+        }
 
         liveStageRedisRepository.save(
             LiveStageEntity(
@@ -305,9 +328,39 @@ class StageService(
                 claimId = stage.claimId,
                 title = claim?.title,
                 openedAt = openedAt,
-                heartbeatAt = Instant.now(clock)
+                heartbeatAt = Instant.now(clock),
+                egressId = egressId
             )
         )
+    }
+
+    private fun stopEgressIfActive(stageId: String) {
+        logger.info("🔍 Checking for active egress recording for stage $stageId")
+        try {
+            val liveStageOptional = liveStageRedisRepository.findById(stageId)
+            if (liveStageOptional.isPresent) {
+                val liveStage = liveStageOptional.get()
+                val egressId = liveStage.egressId
+
+                logger.info("📺 Found live stage with egressId: $egressId")
+
+                if (egressId != null) {
+                    logger.info("🛑 Stopping egress recording for stage $stageId, egressId: $egressId")
+                    val stopped = liveKitService.stopEgress(egressId)
+                    if (stopped) {
+                        logger.info("✅ Successfully stopped egress recording for stage $stageId")
+                    } else {
+                        logger.warn("❌ Failed to stop egress recording for stage $stageId, egressId: $egressId")
+                    }
+                } else {
+                    logger.info("💡 No active egress recording found for stage $stageId (egressId is null)")
+                }
+            } else {
+                logger.info("🔍 No live stage found in Redis for stage $stageId")
+            }
+        } catch (e: Exception) {
+            logger.error("💥 Error stopping egress for stage $stageId", e)
+        }
     }
 
     /**
@@ -327,6 +380,9 @@ class StageService(
 
         expiredLiveStages.forEach { liveStage ->
             try {
+                // Stop egress recording before closing expired stage
+                stopEgressIfActive(liveStage.stageId)
+
                 // Get the full stage model from database for closeStage()
                 val stage = stageRepository.findById(liveStage.stageId)
                 if (stage != null) {

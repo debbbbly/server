@@ -6,9 +6,8 @@ api_secret: dev-livekit-api-secret-for-development
 ws_url: ws://livekit:7880
 
 s3:
-  endpoint: https://zhrclcryabanraaadfty.storage.supabase.co/storage/v1/s3
-  region: us-east-1
-  access_key: 8972584cd105818a2a9a5fd67e5f153c
-  secret: 724690b9353ba2926e38ea99db196525c67b5e3364ffc474ae5192cc8e5a2809
-  bucket: egress
-
+  endpoint: https://fsn1.your-objectstorage.com
+  access_key: 89OJVM4IPAK8E5Y022WF
+  secret: cUlgL6ZoJxJmWwvWwZufUvR8pTgd9adFMUQfr1XC
+  bucket: debbly-recordings
+  force_path_style: true

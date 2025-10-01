@@ -13,7 +13,8 @@ data class LiveStageEntity(
     val claimId: String?,
     val title: String?,
     val openedAt: Instant,
-    var heartbeatAt: Instant
+    var heartbeatAt: Instant,
+    val egressId: String? = null
 )
 
 data class LiveStageHost(

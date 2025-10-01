@@ -27,7 +27,7 @@ class LiveKitController(
     ): ResponseEntity<Void> {
         val event: LivekitWebhook.WebhookEvent = webhookReceiver.receive(postBody, authHeader)
 
-        logger.info("Received livekit webhook event: ${event.event}")
+//        logger.info("Received livekit webhook event: ${event.event}")
 
         liveKitWebhookService.processWebhookEvent(event)
 

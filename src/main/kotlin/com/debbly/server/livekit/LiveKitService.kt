@@ -2,6 +2,7 @@ package com.debbly.server.livekit
 
 import com.debbly.server.IdService
 import com.debbly.server.config.LiveKitConfig
+import com.debbly.server.config.S3ConfigProperties
 import io.livekit.server.*
 import livekit.LivekitModels
 import livekit.LivekitEgress
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service
 @Service
 class LiveKitService(
     private val liveKitConfig: LiveKitConfig,
+    private val s3Config: S3ConfigProperties,
     private val idService: IdService,
     private val livekitRoomService: RoomServiceClient,
     private val livekitEgressService: EgressServiceClient,
@@ -67,23 +69,26 @@ class LiveKitService(
     }
 
     fun startRoomEgress(
-        stageId: String, 
-        s3Bucket: String, 
-        s3Key: String, 
-        s3Region: String = "us-west-2",
-        width: Int = 1920, 
-        height: Int = 1080
+        stageId: String,
+
     ): LivekitEgress.EgressInfo? {
+        logger.info("Starting egress for stage $stageId with S3 config: endpoint=${s3Config.endpoint}, bucket=${s3Config.bucket}, region=${s3Config.region}")
+
         val s3Upload = LivekitEgress.S3Upload.newBuilder()
-            .setBucket(s3Bucket)
-            .setRegion(s3Region)
-            .setAccessKey(System.getenv("AWS_ACCESS_KEY_ID") ?: "")
-            .setSecret(System.getenv("AWS_SECRET_ACCESS_KEY") ?: "")
+            .setEndpoint(s3Config.endpoint)
+            .setBucket(s3Config.bucket)
+            .setRegion(s3Config.region)
+            .setAccessKey(s3Config.accessKey)
+            .setSecret(s3Config.secret)
+            .setForcePathStyle(s3Config.forcePathStyle)
             .build()
+
+        val filename = "recordings/${stageId}.mp4"
+        logger.info("Egress will save to: $filename")
 
         val encodedFileOutput = LivekitEgress.EncodedFileOutput.newBuilder()
             .setFileType(LivekitEgress.EncodedFileType.MP4)
-            .setFilepath("$s3Key.mp4")
+            .setFilepath(filename)
             .setS3(s3Upload)
             .build()
 
@@ -91,7 +96,7 @@ class LiveKitService(
             stageId,
             encodedFileOutput,
             "grid",
-            null,
+            LivekitEgress.EncodingOptionsPreset.H264_720P_30,
             null,
             false,
             false,
@@ -101,23 +106,41 @@ class LiveKitService(
         
         if (response.isSuccessful) {
             val egressInfo = response.body()
-            logger.info("Started egress for room $stageId: ${egressInfo?.egressId}")
+            logger.info("✅ Successfully started egress for room $stageId:")
+            logger.info("   EgressId: ${egressInfo?.egressId}")
+            logger.info("   Status: ${egressInfo?.status}")
+            logger.info("   StartedAt: ${egressInfo?.startedAt}")
+            logger.info("   FileResults: ${egressInfo?.fileResultsList}")
             return egressInfo
         } else {
-            logger.error("Failed to start egress for room $stageId: ${response.code()} ${response.message()}")
+            logger.error("❌ Failed to start egress for room $stageId:")
+            logger.error("   HTTP Status: ${response.code()}")
+            logger.error("   Error Message: ${response.message()}")
+            logger.error("   Response Body: ${response.errorBody()?.string()}")
             return null
         }
     }
 
     fun stopEgress(egressId: String): Boolean {
+        logger.info("Attempting to stop egress: $egressId")
         val call = livekitEgressService.stopEgress(egressId)
         val response = call.execute()
-        
+
         if (response.isSuccessful) {
-            logger.info("Stopped egress: $egressId")
+            val egressInfo = response.body()
+            logger.info("✅ Successfully stopped egress: $egressId")
+            logger.info("   Final Status: ${egressInfo?.status}")
+            logger.info("   EndedAt: ${egressInfo?.endedAt}")
+            logger.info("   FileResults: ${egressInfo?.fileResultsList}")
+            egressInfo?.fileResultsList?.forEach { fileResult ->
+                logger.info("   📁 File: ${fileResult.filename} - Size: ${fileResult.size} bytes")
+            }
             return true
         } else {
-            logger.error("Failed to stop egress $egressId: ${response.code()} ${response.message()}")
+            logger.error("❌ Failed to stop egress $egressId:")
+            logger.error("   HTTP Status: ${response.code()}")
+            logger.error("   Error Message: ${response.message()}")
+            logger.error("   Response Body: ${response.errorBody()?.string()}")
             return false
         }
     }
