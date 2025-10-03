@@ -72,7 +72,7 @@ class LiveKitService(
         stageId: String,
 
     ): LivekitEgress.EgressInfo? {
-        logger.info("Starting egress for stage $stageId with S3 config: endpoint=${s3Config.endpoint}, bucket=${s3Config.bucket}, region=${s3Config.region}")
+        logger.info("Starting HLS egress for stage $stageId with S3 config: endpoint=${s3Config.endpoint}, bucket=${s3Config.bucket}, region=${s3Config.region}")
 
         val s3Upload = LivekitEgress.S3Upload.newBuilder()
             .setEndpoint(s3Config.endpoint)
@@ -83,41 +83,75 @@ class LiveKitService(
             .setForcePathStyle(s3Config.forcePathStyle)
             .build()
 
-        val filename = "recordings/${stageId}.mp4"
-        logger.info("Egress will save to: $filename")
-
-        val encodedFileOutput = LivekitEgress.EncodedFileOutput.newBuilder()
-            .setFileType(LivekitEgress.EncodedFileType.MP4)
-            .setFilepath(filename)
+        // HLS Segment Output
+        val segmentOutput = LivekitEgress.SegmentedFileOutput.newBuilder()
+            .setFilenamePrefix("$stageId/")
+            .setPlaylistName("playlist.m3u8")
+            .setLivePlaylistName("playlist-live.m3u8")
+            .setSegmentDuration(5)
             .setS3(s3Upload)
             .build()
 
         val call = livekitEgressService.startRoomCompositeEgress(
             stageId,
-            encodedFileOutput,
+            segmentOutput,
             "grid",
-            LivekitEgress.EncodingOptionsPreset.H264_720P_30,
-            null,
-            false,
-            false,
-            ""
+            LivekitEgress.EncodingOptionsPreset.H264_720P_30
         )
         val response = call.execute()
-        
+
+        // Also start image egress for thumbnails
+        if (response.isSuccessful) {
+            startThumbnailEgress(stageId, s3Upload)
+        }
+
         if (response.isSuccessful) {
             val egressInfo = response.body()
-            logger.info("✅ Successfully started egress for room $stageId:")
+            logger.info("✅ Successfully started HLS egress for room $stageId:")
             logger.info("   EgressId: ${egressInfo?.egressId}")
             logger.info("   Status: ${egressInfo?.status}")
             logger.info("   StartedAt: ${egressInfo?.startedAt}")
-            logger.info("   FileResults: ${egressInfo?.fileResultsList}")
+            logger.info("   HLS Playlist: $stageId/playlist.m3u8")
+            logger.info("   Live Playlist: $stageId/playlist-live.m3u8")
+            logger.info("   Thumbnails: $stageId/*.jpg (every 30 seconds)")
             return egressInfo
         } else {
-            logger.error("❌ Failed to start egress for room $stageId:")
+            logger.error("❌ Failed to start HLS egress for room $stageId:")
             logger.error("   HTTP Status: ${response.code()}")
             logger.error("   Error Message: ${response.message()}")
             logger.error("   Response Body: ${response.errorBody()?.string()}")
             return null
+        }
+    }
+
+    private fun startThumbnailEgress(stageId: String, s3Upload: LivekitEgress.S3Upload) {
+        try {
+            val imageOutput = LivekitEgress.ImageOutput.newBuilder()
+                .setCaptureInterval(30)
+                .setWidth(1280)
+                .setHeight(720)
+                .setFilenamePrefix("$stageId/")
+                .setFilenameSuffix(LivekitEgress.ImageFileSuffix.IMAGE_SUFFIX_TIMESTAMP)
+                .setDisableManifest(true)
+                .setS3(s3Upload)
+                .build()
+
+            val imageCall = livekitEgressService.startRoomCompositeEgress(
+                stageId,
+                imageOutput,
+                "grid",
+                LivekitEgress.EncodingOptionsPreset.H264_720P_30
+            )
+            val imageResponse = imageCall.execute()
+
+            if (imageResponse.isSuccessful) {
+                logger.info("✅ Successfully started thumbnail egress for room $stageId")
+                logger.info("   Thumbnail EgressId: ${imageResponse.body()?.egressId}")
+            } else {
+                logger.warn("❌ Failed to start thumbnail egress for room $stageId: ${imageResponse.message()}")
+            }
+        } catch (e: Exception) {
+            logger.error("Error starting thumbnail egress for room $stageId", e)
         }
     }
 

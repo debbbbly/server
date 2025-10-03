@@ -4,6 +4,7 @@ import com.debbly.server.IdService
 import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
+import com.debbly.server.config.S3ConfigProperties
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.livekit.LiveKitService
 import com.debbly.server.match.model.Match
@@ -37,6 +38,7 @@ class StageService(
     private val stageProperties: StageProperties,
     private val userSettingsRepository: UserSettingsCachedRepository,
     private val settingsRepository: SettingsJpaRepository,
+    private val s3Config: S3ConfigProperties,
     private val clock: Clock
 ) {
 
@@ -313,9 +315,19 @@ class StageService(
                 null
             }
 
-            egressInfo?.egressId?.also {
-                logger.info("Started egress recording for stage ${stage.stageId}, egressId: $it")
-            } ?: run {
+            if (egressInfo?.egressId != null) {
+                logger.info("Started egress recording for stage ${stage.stageId}, egressId: ${egressInfo.egressId}")
+
+                // Build HLS URL from S3 config
+                val hlsUrl = buildHlsUrl(stage.stageId)
+
+                // Update stage with HLS URL
+                val updatedStage = stage.copy(hlsUrl = hlsUrl)
+                stageRepository.save(updatedStage)
+
+                logger.info("Updated stage ${stage.stageId} with HLS URL: $hlsUrl")
+                egressInfo.egressId
+            } else {
                 logger.warn("Failed to start egress recording for stage ${stage.stageId}")
                 null
             }
@@ -344,6 +356,13 @@ class StageService(
                 egressId = egressId
             )
         )
+    }
+
+    private fun buildHlsUrl(stageId: String): String {
+        // Use the S3 endpoint from config to construct the public URL
+        // Format: https://{endpoint}/{bucket}/{stageId}/playlist.m3u8
+
+        return "${s3Config.endpoint}/${s3Config.bucket}/$stageId/playlist.m3u8"
     }
 
     private fun shouldStartEgressForStage(stage: StageModel): Boolean {
