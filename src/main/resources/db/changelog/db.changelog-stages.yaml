@@ -91,3 +91,15 @@ databaseChangeLog:
                   type: timestamp
                   constraints:
                     nullable: true
+  - changeSet:
+      id: 6
+      author: gemini
+      changes:
+        - addColumn:
+            tableName: stages
+            columns:
+              - column:
+                  name: hls_url
+                  type: varchar(512)
+                  constraints:
+                    nullable: true

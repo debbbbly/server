@@ -25,5 +25,6 @@ data class StageEntity(
     @Enumerated(EnumType.STRING)
     val status: StageStatus,
     val openedAt: Instant?,
-    val closedAt: Instant?
+    val closedAt: Instant?,
+    val hlsUrl: String? = null
 )

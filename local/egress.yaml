@@ -9,5 +9,5 @@ s3:
   endpoint: https://fsn1.your-objectstorage.com
   access_key: 89OJVM4IPAK8E5Y022WF
   secret: cUlgL6ZoJxJmWwvWwZufUvR8pTgd9adFMUQfr1XC
-  bucket: debbly-recordings
+  bucket: debbly-hls
   force_path_style: true

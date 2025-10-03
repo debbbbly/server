@@ -79,7 +79,8 @@ class StageService(
             createdAt = stage.createdAt,
             openedAt = stage.openedAt,
             closedAt = stage.closedAt,
-            limitMinutes = stageProperties.limitMinutes
+            limitMinutes = stageProperties.limitMinutes,
+            hlsUrl = stage.hlsUrl
         )
     }
 
@@ -428,7 +429,8 @@ class StageService(
         val createdAt: Instant,
         val openedAt: Instant?,
         val closedAt: Instant?,
-        val limitMinutes: Int
+        val limitMinutes: Int,
+        val hlsUrl: String?
     ) {
         data class Host(
             val userId: String,

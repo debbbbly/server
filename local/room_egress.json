@@ -1,18 +1,18 @@
 {
-  "room_name": "cJAbz5G2",
+  "room_name": "vjinbNoc",
   "preset": "H264_720P_30",
   "layout": "grid",
   "segment_outputs": [
     {
-      "filename_prefix": "{room_name}/hls",
-      "playlist_name": "my-output.m3u8",
-      "live_playlist_name": "my-output-live.m3u8",
-      "segment_duration": 2,
+      "filename_prefix": "{room_name}/",
+      "playlist_name": "playlist.m3u8",
+      "live_playlist_name": "playlist-live.m3u8",
+      "segment_duration": 5,
       "s3": {
         "endpoint": "https://fsn1.your-objectstorage.com",
         "access_key": "89OJVM4IPAK8E5Y022WF",
         "secret": "cUlgL6ZoJxJmWwvWwZufUvR8pTgd9adFMUQfr1XC",
-        "bucket": "debbly-recordings",
+        "bucket": "debbly-hls",
         "force_path_style" : true
       }
     }
@@ -22,14 +22,14 @@
       "capture_interval": 30,
       "width": 1280,
       "height": 720,
-      "filename_prefix": "{room_name}/{publisher_identity}",
+      "filename_prefix": "{room_name}/",
       "filename_suffix": "IMAGE_SUFFIX_TIMESTAMP",
       "disable_manifest": true,
       "s3": {
         "endpoint": "https://fsn1.your-objectstorage.com",
         "access_key": "89OJVM4IPAK8E5Y022WF",
         "secret": "cUlgL6ZoJxJmWwvWwZufUvR8pTgd9adFMUQfr1XC",
-        "bucket": "debbly-recordings",
+        "bucket": "debbly-hls",
         "force_path_style" : true
       }
     }
