@@ -145,6 +145,33 @@ class LiveKitService(
         }
     }
 
+    fun listActiveEgresses(roomName: String? = null): List<LivekitEgress.EgressInfo> {
+        val allEgresses = listAllEgresses(roomName)
+        return allEgresses.filter {
+            it.status == LivekitEgress.EgressStatus.EGRESS_ACTIVE ||
+            it.status == LivekitEgress.EgressStatus.EGRESS_STARTING
+        }
+    }
+
+    fun countActiveRoomCompositeEgresses(): Int {
+        val activeEgresses = listActiveEgresses()
+        return activeEgresses.count { it.hasRoomComposite() }
+    }
+
+    fun listAllEgresses(roomName: String? = null): List<LivekitEgress.EgressInfo> {
+        val call = livekitEgressService.listEgress(roomName, null)
+        val response = call.execute()
+
+        if (response.isSuccessful) {
+            val egressInfoList = response.body() ?: emptyList()
+            logger.debug("Found ${egressInfoList.size} total egresses${roomName?.let { " for room $it" } ?: ""}")
+            return egressInfoList
+        } else {
+            logger.error("Failed to list egresses: ${response.code()} ${response.message()}")
+            return emptyList()
+        }
+    }
+
     fun getToken(userId: String?, stageId: String, isHost: Boolean): String {
         val token = AccessToken(liveKitConfig.apiKey, liveKitConfig.apiSecret).apply {
             val tokenUserId = userId ?: "guest_${idService.getId()}"

@@ -7,6 +7,10 @@ import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.livekit.LiveKitService
 import com.debbly.server.match.model.Match
+import com.debbly.server.settings.SettingsName
+import com.debbly.server.settings.UserSettingsName
+import com.debbly.server.settings.repository.SettingsJpaRepository
+import com.debbly.server.settings.repository.UserSettingsCachedRepository
 import com.debbly.server.stage.config.StageProperties
 import com.debbly.server.stage.model.LiveStageEntity
 import com.debbly.server.stage.model.LiveStageHost
@@ -31,6 +35,8 @@ class StageService(
     private val userClaimCachedRepository: UserClaimCachedRepository,
     private val liveKitService: LiveKitService,
     private val stageProperties: StageProperties,
+    private val userSettingsRepository: UserSettingsCachedRepository,
+    private val settingsRepository: SettingsJpaRepository,
     private val clock: Clock
 ) {
 
@@ -297,19 +303,24 @@ class StageService(
         val users = stage.hosts.mapNotNull { userCachedRepository.findById(it.userId) }.associateBy { it.userId }
         val claim = stage.claimId?.let { claimCachedRepository.getById(it) }
 
-        // Start egress recording
-        val egressInfo = try {
-            liveKitService.startRoomEgress(stage.stageId)
-        } catch (e: Exception) {
-            logger.error("Failed to start egress for stage ${stage.stageId}", e)
-            null
-        }
+        val shouldStartEgress = shouldStartEgressForStage(stage)
 
-        val egressId = egressInfo?.egressId
-        if (egressId != null) {
-            logger.info("Started egress recording for stage ${stage.stageId}, egressId: $egressId")
+        val egressId = if (shouldStartEgress) {
+            val egressInfo = try {
+                liveKitService.startRoomEgress(stage.stageId)
+            } catch (e: Exception) {
+                logger.error("Failed to start egress for stage ${stage.stageId}", e)
+                null
+            }
+
+            egressInfo?.egressId?.also {
+                logger.info("Started egress recording for stage ${stage.stageId}, egressId: $it")
+            } ?: run {
+                logger.warn("Failed to start egress recording for stage ${stage.stageId}")
+                null
+            }
         } else {
-            logger.warn("Failed to start egress recording for stage ${stage.stageId}")
+            null
         }
 
         liveStageRedisRepository.save(
@@ -333,6 +344,29 @@ class StageService(
                 egressId = egressId
             )
         )
+    }
+
+    private fun shouldStartEgressForStage(stage: StageModel): Boolean {
+        val maxEgressCount = settingsRepository.findById(SettingsName.STAGE_EGRESS_MAX_COUNT)
+            .map { it.value.toIntOrNull() ?: 2 }
+            .orElse(2)
+
+        val currentActiveEgressCount = liveKitService.countActiveRoomCompositeEgresses()
+
+        if (currentActiveEgressCount >= maxEgressCount) {
+            logger.warn("Max egress limit reached ($currentActiveEgressCount/$maxEgressCount). Cannot start egress for stage ${stage.stageId}")
+            return false
+        }
+
+        val hasUserRequiringEgress = stage.hosts.any { host ->
+            val setting = userSettingsRepository.findByUserIdAndName(
+                host.userId,
+                UserSettingsName.ALWAYS_EGRESS_STAGE_HLS
+            )
+            setting?.value == "true"
+        }
+
+        return hasUserRequiringEgress
     }
 
     private fun stopEgressIfActive(stageId: String) {
