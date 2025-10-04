@@ -1,0 +1,71 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1
+      author: claude
+      changes:
+        - createTable:
+            tableName: settings
+            columns:
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: value
+                  type: varchar(1024)
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 2
+      author: claude
+      changes:
+        - createTable:
+            tableName: user_settings
+            columns:
+              - column:
+                  name: id
+                  type: varchar(36)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: value
+                  type: varchar(1024)
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: user_settings
+            columnNames: user_id, name
+            constraintName: uk_user_settings_user_id_name
+        - addForeignKeyConstraint:
+            baseTableName: user_settings
+            baseColumnNames: user_id
+            referencedTableName: users
+            referencedColumnNames: user_id
+            constraintName: fk_user_settings_user
+            onDelete: CASCADE
+        - createIndex:
+            tableName: user_settings
+            indexName: idx_user_settings_user_id
+            columns:
+              - column:
+                  name: user_id
+        - createIndex:
+            tableName: user_settings
+            indexName: idx_user_settings_name
+            columns:
+              - column:
+                  name: name

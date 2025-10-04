@@ -1,0 +1,60 @@
+package com.debbly.server.settings
+
+import com.debbly.server.settings.SettingsName.HLS_SEGMENT_DURATION
+import com.debbly.server.settings.SettingsName.SYSTEM_EGRESS_LIMIT
+import com.debbly.server.settings.repository.SettingsJpaRepository
+import com.github.benmanes.caffeine.cache.Caffeine
+import com.github.benmanes.caffeine.cache.LoadingCache
+import org.slf4j.LoggerFactory
+import org.springframework.stereotype.Service
+import java.time.Duration
+
+@Service
+class SettingsService(
+    private val settingsRepository: SettingsJpaRepository
+) {
+    companion object {
+        const val SYSTEM_EGRESS_LIMIT_DEFAULT = 2;
+        const val HLS_SEGMENT_DURATION_DEFAULT = 2;
+    }
+
+    private val logger = LoggerFactory.getLogger(javaClass)
+
+    private val cache: LoadingCache<SettingsName, String> = Caffeine.newBuilder()
+        .expireAfterWrite(Duration.ofSeconds(10))
+        .build { key ->
+            settingsRepository.findById(key)
+                .map { it.value }
+                .orElse("")
+                .also { logger.debug("Loaded setting {} from database: {}", key, it) }
+        }
+
+    fun getSystemEgressLimit(): Int {
+        val value = cache.get(SYSTEM_EGRESS_LIMIT)
+        return value.toIntOrNull() ?: SYSTEM_EGRESS_LIMIT_DEFAULT
+    }
+
+    fun getHlsSegmentDuration(): Int {
+        val value = cache.get(HLS_SEGMENT_DURATION)
+        return value.toIntOrNull() ?: HLS_SEGMENT_DURATION_DEFAULT
+    }
+
+    fun getSetting(name: SettingsName): String? {
+        return cache.get(name)
+    }
+
+    fun updateSetting(name: SettingsName, value: String) {
+        val setting = settingsRepository.findById(name)
+            .map { it.copy(value = value) }
+            .orElse(SettingsEntity(name = name, value = value))
+
+        settingsRepository.save(setting)
+        cache.invalidate(name)
+        logger.info("Updated setting $name to $value")
+    }
+
+    fun invalidateCache() {
+        cache.invalidateAll()
+        logger.info("Invalidated settings cache")
+    }
+}

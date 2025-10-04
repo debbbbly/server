@@ -8,9 +8,8 @@ import com.debbly.server.config.S3ConfigProperties
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.livekit.LiveKitService
 import com.debbly.server.match.model.Match
-import com.debbly.server.settings.SettingsName
+import com.debbly.server.settings.SettingsService
 import com.debbly.server.settings.UserSettingsName
-import com.debbly.server.settings.repository.SettingsJpaRepository
 import com.debbly.server.settings.repository.UserSettingsCachedRepository
 import com.debbly.server.stage.config.StageProperties
 import com.debbly.server.stage.model.LiveStageEntity
@@ -37,7 +36,7 @@ class StageService(
     private val liveKitService: LiveKitService,
     private val stageProperties: StageProperties,
     private val userSettingsRepository: UserSettingsCachedRepository,
-    private val settingsRepository: SettingsJpaRepository,
+    private val settingsService: SettingsService,
     private val s3Config: S3ConfigProperties,
     private val clock: Clock
 ) {
@@ -366,10 +365,7 @@ class StageService(
     }
 
     private fun shouldStartEgressForStage(stage: StageModel): Boolean {
-        val maxEgressCount = settingsRepository.findById(SettingsName.STAGE_EGRESS_MAX_COUNT)
-            .map { it.value.toIntOrNull() ?: 2 }
-            .orElse(2)
-
+        val maxEgressCount = settingsService.getSystemEgressLimit()
         val currentActiveEgressCount = liveKitService.countActiveRoomCompositeEgresses()
 
         if (currentActiveEgressCount >= maxEgressCount) {

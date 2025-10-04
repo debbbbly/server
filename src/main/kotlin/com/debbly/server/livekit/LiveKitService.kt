@@ -3,6 +3,7 @@ package com.debbly.server.livekit
 import com.debbly.server.IdService
 import com.debbly.server.config.LiveKitConfig
 import com.debbly.server.config.S3ConfigProperties
+import com.debbly.server.settings.SettingsService
 import io.livekit.server.*
 import livekit.LivekitModels
 import livekit.LivekitEgress
@@ -16,6 +17,7 @@ class LiveKitService(
     private val idService: IdService,
     private val livekitRoomService: RoomServiceClient,
     private val livekitEgressService: EgressServiceClient,
+    private val settings: SettingsService
 ) {
     companion object {
         private const val DEFAULT_TOKEN_TTL: Long = 60 * 15;
@@ -88,7 +90,7 @@ class LiveKitService(
             .setFilenamePrefix("$stageId/")
             .setPlaylistName("playlist.m3u8")
             .setLivePlaylistName("playlist-live.m3u8")
-            .setSegmentDuration(5)
+            .setSegmentDuration(settings.getHlsSegmentDuration())
             .setS3(s3Upload)
             .build()
 

@@ -1,5 +1,6 @@
 package com.debbly.server.settings
 
 enum class SettingsName {
-    STAGE_EGRESS_MAX_COUNT
+    SYSTEM_EGRESS_LIMIT,
+    HLS_SEGMENT_DURATION
 }

@@ -7,6 +7,5 @@ data class SettingsEntity(
     @Id
     @Enumerated(EnumType.STRING)
     val name: SettingsName,
-
     val value: String
 )
