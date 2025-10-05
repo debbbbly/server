@@ -74,11 +74,11 @@ class LiveKitService(
         stageId: String,
 
     ): LivekitEgress.EgressInfo? {
-        logger.info("Starting HLS egress for stage $stageId with S3 config: endpoint=${s3Config.endpoint}, bucket=${s3Config.bucket}, region=${s3Config.region}")
+        logger.info("Starting HLS egress for stage $stageId with S3 config: endpoint=${s3Config.endpoint}, bucket=${s3Config.bucket.hls}, region=${s3Config.region}")
 
         val s3Upload = LivekitEgress.S3Upload.newBuilder()
             .setEndpoint(s3Config.endpoint)
-            .setBucket(s3Config.bucket)
+            .setBucket(s3Config.bucket.hls)
             .setRegion(s3Config.region)
             .setAccessKey(s3Config.accessKey)
             .setSecret(s3Config.secret)

@@ -55,24 +55,24 @@ class UserClaimController(
     }
 
     data class UpdateUserClaimStance(
-        val stance: ClaimStance
+        val stance: ClaimStance?
     )
 
-    @PostMapping("/{claimId}/remove-stance")
-    fun removeUserClaimStance(
-        @PathVariable userId: String,
-        @PathVariable claimId: String,
-        @ExternalUserId externalUserId: String?
-    ): ResponseEntity<Void> {
-        authService.authenticate(externalUserId).let { user ->
-            if (user.userId != userId)
-                throw UnauthorizedException("Can't update claim stance of a different user.")
-
-            userClaimService.removeStance(user.userId, claimId)
-        }
-
-        return ResponseEntity.ok().build()
-    }
+//    @PostMapping("/{claimId}/remove-stance")
+//    fun removeUserClaimStance(
+//        @PathVariable userId: String,
+//        @PathVariable claimId: String,
+//        @ExternalUserId externalUserId: String?
+//    ): ResponseEntity<Void> {
+//        authService.authenticate(externalUserId).let { user ->
+//            if (user.userId != userId)
+//                throw UnauthorizedException("Can't update claim stance of a different user.")
+//
+//            userClaimService.removeStance(user.userId, claimId)
+//        }
+//
+//        return ResponseEntity.ok().build()
+//    }
 
 //    data class PriorityUpdate(
 //        val claimId: String,

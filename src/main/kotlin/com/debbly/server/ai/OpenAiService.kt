@@ -2,19 +2,29 @@ package com.debbly.server.ai
 
 import com.debbly.server.category.repository.CategoryCachedRepository
 import com.debbly.server.user.UserValidator.usernameRegex
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.client.ChatClient
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.http.HttpEntity
+import org.springframework.http.HttpHeaders
+import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
+import org.springframework.web.client.RestTemplate
+import java.util.Base64
 
 @Service
 class OpenAIService(
     private val chatClient: ChatClient,
-    private val categoryRepository: CategoryCachedRepository
+    private val categoryRepository: CategoryCachedRepository,
+    @Value("\${spring.ai.openai.api-key}") private val openaiApiKey: String
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
     private val objectMapper = jacksonObjectMapper()
+    private val restTemplate = RestTemplate()
+    private val moderationUrl = "https://api.openai.com/v1/moderations"
 
     fun validateClaim(title: String): ClaimValidationResult {
         val prompt = """
@@ -189,6 +199,93 @@ class OpenAIService(
 
         return usernames.takeIf { it.isNotEmpty() } ?: listOf(normalizedSeed)
     }
+
+    fun validateUsername(username: String): UsernameValidationResult {
+        return try {
+            val headers = HttpHeaders()
+            headers.contentType = MediaType.APPLICATION_JSON
+            headers.setBearerAuth(openaiApiKey)
+
+            val requestBody = mapOf(
+                "model" to "omni-moderation-latest",
+                "input" to username
+            )
+
+            val request = HttpEntity(requestBody, headers)
+            val response = restTemplate.postForObject(
+                moderationUrl,
+                request,
+                ModerationResponse::class.java
+            )
+
+            val result = response?.results?.firstOrNull()
+            if (result?.flagged == true) {
+                val violatedCategories = result.categories
+                    .filter { it.value }
+                    .keys
+                    .joinToString(", ")
+
+                UsernameValidationResult(
+                    valid = false,
+                    reason = "Username violates platform rules: $violatedCategories"
+                )
+            } else {
+                UsernameValidationResult(valid = true, reason = "")
+            }
+        } catch (e: Exception) {
+            logger.error("Error validating username with moderation API: ${e.message}", e)
+            // Fail open - allow the username if moderation check fails
+            UsernameValidationResult(valid = true, reason = "")
+        }
+    }
+
+    fun validateAvatar(imageBytes: ByteArray, contentType: String): AvatarValidationResult {
+        return try {
+            val headers = HttpHeaders()
+            headers.contentType = MediaType.APPLICATION_JSON
+            headers.setBearerAuth(openaiApiKey)
+
+            // Convert image to base64
+            val base64Image = Base64.getEncoder().encodeToString(imageBytes)
+            val dataUrl = "data:$contentType;base64,$base64Image"
+
+            val requestBody = mapOf(
+                "model" to "omni-moderation-latest",
+                "input" to listOf(
+                    mapOf(
+                        "type" to "image_url",
+                        "image_url" to mapOf("url" to dataUrl)
+                    )
+                )
+            )
+
+            val request = HttpEntity(requestBody, headers)
+            val response = restTemplate.postForObject(
+                moderationUrl,
+                request,
+                ModerationResponse::class.java
+            )
+
+            val result = response?.results?.firstOrNull()
+            if (result?.flagged == true) {
+                val violatedCategories = result.categories
+                    .filter { it.value }
+                    .keys
+                    .joinToString(", ")
+
+                AvatarValidationResult(
+                    valid = false,
+                    reason = "Avatar violates platform rules: $violatedCategories"
+                )
+            } else {
+                AvatarValidationResult(valid = true, reason = "")
+            }
+        } catch (e: Exception) {
+            logger.error("Error validating avatar with moderation API: ${e.message}", e)
+            // Fail open - allow the avatar if moderation check fails
+            AvatarValidationResult(valid = true, reason = "")
+        }
+    }
 }
 
 data class ClaimValidationResult(
@@ -198,4 +295,28 @@ data class ClaimValidationResult(
     val reasoning: String? = null,
     val categoryId: String? = null,
     val tags: List<String> = emptyList(),
+)
+
+data class UsernameValidationResult(
+    val valid: Boolean,
+    val reason: String
+)
+
+data class AvatarValidationResult(
+    val valid: Boolean,
+    val reason: String
+)
+
+// OpenAI Moderation API response structures
+data class ModerationResponse(
+    val id: String,
+    val model: String,
+    val results: List<ModerationResult>
+)
+
+data class ModerationResult(
+    val flagged: Boolean,
+    val categories: Map<String, Boolean>,
+    @JsonProperty("category_scores")
+    val categoryScores: Map<String, Double>? = null
 )

@@ -8,7 +8,7 @@ import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
-import java.time.LocalDate
+import org.springframework.web.multipart.MultipartFile
 import java.util.*
 
 @RestController
@@ -17,6 +17,7 @@ class UserController(
     private val userCachedRepository: UserCachedRepository,
     private val idService: IdService,
     private val onlineUsersService: OnlineUsersService,
+    private val userService: UserService
 ) {
 
     @GetMapping("/me")
@@ -36,14 +37,14 @@ class UserController(
                 )
             )
 
-        return ResponseEntity.ok(UserMeResponse(user.userId, user.username, user.email, user.birthdate))
+        return ResponseEntity.ok(UserMeResponse(user.userId, user.username, user.email, user.avatarUrl))
     }
 
     data class UserMeResponse(
         val id: String,
         val username: String?,
         val email: String,
-        val birthdate: LocalDate?
+        val avatarUrl: String?
     )
 
     @GetMapping
@@ -143,5 +144,71 @@ class UserController(
     data class DeleteUserResponse(
         val success: Boolean,
         val message: String
+    )
+
+    @PutMapping("/username")
+    fun updateUsername(
+        @ExternalUserId externalUserId: String?,
+        @RequestBody request: UpdateUsernameRequest
+    ): ResponseEntity<UpdateUsernameResponse> {
+        if (externalUserId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+        }
+
+        val user = userCachedRepository.findByExternalUserId(externalUserId)
+            ?: return ResponseEntity.notFound().build()
+
+        val result = userService.updateUsername(user, request.username)
+
+        return if (result.success) {
+            ResponseEntity.ok(UpdateUsernameResponse(true, result.message))
+        } else {
+            val status = when {
+                result.message.contains("already taken") -> HttpStatus.CONFLICT
+                result.message.contains("violates platform rules") -> HttpStatus.FORBIDDEN
+                else -> HttpStatus.BAD_REQUEST
+            }
+            ResponseEntity.status(status).body(UpdateUsernameResponse(false, result.message))
+        }
+    }
+
+    data class UpdateUsernameRequest(
+        val username: String
+    )
+
+    data class UpdateUsernameResponse(
+        val success: Boolean,
+        val message: String
+    )
+
+    @PutMapping("/avatar")
+    fun updateAvatar(
+        @ExternalUserId externalUserId: String?,
+        @RequestParam("file") file: MultipartFile
+    ): ResponseEntity<UpdateAvatarResponse> {
+        if (externalUserId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+        }
+
+        val user = userCachedRepository.findByExternalUserId(externalUserId)
+            ?: return ResponseEntity.notFound().build()
+
+        val result = userService.updateAvatar(user, file)
+
+        return if (result.success) {
+            ResponseEntity.ok(UpdateAvatarResponse(true, result.message, result.avatarUrl))
+        } else {
+            val status = when {
+                result.message.contains("violates platform rules") -> HttpStatus.FORBIDDEN
+                else -> HttpStatus.BAD_REQUEST
+            }
+            ResponseEntity.status(status).body(UpdateAvatarResponse(false, result.message, null))
+        }
+    }
+
+    data class UpdateAvatarResponse(
+        val success: Boolean,
+        val message: String,
+        val avatarUrl: String?
     )
 }

@@ -45,44 +45,49 @@ class UserClaimService(
 //    }
     fun getClaims(userId: String) = userClaimRepository.findByUserId(userId)
 
-    fun updateStance(userId: String, claimId: String, stance: ClaimStance) {
+    fun updateStance(userId: String, claimId: String, stance: ClaimStance?) {
         userClaimRepository.findByUserIdClaimId(userId, claimId)?.let { userClaim ->
-            userClaimRepository.save(userClaim.copy(stance = stance))
+            if (stance == null) {
+                userClaimRepository.deleteByUserIdAndClaimId(userId, claimId)
+            } else {
+                userClaimRepository.save(userClaim.copy(stance = stance))
+            }
         } ?: let {
-
-            claimRepository.findById(claimId)?.let { claim ->
-                userClaimRepository.save(
-                    UserClaimModel(
-                        claim = claim,
-                        userId = userId,
-                        stance = stance,
-                        priority = null,
-                        updatedAt = Instant.now(clock)
+            stance?.let { stance ->
+                claimRepository.findById(claimId)?.let { claim ->
+                    userClaimRepository.save(
+                        UserClaimModel(
+                            claim = claim,
+                            userId = userId,
+                            stance = stance,
+                            priority = null,
+                            updatedAt = Instant.now(clock)
+                        )
                     )
-                )
+                }
             }
         }
     }
 
-    fun updatePriorities(userId: String, priorities: List<Pair<String, Int>>) {
-        for ((claimId, priority) in priorities) {
-            claimRepository.findById(claimId)?.let { claim ->
-                userClaimRepository.save(
-                    UserClaimModel(
-                        claim = claim,
-                        userId = userId,
-                        stance = userClaimRepository.findByUserId(userId)
-                            .find { it.claim.claimId == claimId }?.stance ?: ClaimStance.EITHER,
-                        priority = priority,
-                        updatedAt = Instant.now(clock)
-                    )
-                )
-            }
-        }
-    }
+//    fun updatePriorities(userId: String, priorities: List<Pair<String, Int>>) {
+//        for ((claimId, priority) in priorities) {
+//            claimRepository.findById(claimId)?.let { claim ->
+//                userClaimRepository.save(
+//                    UserClaimModel(
+//                        claim = claim,
+//                        userId = userId,
+//                        stance = userClaimRepository.findByUserId(userId)
+//                            .find { it.claim.claimId == claimId }?.stance ?: ClaimStance.EITHER,
+//                        priority = priority,
+//                        updatedAt = Instant.now(clock)
+//                    )
+//                )
+//            }
+//        }
+//    }
 
-    fun removeStance(userId: String, claimId: String) {
-        userClaimRepository.deleteByUserIdAndClaimId(userId, claimId)
-    }
+//    fun removeStance(userId: String, claimId: String) {
+//        userClaimRepository.deleteByUserIdAndClaimId(userId, claimId)
+//    }
 
 }
