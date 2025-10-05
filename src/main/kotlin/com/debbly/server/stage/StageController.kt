@@ -6,6 +6,7 @@ import com.debbly.server.stage.model.LiveStageEntity
 import com.debbly.server.stage.model.StageModel
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.user.repository.UserCachedRepository
+import org.springframework.data.repository.query.Param
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -16,6 +17,14 @@ class StageController(
     private val liveStageRedisRepository: LiveStageRedisRepository,
     private val userCachedRepository: UserCachedRepository
 ) {
+
+    @GetMapping("/history")
+    fun getUserHostedStages(
+        @Param("userId") userId: String
+    ): ResponseEntity<List<StageService.StageHistoryDetails>> {
+        val stages = stageService.getUserHostedStages(userId)
+        return ResponseEntity.ok(stages)
+    }
 
     @GetMapping("/{stageId}")
     fun getStageDetails(

@@ -3,6 +3,7 @@ package com.debbly.server.stage
 import com.debbly.server.IdService
 import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.ClaimCachedRepository
+import com.debbly.server.claim.repository.ClaimJpaRepository
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.config.S3ConfigProperties
 import com.debbly.server.infra.error.UnauthorizedException
@@ -32,6 +33,7 @@ class StageService(
     private val userCachedRepository: UserCachedRepository,
     private val idService: IdService,
     private val claimCachedRepository: ClaimCachedRepository,
+    private val claimRepository: ClaimJpaRepository,
     private val userClaimCachedRepository: UserClaimCachedRepository,
     private val liveKitService: LiveKitService,
     private val stageProperties: StageProperties,
@@ -43,6 +45,46 @@ class StageService(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    fun getUserHostedStages(userId: String): List<StageHistoryDetails> {
+        val stages = stageRepository.findTop10ByHostUserId(userId)
+        val claims = claimRepository.findByClaimIdInWithAllData(stages.mapNotNull { it.claimId })
+            .associateBy { it.claimId }
+
+        return stages.map { stage ->
+            val claim = claims[stage.claimId]
+            val hosts = stage.hosts.map { host ->
+                val user = userCachedRepository.findById(host.userId) ?: throw Exception("User not found")
+                Host(
+                    userId = user.userId,
+                    username = user.username ?: "unknown",
+                    avatarUrl = user.avatarUrl,
+                    stance = host.stance ?: ClaimStance.EITHER
+                )
+            }
+
+            StageHistoryDetails(
+                stageId = stage.stageId,
+                claim = claim?.let {
+                    Claim(
+                        claimId = it.claimId,
+                        title = it.title,
+                        tags = it.tags.map { tag -> Claim.Tag(tagId = tag.tagId, title = tag.title) },
+                        category = Category(
+                            categoryId = it.category.categoryId,
+                            title = it.category.title,
+                            avatarUrl = it.category.avatarUrl
+                        )
+                    )
+                },
+                hosts = hosts,
+                status = stage.status,
+                openedAt = stage.openedAt,
+                closedAt = stage.closedAt,
+                hlsUrl = stage.hlsUrl
+            )
+        }
+    }
+
     fun getStageDetails(stageId: String, userId: String?): StageDetails {
         val stage = stageRepository.getById(stageId)
         val claim = stage.claimId?.let { claimCachedRepository.getById(it) }
@@ -50,7 +92,7 @@ class StageService(
             val user = userCachedRepository.findById(host.userId) ?: throw Exception("User not found")
             val stance = host.stance
 
-            StageDetails.Host(
+            Host(
                 userId = user.userId,
                 username = user.username ?: "unknown",
                 avatarUrl = user.avatarUrl,
@@ -64,15 +106,14 @@ class StageService(
             isHost to liveKitService.getToken(userId = tokenUserId, stageId = stageId, isHost = isHost)
         }
 
-
         return StageDetails(
             stageId = stage.stageId,
             claim = claim?.let { it ->
-                StageDetails.Claim(
+                Claim(
                     claimId = it.claimId,
                     title = claim.title,
-                    tags = claim.tags.map { StageDetails.Claim.Tag(tagId = it.tagId, title = it.title) },
-                    category = StageDetails.Category(
+                    tags = claim.tags.map { Claim.Tag(tagId = it.tagId, title = it.title) },
+                    category = Category(
                         categoryId = claim.category.categoryId,
                         title = claim.category.title,
                         avatarUrl = claim.category.avatarUrl ?: ""
@@ -480,30 +521,40 @@ class StageService(
         val closedAt: Instant?,
         val limitMinutes: Int,
         val hlsUrl: String?
+    )
+
+    data class StageHistoryDetails(
+        val stageId: String,
+        val claim: Claim?,
+        val hosts: List<Host>,
+        val status: StageStatus,
+        val openedAt: Instant?,
+        val closedAt: Instant?,
+        val hlsUrl: String?
+    )
+
+    data class Host(
+        val userId: String,
+        val username: String,
+        val avatarUrl: String?,
+        val stance: ClaimStance
+    )
+
+    data class Claim(
+        val claimId: String,
+        val title: String,
+        val tags: List<Tag>,
+        val category: Category
     ) {
-        data class Host(
-            val userId: String,
-            val username: String,
-            val avatarUrl: String?,
-            val stance: ClaimStance
-        )
-
-        data class Claim(
-            val claimId: String,
-            val title: String,
-            val tags: List<Tag>,
-            val category: Category
-        ) {
-            data class Tag(
-                val tagId: String,
-                val title: String
-            )
-        }
-
-        data class Category(
-            val categoryId: String,
-            val title: String,
-            val avatarUrl: String
+        data class Tag(
+            val tagId: String,
+            val title: String
         )
     }
+
+    data class Category(
+        val categoryId: String,
+        val title: String,
+        val avatarUrl: String
+    )
 }

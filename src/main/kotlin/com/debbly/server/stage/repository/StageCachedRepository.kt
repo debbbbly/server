@@ -44,4 +44,9 @@ class StageCachedRepository(
             .map { it.toModel() }
     }
 
+    fun findTop10ByHostUserId(userId: String): List<StageModel> {
+        return stageJpaRepository.findTop10ByHostUserId(userId)
+            .map { it.toModel() }
+    }
+
 }

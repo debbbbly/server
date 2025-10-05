@@ -22,4 +22,7 @@ interface StageJpaRepository : CrudRepository<StageEntity, String> {
 
     @Query("SELECT s FROM stages s LEFT JOIN FETCH s.hosts h WHERE h.id.userId = :userId AND s.createdAt >= :since AND s.openedAt is not null ORDER BY s.createdAt DESC")
     fun findAllByHostUserIdAndCreatedAtAfter(@Param("userId") userId: String, @Param("since") since: Instant): List<StageEntity>
+
+    @Query("SELECT DISTINCT s FROM stages s LEFT JOIN FETCH s.hosts WHERE s.stageId IN (SELECT sh.id.stageId FROM stage_hosts sh WHERE sh.id.userId = :userId) ORDER BY s.createdAt DESC LIMIT 10")
+    fun findTop10ByHostUserId(@Param("userId") userId: String): List<StageEntity>
 }
