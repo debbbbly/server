@@ -130,3 +130,48 @@ databaseChangeLog:
                   defaultValue: false
                   constraints:
                     nullable: false
+
+  - changeSet:
+      id: 6
+      author: claude
+      changes:
+        - addColumn:
+            tableName: users
+            columns:
+              - column:
+                  name: bio
+                  type: varchar(1024)
+
+  - changeSet:
+      id: 7
+      author: claude
+      changes:
+        - createTable:
+            tableName: user_social_usernames
+            columns:
+              - column:
+                  name: user_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: social_type
+                  type: varchar(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: username
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: user_social_usernames
+            columnNames: user_id, social_type
+            constraintName: pk_user_social_usernames
+        - addForeignKeyConstraint:
+            baseTableName: user_social_usernames
+            baseColumnNames: user_id
+            referencedTableName: users
+            referencedColumnNames: user_id
+            constraintName: fk_user_social_usernames_user
+            onDelete: CASCADE

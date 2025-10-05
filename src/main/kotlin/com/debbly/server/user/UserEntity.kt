@@ -18,6 +18,8 @@ data class UserEntity(
     var avatarUrl: String? = null,
     var rank: Int = 0,
     var deleted: Boolean = false,
+    @Column(length = 1024)
+    var bio: String? = null,
 ) {
     fun toModel() = com.debbly.server.user.model.UserModel(
         userId = userId,
@@ -28,6 +30,7 @@ data class UserEntity(
         avatarUrl = avatarUrl,
         rank = rank,
         deleted = deleted,
+        bio = bio,
     )
 }
 

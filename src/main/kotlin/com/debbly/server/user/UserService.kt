@@ -4,7 +4,9 @@ import com.debbly.server.IdService
 import com.debbly.server.ai.OpenAIService
 import com.debbly.server.storage.S3Service
 import com.debbly.server.user.UserValidator.isValidUsername
+import com.debbly.server.user.model.SocialUsernameModel
 import com.debbly.server.user.model.UserModel
+import com.debbly.server.user.repository.SocialUsernameCachedRepository
 import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.cache.CacheManager
 import org.springframework.stereotype.Service
@@ -14,6 +16,7 @@ import kotlin.random.Random
 @Service
 class UserService(
     private val userCachedRepository: UserCachedRepository,
+    private val socialUsernameCachedRepository: SocialUsernameCachedRepository,
     private val idService: IdService,
     private val openAIService: OpenAIService,
     private val s3Service: S3Service,
@@ -146,6 +149,72 @@ class UserService(
             avatarUrl = avatarUrl
         )
     }
+
+    fun updateBio(user: UserModel, newBio: String): UpdateBioResult {
+        // Validate bio length
+        if (newBio.length > 1024) {
+            return UpdateBioResult(
+                success = false,
+                message = "Bio must be 1024 characters or less"
+            )
+        }
+
+        // Validate with AI
+        val aiValidation = openAIService.validateBio(newBio.trim())
+        if (!aiValidation.valid) {
+            return UpdateBioResult(
+                success = false,
+                message = "Bio violates platform rules: ${aiValidation.reason}"
+            )
+        }
+
+        // Update bio
+        user.bio = newBio.trim()
+        userCachedRepository.save(user)
+
+        return UpdateBioResult(
+            success = true,
+            message = "Bio updated successfully"
+        )
+    }
+
+    fun updateSocialUsernames(
+        userId: String,
+        socialUsernames: Map<SocialType, String>
+    ): UpdateSocialUsernamesResult {
+        // Validate all usernames
+        for ((socialType, username) in socialUsernames) {
+            if (username.isBlank()) {
+                return UpdateSocialUsernamesResult(
+                    success = false,
+                    message = "Username for ${socialType.name} cannot be blank"
+                )
+            }
+            if (username.length > 255) {
+                return UpdateSocialUsernamesResult(
+                    success = false,
+                    message = "Username for ${socialType.name} must be 255 characters or less"
+                )
+            }
+        }
+
+        // Convert map to list of models
+        val models = socialUsernames.map { (socialType, username) ->
+            SocialUsernameModel(
+                userId = userId,
+                socialType = socialType,
+                username = username.trim()
+            )
+        }
+
+        // Save all
+        socialUsernameCachedRepository.saveAll(userId, models)
+
+        return UpdateSocialUsernamesResult(
+            success = true,
+            message = "Social usernames updated successfully"
+        )
+    }
 }
 
 data class UpdateUsernameResult(
@@ -157,4 +226,14 @@ data class UpdateAvatarResult(
     val success: Boolean,
     val message: String,
     val avatarUrl: String?
+)
+
+data class UpdateBioResult(
+    val success: Boolean,
+    val message: String
+)
+
+data class UpdateSocialUsernamesResult(
+    val success: Boolean,
+    val message: String
 )

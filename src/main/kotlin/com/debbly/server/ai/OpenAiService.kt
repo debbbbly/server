@@ -286,6 +286,45 @@ class OpenAIService(
             AvatarValidationResult(valid = true, reason = "")
         }
     }
+
+    fun validateBio(bio: String): BioValidationResult {
+        return try {
+            val headers = HttpHeaders()
+            headers.contentType = MediaType.APPLICATION_JSON
+            headers.setBearerAuth(openaiApiKey)
+
+            val requestBody = mapOf(
+                "model" to "omni-moderation-latest",
+                "input" to bio
+            )
+
+            val request = HttpEntity(requestBody, headers)
+            val response = restTemplate.postForObject(
+                moderationUrl,
+                request,
+                ModerationResponse::class.java
+            )
+
+            val result = response?.results?.firstOrNull()
+            if (result?.flagged == true) {
+                val violatedCategories = result.categories
+                    .filter { it.value }
+                    .keys
+                    .joinToString(", ")
+
+                BioValidationResult(
+                    valid = false,
+                    reason = "Bio violates platform rules: $violatedCategories"
+                )
+            } else {
+                BioValidationResult(valid = true, reason = "")
+            }
+        } catch (e: Exception) {
+            logger.error("Error validating bio with moderation API: ${e.message}", e)
+            // Fail open - allow the bio if moderation check fails
+            BioValidationResult(valid = true, reason = "")
+        }
+    }
 }
 
 data class ClaimValidationResult(
@@ -303,6 +342,11 @@ data class UsernameValidationResult(
 )
 
 data class AvatarValidationResult(
+    val valid: Boolean,
+    val reason: String
+)
+
+data class BioValidationResult(
     val valid: Boolean,
     val reason: String
 )

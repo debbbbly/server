@@ -18,6 +18,7 @@ data class UserModel(
     var avatarUrl: String? = null,
     var rank: Int = 0,
     var deleted: Boolean = false,
+    var bio: String? = null,
 )
 
 fun UserEntity.toModel() = UserModel(
@@ -28,7 +29,8 @@ fun UserEntity.toModel() = UserModel(
     birthdate = this.birthdate,
     avatarUrl = this.avatarUrl,
     rank = this.rank,
-    deleted = this.deleted
+    deleted = this.deleted,
+    bio = this.bio
 )
 
 fun UserModel.toEntity() = UserEntity(
@@ -39,6 +41,7 @@ fun UserModel.toEntity() = UserEntity(
     birthdate = this.birthdate,
     avatarUrl = this.avatarUrl,
     rank = this.rank,
-    deleted = this.deleted
+    deleted = this.deleted,
+    bio = this.bio
 )
 

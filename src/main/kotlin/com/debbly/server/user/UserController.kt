@@ -114,14 +114,21 @@ class UserController(
         return ResponseEntity.ok(ListUsersResponse(topUsers, topUsers.size))
     }
 
-    @DeleteMapping("/delete")
-    fun deleteUser(@ExternalUserId externalUserId: String?): ResponseEntity<DeleteUserResponse> {
+    @DeleteMapping("{userId}/delete")
+    fun deleteUser(
+        @PathVariable userId: String,
+        @ExternalUserId externalUserId: String?
+    ): ResponseEntity<DeleteUserResponse> {
         if (externalUserId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
         }
 
         val user = userCachedRepository.findByExternalUserId(externalUserId)
             ?: return ResponseEntity.notFound().build()
+
+        if (user.userId != userId) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        }
 
         if (user.deleted) {
             return ResponseEntity.status(HttpStatus.GONE).body(
@@ -146,8 +153,9 @@ class UserController(
         val message: String
     )
 
-    @PutMapping("/username")
+    @PutMapping("{userId}/username")
     fun updateUsername(
+        @PathVariable userId: String,
         @ExternalUserId externalUserId: String?,
         @RequestBody request: UpdateUsernameRequest
     ): ResponseEntity<UpdateUsernameResponse> {
@@ -157,6 +165,10 @@ class UserController(
 
         val user = userCachedRepository.findByExternalUserId(externalUserId)
             ?: return ResponseEntity.notFound().build()
+
+        if (user.userId != userId) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        }
 
         val result = userService.updateUsername(user, request.username)
 
@@ -181,8 +193,9 @@ class UserController(
         val message: String
     )
 
-    @PutMapping("/avatar")
+    @PutMapping("{userId}/avatar")
     fun updateAvatar(
+        @PathVariable userId: String,
         @ExternalUserId externalUserId: String?,
         @RequestParam("file") file: MultipartFile
     ): ResponseEntity<UpdateAvatarResponse> {
@@ -192,6 +205,10 @@ class UserController(
 
         val user = userCachedRepository.findByExternalUserId(externalUserId)
             ?: return ResponseEntity.notFound().build()
+
+        if (user.userId != userId) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        }
 
         val result = userService.updateAvatar(user, file)
 
@@ -210,5 +227,79 @@ class UserController(
         val success: Boolean,
         val message: String,
         val avatarUrl: String?
+    )
+
+    @PutMapping("{userId}/bio")
+    fun updateBio(
+        @PathVariable userId: String,
+        @ExternalUserId externalUserId: String?,
+        @RequestBody request: UpdateBioRequest
+    ): ResponseEntity<UpdateBioResponse> {
+        if (externalUserId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+        }
+
+        val user = userCachedRepository.findByExternalUserId(externalUserId)
+            ?: return ResponseEntity.notFound().build()
+
+        if (user.userId != userId) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        }
+
+        val result = userService.updateBio(user, request.bio)
+
+        return if (result.success) {
+            ResponseEntity.ok(UpdateBioResponse(true, result.message))
+        } else {
+            val status = when {
+                result.message.contains("violates platform rules") -> HttpStatus.FORBIDDEN
+                else -> HttpStatus.BAD_REQUEST
+            }
+            ResponseEntity.status(status).body(UpdateBioResponse(false, result.message))
+        }
+    }
+
+    data class UpdateBioRequest(
+        val bio: String
+    )
+
+    data class UpdateBioResponse(
+        val success: Boolean,
+        val message: String
+    )
+
+    @PutMapping("{userId}/socials")
+    fun updateSocialUsernames(
+        @PathVariable userId: String,
+        @ExternalUserId externalUserId: String?,
+        @RequestBody request: UpdateSocialUsernamesRequest
+    ): ResponseEntity<UpdateSocialUsernamesResponse> {
+        if (externalUserId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+        }
+
+        val user = userCachedRepository.findByExternalUserId(externalUserId)
+            ?: return ResponseEntity.notFound().build()
+
+        if (user.userId != userId) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        }
+
+        val result = userService.updateSocialUsernames(user.userId, request.usernames)
+
+        return if (result.success) {
+            ResponseEntity.ok(UpdateSocialUsernamesResponse(true, result.message))
+        } else {
+            ResponseEntity.badRequest().body(UpdateSocialUsernamesResponse(false, result.message))
+        }
+    }
+
+    data class UpdateSocialUsernamesRequest(
+        val usernames: Map<SocialType, String>
+    )
+
+    data class UpdateSocialUsernamesResponse(
+        val success: Boolean,
+        val message: String
     )
 }
