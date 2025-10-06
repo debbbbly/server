@@ -4,6 +4,7 @@ import com.debbly.server.IdService
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.user.UserValidator.isValidUsername
 import com.debbly.server.user.model.UserModel
+import com.debbly.server.user.repository.SocialUsernameCachedRepository
 import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -17,7 +18,8 @@ class UserController(
     private val userCachedRepository: UserCachedRepository,
     private val idService: IdService,
     private val onlineUsersService: OnlineUsersService,
-    private val userService: UserService
+    private val userService: UserService,
+    private val socialUsernameCachedRepository: SocialUsernameCachedRepository
 ) {
 
     @GetMapping("/me")
@@ -52,13 +54,18 @@ class UserController(
         val user = userCachedRepository.findByUsername(username.trim())
             ?: return ResponseEntity.notFound().build()
 
-        return ResponseEntity.ok(UserPublicResponse(user.userId, user.username, user.avatarUrl))
+        val socials = socialUsernameCachedRepository.findAllByUserId(user.userId)
+            .associate { it.socialType to it.username }
+
+        return ResponseEntity.ok(UserPublicResponse(user.userId, user.username, user.avatarUrl, user.bio, socials))
     }
 
     data class UserPublicResponse(
         val id: String,
         val username: String?,
-        val avatarUrl: String?
+        val avatarUrl: String?,
+        val bio: String?,
+        val socials: Map<SocialType, String>?
     )
 
     @PostMapping("/verify-username")
