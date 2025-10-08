@@ -8,6 +8,7 @@ data class Match(
     val claim: MatchClaim,
     val status: MatchStatus,
     val opponents: List<MatchOpponent>,
+    val ttl: Long,
     val updatedAt: Instant,
 ) {
     data class MatchOpponent(

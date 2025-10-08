@@ -39,6 +39,10 @@ class SettingsService(
         return value.toIntOrNull() ?: HLS_SEGMENT_DURATION_DEFAULT
     }
 
+    fun getMatchTtl(): Long {
+        return 20;
+    }
+
     fun getSetting(name: SettingsName): String? {
         return cache.get(name)
     }

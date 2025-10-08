@@ -20,6 +20,7 @@ import com.debbly.server.stage.model.StageType
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageCachedRepository
 import com.debbly.server.stage.repository.entities.StageStatus
+import com.debbly.server.user.SocialType
 import com.debbly.server.user.repository.UserCachedRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -40,7 +41,8 @@ class StageService(
     private val userSettingsRepository: UserSettingsCachedRepository,
     private val settingsService: SettingsService,
     private val s3Config: S3ConfigProperties,
-    private val clock: Clock
+    private val clock: Clock,
+    private val socialUsernameCachedRepository: com.debbly.server.user.repository.SocialUsernameCachedRepository
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -54,11 +56,15 @@ class StageService(
             val claim = claims[stage.claimId]
             val hosts = stage.hosts.map { host ->
                 val user = userCachedRepository.findById(host.userId) ?: throw Exception("User not found")
+                val socials = socialUsernameCachedRepository.findAllByUserId(user.userId)
+                    .associate { it.socialType to it.username }
                 Host(
                     userId = user.userId,
                     username = user.username ?: "unknown",
                     avatarUrl = user.avatarUrl,
-                    stance = host.stance ?: ClaimStance.EITHER
+                    stance = host.stance ?: ClaimStance.EITHER,
+                    bio = user.bio,
+                    socials = socials
                 )
             }
 
@@ -91,12 +97,16 @@ class StageService(
         val hosts = stage.hosts.map { host ->
             val user = userCachedRepository.findById(host.userId) ?: throw Exception("User not found")
             val stance = host.stance
+            val socials = socialUsernameCachedRepository.findAllByUserId(user.userId)
+                .associate { it.socialType to it.username }
 
             Host(
                 userId = user.userId,
                 username = user.username ?: "unknown",
                 avatarUrl = user.avatarUrl,
-                stance = stance ?: ClaimStance.EITHER
+                stance = stance ?: ClaimStance.EITHER,
+                bio = user.bio,
+                socials = socials
             )
         }
 
@@ -537,7 +547,9 @@ class StageService(
         val userId: String,
         val username: String,
         val avatarUrl: String?,
-        val stance: ClaimStance
+        val stance: ClaimStance,
+        val bio: String?,
+        val socials: Map<SocialType, String>?
     )
 
     data class Claim(

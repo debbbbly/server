@@ -10,6 +10,7 @@ import com.debbly.server.match.MatchService.MatchingStatus.*
 import com.debbly.server.match.model.*
 import com.debbly.server.match.repository.MatchQueueRepository
 import com.debbly.server.match.repository.MatchRepository
+import com.debbly.server.settings.SettingsService
 import com.debbly.server.stage.StageService
 import com.debbly.server.user.model.UserModel
 import com.debbly.server.user.repository.UserCachedRepository
@@ -30,10 +31,10 @@ class MatchService(
     private val userClaimService: UserClaimService,
     private val stageService: StageService,
     private val matchNotificationService: MatchNotificationService,
+    private val settings: SettingsService,
     private val clock: Clock
 ) {
     companion object {
-        private const val MATCH_EXPIRATION_THRESHOLD_SECONDS = 10L
     }
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -160,7 +161,7 @@ class MatchService(
 
     private fun cleanupExpiredMatches() {
         val now = Instant.now(clock)
-        val expirationThreshold = now.minusSeconds(MATCH_EXPIRATION_THRESHOLD_SECONDS - 1)
+        val expirationThreshold = now.minusSeconds(settings.getMatchTtl() - 1)
 
         val expiredMatches = matchRepository.findAll()
             .filter { it.status == MatchStatus.PENDING && it.updatedAt.isBefore(expirationThreshold) }
@@ -475,6 +476,7 @@ class MatchService(
                 )
             ),
             updatedAt = now,
+            ttl = settings.getMatchTtl()
             // reason = reason
         )
 

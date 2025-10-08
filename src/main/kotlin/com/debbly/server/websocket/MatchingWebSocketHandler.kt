@@ -80,9 +80,11 @@ class MatchingWebSocketHandler(
 
 enum class MessageType {
     CONNECTION_ESTABLISHED,
+
     MATCH_FOUND,
     MATCH_ACCEPTED,
     MATCH_ACCEPTED_ALL,
+
     MATCH_EXPIRED,
     PING,
     PONG
@@ -93,3 +95,18 @@ data class MatchingMessage(
     val message: String,
     val data: Any? = null
 )
+/*
+match_found	| payload: {} | Server notifies you that a match was found (opponent matched)	Server →  Both participants
+match_accepted | payload: {} | 	You or your opponent clicked “Accept”	Server → both participants
+match_ready | payload: {} | 	Both sides accepted the match — ready to start debate	Server →  Both participants
+match_expired | payload: {} | 	One side didn’t accept before timeout	Server →  Both participants
+
+(I also want to send match_ready to other users on the platform so that they join and probably even not regestred one)
+
+debate_started Both are redirected / joined the debate room Server →  Both participants
+debate_ended Debate ended (either normal finish or due to drop/timeout) Server →  Both participants
+
+
+
+
+ */
