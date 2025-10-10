@@ -26,6 +26,7 @@ class SecurityConfig {
             .cors { it.configurationSource(corsConfigurationSource()) }
             .authorizeHttpRequests {
                 it
+                    .requestMatchers("/actuator/health", "/actuator/prometheus", "/actuator/metrics/**").permitAll()
                     .requestMatchers("/auth/logout").authenticated()
                     .anyRequest().permitAll()
             }

@@ -1,0 +1,27 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  # LiveKit SFU metrics (includes TURN server metrics)
+  - job_name: 'livekit'
+    static_configs:
+      - targets: ['livekit:6789']
+    metrics_path: /metrics
+
+  # LiveKit Egress metrics
+  - job_name: 'livekit-egress'
+    static_configs:
+      - targets: ['egress:9094']
+    metrics_path: /metrics
+
+  # Spring Boot application metrics
+  - job_name: 'debbly-api'
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+    metrics_path: /actuator/prometheus
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

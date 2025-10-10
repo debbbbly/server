@@ -11,3 +11,6 @@ s3:
   secret: cUlgL6ZoJxJmWwvWwZufUvR8pTgd9adFMUQfr1XC
   bucket: debbly-hls
   force_path_style: true
+
+# Enable Prometheus metrics
+prometheus_port: 9094

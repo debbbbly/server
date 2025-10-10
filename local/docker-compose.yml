@@ -1,5 +1,9 @@
 name: debbly
 
+networks:
+  debbly-network:
+    driver: bridge
+
 services:
 
   redis:
@@ -11,6 +15,8 @@ services:
       - redis_data:/data
     ports:
       - "6379:6379"
+    networks:
+      - debbly-network
 
   livekit:
     image: livekit/livekit-server:latest
@@ -19,6 +25,7 @@ services:
     ports:
       - "7880:7880"
       - "7881:7881"
+      - "6789:6789"
       - "6000-6100:6000-6100/udp"
     volumes:
       - ./livekit.yaml:/livekit.yaml
@@ -27,11 +34,15 @@ services:
     command: ["--config", "/livekit.yaml"]
     depends_on:
       - redis
+    networks:
+      - debbly-network
 
   egress:
     image: livekit/egress:latest
     container_name: debbly-egress
     restart: always
+    ports:
+      - "9094:9094"
     volumes:
       - ./egress.yaml:/egress.yaml
     env_file:
@@ -41,6 +52,41 @@ services:
     depends_on:
       - redis
       - livekit
+    networks:
+      - debbly-network
+
+  prometheus:
+    image: prom/prometheus
+    container_name: debbly-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    depends_on:
+      - livekit
+      - egress
+    networks:
+      - debbly-network
+
+  grafana:
+    image: grafana/grafana
+    container_name: debbly-grafana
+    restart: unless-stopped
+    ports:
+      - "4000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - debbly-network
 
 volumes:
   redis_data:
+  prometheus_data:
+  grafana_data:
