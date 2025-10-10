@@ -103,3 +103,16 @@ databaseChangeLog:
                   type: varchar(512)
                   constraints:
                     nullable: true
+  - changeSet:
+      id: 7
+      author: gemini
+      changes:
+        - addColumn:
+            tableName: stages
+            columns:
+              - column:
+                  name: recorded
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false

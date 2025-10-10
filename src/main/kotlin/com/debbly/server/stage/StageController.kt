@@ -94,6 +94,12 @@ class StageController(
         return ResponseEntity.ok(liveStages)
     }
 
+    @GetMapping("/recordings")
+    fun getRecordedStages(): ResponseEntity<List<StageService.StageHistoryDetails>> {
+        val recordedStages = stageService.getRecordedStages()
+        return ResponseEntity.ok(recordedStages)
+    }
+
     @PostMapping("/{stageId}/heartbeat")
     fun heartbeat(@PathVariable stageId: String, @ExternalUserId externalUserId: String?): ResponseEntity<Unit> {
         if (externalUserId == null) {

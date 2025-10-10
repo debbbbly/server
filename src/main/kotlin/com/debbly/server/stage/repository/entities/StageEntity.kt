@@ -26,5 +26,6 @@ data class StageEntity(
     val status: StageStatus,
     val openedAt: Instant?,
     val closedAt: Instant?,
-    val hlsUrl: String? = null
+    val hlsUrl: String? = null,
+    val recorded: Boolean = false
 )

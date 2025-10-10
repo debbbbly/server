@@ -91,6 +91,50 @@ class StageService(
         }
     }
 
+    fun getRecordedStages(): List<StageHistoryDetails> {
+        val stages = stageRepository.findTop30RecordedStages()
+        val claims = claimRepository.findByClaimIdInWithAllData(stages.mapNotNull { it.claimId })
+            .associateBy { it.claimId }
+
+        return stages.map { stage ->
+            val claim = claims[stage.claimId]
+            val hosts = stage.hosts.map { host ->
+                val user = userCachedRepository.findById(host.userId) ?: throw Exception("User not found")
+                val socials = socialUsernameCachedRepository.findAllByUserId(user.userId)
+                    .associate { it.socialType to it.username }
+                Host(
+                    userId = user.userId,
+                    username = user.username ?: "unknown",
+                    avatarUrl = user.avatarUrl,
+                    stance = host.stance ?: ClaimStance.EITHER,
+                    bio = user.bio,
+                    socials = socials
+                )
+            }
+
+            StageHistoryDetails(
+                stageId = stage.stageId,
+                claim = claim?.let {
+                    Claim(
+                        claimId = it.claimId,
+                        title = it.title,
+                        tags = it.tags.map { tag -> Claim.Tag(tagId = tag.tagId, title = tag.title) },
+                        category = Category(
+                            categoryId = it.category.categoryId,
+                            title = it.category.title,
+                            avatarUrl = it.category.avatarUrl
+                        )
+                    )
+                },
+                hosts = hosts,
+                status = stage.status,
+                openedAt = stage.openedAt,
+                closedAt = stage.closedAt,
+                hlsUrl = stage.hlsUrl
+            )
+        }
+    }
+
     fun getStageDetails(stageId: String, userId: String?): StageDetails {
         val stage = stageRepository.getById(stageId)
         val claim = stage.claimId?.let { claimCachedRepository.getById(it) }
@@ -449,9 +493,23 @@ class StageService(
 
                 if (egressId != null) {
                     logger.info("🛑 Stopping egress recording for stage $stageId, egressId: $egressId")
-                    val stopped = liveKitService.stopEgress(egressId)
-                    if (stopped) {
+                    val result = liveKitService.stopEgress(egressId)
+
+                    if (result.success) {
                         logger.info("✅ Successfully stopped egress recording for stage $stageId")
+
+                        // Check if egress lasted more than 5 minutes (300 seconds)
+                        if (result.startedAt != null && result.endedAt != null) {
+                            val durationSeconds = result.endedAt - result.startedAt
+                            if (durationSeconds > 300) {
+                                val stage = stageRepository.getById(stageId)
+                                val updatedStage = stage.copy(recorded = true)
+                                stageRepository.save(updatedStage)
+                                logger.info("✅ Marked stage $stageId as recorded (duration: ${durationSeconds}s)")
+                            } else {
+                                logger.info("⏱️ Stage $stageId not marked as recorded (duration: ${durationSeconds}s < 300s)")
+                            }
+                        }
                     } else {
                         logger.warn("❌ Failed to stop egress recording for stage $stageId, egressId: $egressId")
                     }

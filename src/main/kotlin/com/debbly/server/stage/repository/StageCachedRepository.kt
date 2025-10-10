@@ -49,4 +49,9 @@ class StageCachedRepository(
             .map { it.toModel() }
     }
 
+    fun findTop30RecordedStages(): List<StageModel> {
+        return stageJpaRepository.findTop30RecordedStages()
+            .map { it.toModel() }
+    }
+
 }

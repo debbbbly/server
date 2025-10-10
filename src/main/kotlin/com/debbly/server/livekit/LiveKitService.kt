@@ -161,8 +161,13 @@ class LiveKitService(
         }
     }
 
-    fun stopEgress(egressId: String): Boolean {
-        logger.info("Attempting to stop egress: $egressId")
+    data class StopEgressResult(
+        val success: Boolean,
+        val startedAt: Long?,
+        val endedAt: Long?
+    )
+
+    fun stopEgress(egressId: String): StopEgressResult {
         val call = livekitEgressService.stopEgress(egressId)
         val response = call.execute()
 
@@ -170,18 +175,28 @@ class LiveKitService(
             val egressInfo = response.body()
             logger.info("✅ Successfully stopped egress: $egressId")
             logger.info("   Final Status: ${egressInfo?.status}")
+            logger.info("   StartedAt: ${egressInfo?.startedAt}")
             logger.info("   EndedAt: ${egressInfo?.endedAt}")
             logger.info("   FileResults: ${egressInfo?.fileResultsList}")
             egressInfo?.fileResultsList?.forEach { fileResult ->
                 logger.info("   📁 File: ${fileResult.filename} - Size: ${fileResult.size} bytes")
             }
-            return true
+
+            val startedAt = egressInfo?.startedAt?.takeIf { it > 0 }
+            val endedAt = egressInfo?.endedAt?.takeIf { it > 0 }
+
+            if (startedAt != null && endedAt != null) {
+                val durationSeconds = endedAt - startedAt
+                logger.info("   Duration: ${durationSeconds}s (${durationSeconds / 60}m ${durationSeconds % 60}s)")
+            }
+
+            return StopEgressResult(success = true, startedAt = startedAt, endedAt = endedAt)
         } else {
             logger.error("❌ Failed to stop egress $egressId:")
             logger.error("   HTTP Status: ${response.code()}")
             logger.error("   Error Message: ${response.message()}")
             logger.error("   Response Body: ${response.errorBody()?.string()}")
-            return false
+            return StopEgressResult(success = false, startedAt = null, endedAt = null)
         }
     }
 
