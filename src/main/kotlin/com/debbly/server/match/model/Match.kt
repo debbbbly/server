@@ -16,7 +16,8 @@ data class Match(
         val username: String?,
         val avatarUrl: String?,
         val stance: ClaimStance?,
-        val status: MatchOpponentStatus
+        val status: MatchOpponentStatus,
+        val ignores: Int,
     )
 
     data class MatchClaim(

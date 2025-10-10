@@ -67,7 +67,7 @@ class ClaimController(
     }
 
     data class ProposeClaimRequest(
-        @field:Size(max = 255, message = "Title must be at most 255 characters long")
+        @field:Size(max = 125, message = "Claim must be at most 125 characters long")
         val title: String,
         val stance: ClaimStance
     )

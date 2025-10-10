@@ -359,7 +359,7 @@ class StageService(
 
         val egressId = if (shouldStartEgress) {
             val egressInfo = try {
-                liveKitService.startRoomEgress(stage.stageId)
+                liveKitService.startRoomCompositeEgress(stage.stageId)
             } catch (e: Exception) {
                 logger.error("Failed to start egress for stage ${stage.stageId}", e)
                 null
@@ -384,6 +384,8 @@ class StageService(
         } else {
             null
         }
+
+        // liveKitService.startThumbnailEgress(stage.stageId)
 
         liveStageRedisRepository.save(
             LiveStageEntity(
@@ -412,7 +414,7 @@ class StageService(
         // Use the S3 endpoint from config to construct the public URL
         // Format: https://{endpoint}/{bucket}/{stageId}/playlist.m3u8
 
-        return "${s3Config.endpoint}/${s3Config.bucket}/$stageId/playlist.m3u8"
+        return "${s3Config.endpoint}/${s3Config.bucket.egress}/$stageId/playlist.m3u8"
     }
 
     private fun shouldStartEgressForStage(stage: StageModel): Boolean {

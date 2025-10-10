@@ -57,7 +57,7 @@ class OpenAIService(
 
             Claim Normalization Requirements:
             - If the claim is valid, provide a normalized version:
-            - Correct spelling/grammar
+            - Correct spelling/grammar, but do NOT add a period at the end (claims are standalone statements, not sentences in prose)
             - Remove emojis, special symbols, random punctuation
             - Remove ALL CAPS shouting (convert to sentence case or title case if appropriate)
             - Normalize slang and contractions into standard English where possible.
@@ -112,7 +112,7 @@ class OpenAIService(
                   "valid": true,
                   "normalized": "The benefits of AI outweigh its risks to society.",
                   "violations": [],
-                  "reasoning": "The claim is clear, specific, and debatable without violating any platform rules.",
+                  "reasoning": "The claim is clear, specific, and debatable without violating any platform rules",
                   "categoryId": "technology-innovation",
                   "tags": ["AI", "Technology", "Society"]
                 }
@@ -121,7 +121,7 @@ class OpenAIService(
                 Response: 
                 {
                   "valid": true,
-                  "normalized": "Governments should prioritize climate change mitigation over economic growth.",
+                  "normalized": "Governments should prioritize climate change mitigation over economic growth",
                   "violations": [],
                   "reasoning": "The claim is specific and debatable, addressing a significant policy issue.",
                   "categoryId": "economy-environment",
@@ -134,7 +134,7 @@ class OpenAIService(
                   "valid": true,
                   "normalized": "The US has a moral obligation to intervene in international conflicts.",
                   "violations": [],
-                  "reasoning": "The claim is debatable and pertains to international relations without violating platform rules.",
+                  "reasoning": "The claim is debatable and pertains to international relations without violating platform rules",
                   "categoryId": "politics",
                   "tags": ["US", "Politics", "War"]
                 }

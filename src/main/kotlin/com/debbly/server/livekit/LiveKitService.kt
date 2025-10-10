@@ -7,6 +7,7 @@ import com.debbly.server.settings.SettingsService
 import io.livekit.server.*
 import livekit.LivekitModels
 import livekit.LivekitEgress
+import livekit.LivekitEgress.ImageFileSuffix.IMAGE_SUFFIX_INDEX
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
@@ -70,15 +71,14 @@ class LiveKitService(
         return emptyList()
     }
 
-    fun startRoomEgress(
+    fun startRoomCompositeEgress(
         stageId: String,
-
     ): LivekitEgress.EgressInfo? {
-        logger.info("Starting HLS egress for stage $stageId with S3 config: endpoint=${s3Config.endpoint}, bucket=${s3Config.bucket.hls}, region=${s3Config.region}")
+        logger.info("Starting HLS egress for stage $stageId with S3 config: endpoint=${s3Config.endpoint}, bucket=${s3Config.bucket.egress}, region=${s3Config.region}")
 
         val s3Upload = LivekitEgress.S3Upload.newBuilder()
             .setEndpoint(s3Config.endpoint)
-            .setBucket(s3Config.bucket.hls)
+            .setBucket(s3Config.bucket.egress)
             .setRegion(s3Config.region)
             .setAccessKey(s3Config.accessKey)
             .setSecret(s3Config.secret)
@@ -102,11 +102,6 @@ class LiveKitService(
         )
         val response = call.execute()
 
-        // Also start image egress for thumbnails
-        if (response.isSuccessful) {
-            startThumbnailEgress(stageId, s3Upload)
-        }
-
         if (response.isSuccessful) {
             val egressInfo = response.body()
             logger.info("✅ Successfully started HLS egress for room $stageId:")
@@ -126,14 +121,23 @@ class LiveKitService(
         }
     }
 
-    private fun startThumbnailEgress(stageId: String, s3Upload: LivekitEgress.S3Upload) {
+    fun startThumbnailEgress(stageId: String) {
+        val s3Upload = LivekitEgress.S3Upload.newBuilder()
+            .setEndpoint(s3Config.endpoint)
+            .setBucket(s3Config.bucket.egress)
+            .setRegion(s3Config.region)
+            .setAccessKey(s3Config.accessKey)
+            .setSecret(s3Config.secret)
+            .setForcePathStyle(s3Config.forcePathStyle)
+            .build()
+
         try {
             val imageOutput = LivekitEgress.ImageOutput.newBuilder()
-                .setCaptureInterval(30)
+                .setCaptureInterval(60)
                 .setWidth(1280)
                 .setHeight(720)
-                .setFilenamePrefix("$stageId/")
-                .setFilenameSuffix(LivekitEgress.ImageFileSuffix.IMAGE_SUFFIX_TIMESTAMP)
+                .setFilenamePrefix("$stageId/thumbnails/")
+                .setFilenameSuffix(IMAGE_SUFFIX_INDEX)
                 .setDisableManifest(true)
                 .setS3(s3Upload)
                 .build()
@@ -142,8 +146,8 @@ class LiveKitService(
                 stageId,
                 imageOutput,
                 "grid",
-                LivekitEgress.EncodingOptionsPreset.H264_720P_30
             )
+
             val imageResponse = imageCall.execute()
 
             if (imageResponse.isSuccessful) {

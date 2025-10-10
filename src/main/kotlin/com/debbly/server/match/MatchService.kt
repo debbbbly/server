@@ -40,13 +40,15 @@ class MatchService(
     private val logger = LoggerFactory.getLogger(javaClass)
 
     fun join(user: UserModel) {
+        logger.info("User {} joined matchmaking queue", user.userId)
         matchQueueRepository.save(buildMatchRequest(user))
     }
 
     private fun buildMatchRequest(
         user: UserModel,
         withSkipClaimIds: Collection<String>? = null,
-        withClaimIdToStance: Collection<Pair<String, ClaimStance>>? = null
+        withClaimIdToStance: Collection<Pair<String, ClaimStance>>? = null,
+        ignores: Int = 0
     ): MatchRequest {
         val activeCategoryIds = categoryRepository.findAll()
             .filter { it.active }
@@ -61,29 +63,54 @@ class MatchService(
             claimIdToStance = userClaims.associate { it.claim.claimId to it.stance }
                 .plus(withClaimIdToStance.orEmpty()),
             skipClaimIds = withSkipClaimIds.orEmpty(),
-            joinedAt = Instant.now(clock)
+            joinedAt = Instant.now(clock),
+            ignores = ignores
         )
     }
 
     fun leave(user: UserModel) {
+        logger.info("User {} left matchmaking queue", user.userId)
         matchQueueRepository.remove(userId = user.userId)
     }
 
     fun skip(match: Match, user: UserModel) {
+        logger.info(
+            "User {} skipped match {} on claim '{}'. Opponent(s): {}",
+            user.userId, match.matchId, match.claim.title,
+            match.opponents.filter { it.userId != user.userId }.map { it.userId }
+        )
+
         matchNotificationService.notifyMatchCancelled(match, user.userId, "skip")
 
         matchRepository.delete(match.matchId)
 
-        matchQueueRepository.save(buildMatchRequest(user, withSkipClaimIds = setOf(match.claim.claimId)))
+        matchQueueRepository.save(
+            buildMatchRequest(
+                user,
+                withSkipClaimIds = setOf(match.claim.claimId)
+            )
+        )
         match.opponents.filter { it.userId != user.userId }.forEach { otherUser ->
-            matchQueueRepository.save(request = buildMatchRequest(userRepository.getById(otherUser.userId)))
+            matchQueueRepository.save(
+                request = buildMatchRequest(
+                    userRepository.getById(otherUser.userId),
+                )
+            )
         }
+
+        logger.debug("Re-queued {} users after skip", match.opponents.size)
     }
 
     fun switch(match: Match, user: UserModel) {
         val userStance = match.opponents
             .firstOrNull() { it.userId == user.userId }
             ?.stance
+
+        logger.info(
+            "User {} switched stance to {} on match {} for claim '{}'. Opponent(s): {}",
+            user.userId, userStance, match.matchId, match.claim.title,
+            match.opponents.filter { it.userId != user.userId }.map { it.userId }
+        )
 
         val withClaimIdToStance = userStance
             ?.let { match.claim.claimId to it }
@@ -100,13 +127,32 @@ class MatchService(
         matchRepository.delete(match.matchId)
         matchNotificationService.notifyMatchCancelled(match, user.userId, "switch")
 
-        matchQueueRepository.save(buildMatchRequest(user, withClaimIdToStance = withClaimIdToStance))
+        // User actively switched stance, so preserve their ignore count (this is not an ignore)
+        matchQueueRepository.save(
+            buildMatchRequest(
+                user,
+                withClaimIdToStance = withClaimIdToStance,
+            )
+        )
         match.opponents.filter { it.userId != user.userId }.forEach { otherUser ->
-            matchQueueRepository.save(request = buildMatchRequest(userRepository.getById(otherUser.userId)))
+            matchQueueRepository.save(
+                request = buildMatchRequest(
+                    userRepository.getById(otherUser.userId),
+                )
+            )
         }
+
+        logger.debug("Re-queued {} users after switch", match.opponents.size)
     }
 
     fun accept(match: Match, user: UserModel) {
+        logger.info(
+            "User {} accepted match {} for claim '{}'",
+            user.userId, match.matchId, match.claim.title
+        )
+
+        matchQueueRepository.remove(user.userId)
+
         val acceptedMatch = match.copy(
             opponents = match.opponents
                 .map { opponent ->
@@ -116,9 +162,18 @@ class MatchService(
         )
 
         if (acceptedMatch.opponents.any { it.status != MatchOpponentStatus.ACCEPTED }) {
+            logger.debug(
+                "Match {} partially accepted. Status: {}",
+                match.matchId,
+                acceptedMatch.opponents.map { "${it.userId}(${it.status})" }
+            )
             matchRepository.save(acceptedMatch)
             matchNotificationService.notifyOpponentAccepted(acceptedMatch, user.userId)
         } else {
+            logger.info(
+                "Match {} fully accepted by all opponents. Creating stage for claim '{}'",
+                match.matchId, match.claim.title
+            )
             stageService.createStage(acceptedMatch)
 
             val allAcceptedMatch = acceptedMatch.copy(status = MatchStatus.ACCEPTED)
@@ -164,20 +219,22 @@ class MatchService(
         val expirationThreshold = now.minusSeconds(settings.getMatchTtl() - 1)
 
         val expiredMatches = matchRepository.findAll()
-            .filter { it.status == MatchStatus.PENDING && it.updatedAt.isBefore(expirationThreshold) }
+            .filter { it.updatedAt.isBefore(expirationThreshold) }
 
         if (expiredMatches.isNotEmpty()) {
-            logger.debug("Found {} expired matches to clean up", expiredMatches.size)
+            logger.info("Found {} expired matches to clean up", expiredMatches.size)
 
             expiredMatches.forEach { match ->
-
-                // Notify users about match timeout
                 matchNotificationService.notifyMatchTimeout(match)
 
                 try {
                     match.opponents.forEach { opponent ->
-                        val user = userRepository.getById(opponent.userId)
-                        matchQueueRepository.save(buildMatchRequest(user))
+                        if (opponent.ignores < 3) {
+                            val user = userRepository.getById(opponent.userId)
+                            matchQueueRepository.save(buildMatchRequest(user, ignores = opponent.ignores + 1))
+                        } else {
+                            logger.error("Too many ignores, remove from the queue.")
+                        }
                     }
                 } catch (e: Exception) {
                     logger.error("Error cleaning up expired match ${match.matchId}", e)
@@ -185,11 +242,6 @@ class MatchService(
 
                 // Delete the expired match
                 matchRepository.delete(match.matchId)
-
-                logger.debug(
-                    "Cleaned up expired match {} for users: {}",
-                    match.matchId, match.opponents.map { it.userId })
-
             }
         }
     }
@@ -200,7 +252,16 @@ class MatchService(
         val waitingUsers = matchQueueRepository.findAll().sortedBy { it.joinedAt }
         val matchedUsers = mutableSetOf<String>()
 
+        logger.info("Starting matching cycle: {} users in queue", waitingUsers.size)
+        waitingUsers.forEach { user ->
+            logger.debug(
+                "User {} in queue: {} claims, {} skipped, waiting since {}",
+                user.userId, user.claimIdToStance.size, user.skipClaimIds.size, user.joinedAt
+            )
+        }
+
         // Phase 1: Try to match users by their existing claims with random selection
+        logger.debug("Phase 1: Matching users by common claims with opposite stances")
         for (i in 0 until waitingUsers.size) {
             val userA = waitingUsers[i]
             if (userA.userId in matchedUsers) continue
@@ -241,13 +302,21 @@ class MatchService(
 
         // Phase 2: Try to match remaining users using individual user stances
         val remainingUsers = waitingUsers.filter { it.userId !in matchedUsers }
+        logger.debug("Phase 1 complete: {} users matched, {} remaining", matchedUsers.size, remainingUsers.size)
         if (remainingUsers.size >= 2) {
+            logger.debug("Phase 2: Matching users by individual stances with assignment")
             matchWithUserStances(remainingUsers, matchedUsers)
         }
 
         // Phase 3: Try to match remaining users using top 10 claims
         val stillRemainingUsers = waitingUsers.filter { it.userId !in matchedUsers }
+        logger.debug(
+            "Phase 2 complete: {} users matched total, {} remaining",
+            matchedUsers.size,
+            stillRemainingUsers.size
+        )
         if (stillRemainingUsers.size >= 2) {
+            logger.debug("Phase 3: Matching users by top claims with random stances")
             matchWithTopClaims(stillRemainingUsers, matchedUsers)
         }
 
@@ -258,8 +327,8 @@ class MatchService(
             finalRemainingUsers.forEach { matchQueueRepository.save(it) }
         }
 
-        logger.debug(
-            "Matching complete: {} users matched, {} users remain in queue",
+        logger.info(
+            "Phase 3 complete. Matching cycle finished: {} users matched, {} users remain in queue",
             matchedUsers.size, finalRemainingUsers.size
         )
     }
@@ -465,19 +534,20 @@ class MatchService(
                     username = userAEntity.username,
                     avatarUrl = userAEntity.avatarUrl,
                     stance = finalA,
-                    status = MatchOpponentStatus.PENDING
+                    status = MatchOpponentStatus.PENDING,
+                    userA.ignores
                 ),
                 Match.MatchOpponent(
                     userId = userBEntity.userId,
                     username = userBEntity.username,
                     avatarUrl = userBEntity.avatarUrl,
                     stance = finalB,
-                    status = MatchOpponentStatus.PENDING
+                    status = MatchOpponentStatus.PENDING,
+                    userB.ignores
                 )
             ),
             updatedAt = now,
             ttl = settings.getMatchTtl()
-            // reason = reason
         )
 
         matchRepository.save(match)

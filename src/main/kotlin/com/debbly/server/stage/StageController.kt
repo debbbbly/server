@@ -110,19 +110,19 @@ class StageController(
         return ResponseEntity.ok().build()
     }
 
-    @PostMapping("/{stageId}/leave")
-    fun leave(@PathVariable stageId: String, @ExternalUserId externalUserId: String?): ResponseEntity<Unit> {
-        if (externalUserId == null) {
-            throw UnauthorizedException()
-        }
-
-        userCachedRepository.findByExternalUserId(externalUserId)?.let { user ->
-            stageService.leaveStage(
-                stageId = stageId,
-                userId = user.userId
-            )
-        }
-
-        return ResponseEntity.ok().build()
-    }
+//    @PostMapping("/{stageId}/leave")
+//    fun leave(@PathVariable stageId: String, @ExternalUserId externalUserId: String?): ResponseEntity<Unit> {
+//        if (externalUserId == null) {
+//            throw UnauthorizedException()
+//        }
+//
+//        userCachedRepository.findByExternalUserId(externalUserId)?.let { user ->
+//            stageService.leaveStage(
+//                stageId = stageId,
+//                userId = user.userId
+//            )
+//        }
+//
+//        return ResponseEntity.ok().build()
+//    }
 }

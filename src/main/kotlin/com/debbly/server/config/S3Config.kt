@@ -20,7 +20,7 @@ data class S3ConfigProperties(
     val forcePathStyle: Boolean = true,
 ) {
     data class BucketConfig(
-        val hls: String = "",
+        val egress: String = "",
         val avatars: String = ""
     )
 }
