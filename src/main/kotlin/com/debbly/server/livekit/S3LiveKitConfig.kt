@@ -1,4 +1,4 @@
-package com.debbly.server.config
+package com.debbly.server.livekit
 
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -10,9 +10,10 @@ import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3Client
 import java.net.URI
 
-@ConfigurationProperties(prefix = "s3")
-data class S3ConfigProperties(
+@ConfigurationProperties(prefix = "s3.lk")
+data class S3LiveKitProperties(
     val endpoint: String = "",
+    val publicEndpoint: String = "",
     val bucket: BucketConfig = BucketConfig(),
     val region: String = "",
     val accessKey: String = "",
@@ -21,26 +22,25 @@ data class S3ConfigProperties(
 ) {
     data class BucketConfig(
         val egress: String = "",
-        val avatars: String = ""
     )
 }
 
 @Configuration
-@EnableConfigurationProperties(S3ConfigProperties::class)
-class S3Config(private val s3ConfigProperties: S3ConfigProperties) {
+@EnableConfigurationProperties(S3LiveKitProperties::class)
+class S3LiveKitConfig(private val properties: S3LiveKitProperties) {
 
-    @Bean
-    fun s3Client(): S3Client {
+    @Bean("s3LiveKitClient")
+    fun s3LiveKitClient(): S3Client {
         val credentials = AwsBasicCredentials.create(
-            s3ConfigProperties.accessKey,
-            s3ConfigProperties.secret
+            properties.accessKey,
+            properties.secret
         )
 
         return S3Client.builder()
-            .region(Region.of(s3ConfigProperties.region))
-            .endpointOverride(URI.create(s3ConfigProperties.endpoint))
+            .region(Region.of(properties.region))
+            .endpointOverride(URI.create(properties.endpoint))
             .credentialsProvider(StaticCredentialsProvider.create(credentials))
-            .forcePathStyle(s3ConfigProperties.forcePathStyle)
+            .forcePathStyle(properties.forcePathStyle)
             .build()
     }
 }

@@ -2,8 +2,8 @@ package com.debbly.server.user
 
 import com.debbly.server.IdService
 import com.debbly.server.auth.ExternalUserId
+import com.debbly.server.auth.UserEmail
 import com.debbly.server.user.UserValidator.isValidUsername
-import com.debbly.server.user.model.UserModel
 import com.debbly.server.user.repository.SocialUsernameCachedRepository
 import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.http.HttpStatus
@@ -23,21 +23,16 @@ class UserController(
 ) {
 
     @GetMapping("/me")
-    fun me(@ExternalUserId externalUserId: String?): ResponseEntity<UserMeResponse> {
-        // Temporary: log the externalUserId to debug JWT validation
-        println("DEBUG: externalUserId = $externalUserId")
-        if (externalUserId == null) {
+    fun me(
+        @ExternalUserId externalUserId: String?,
+        @UserEmail email: String?
+    ): ResponseEntity<UserMeResponse> {
+        if (externalUserId == null || email == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
         }
 
         val user = userCachedRepository.findByExternalUserId(externalUserId)
-            ?: userCachedRepository.save(
-                UserModel(
-                    userId = idService.getId(),
-                    externalUserId = externalUserId,
-                    email = "unknown@gmail.com"
-                )
-            )
+            ?: userService.createUser(externalUserId, email)
 
         return ResponseEntity.ok(UserMeResponse(user.userId, user.username, user.email, user.avatarUrl))
     }

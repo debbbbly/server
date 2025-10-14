@@ -229,12 +229,12 @@ class MatchService(
 
                 try {
                     match.opponents.forEach { opponent ->
-                        if (opponent.ignores < 3) {
-                            val user = userRepository.getById(opponent.userId)
-                            matchQueueRepository.save(buildMatchRequest(user, ignores = opponent.ignores + 1))
-                        } else {
-                            logger.error("Too many ignores, remove from the queue.")
-                        }
+//                        if (opponent.ignores < 3) {
+//                            val user = userRepository.getById(opponent.userId)
+//                            matchQueueRepository.save(buildMatchRequest(user, ignores = opponent.ignores + 1))
+//                        } else {
+//                            logger.error("Too many ignores, remove from the queue.")
+//                        }
                     }
                 } catch (e: Exception) {
                     logger.error("Error cleaning up expired match ${match.matchId}", e)
@@ -252,7 +252,7 @@ class MatchService(
         val waitingUsers = matchQueueRepository.findAll().sortedBy { it.joinedAt }
         val matchedUsers = mutableSetOf<String>()
 
-        logger.info("Starting matching cycle: {} users in queue", waitingUsers.size)
+//        logger.info("Starting matching cycle: {} users in queue", waitingUsers.size)
         waitingUsers.forEach { user ->
             logger.debug(
                 "User {} in queue: {} claims, {} skipped, waiting since {}",
@@ -327,10 +327,10 @@ class MatchService(
             finalRemainingUsers.forEach { matchQueueRepository.save(it) }
         }
 
-        logger.info(
-            "Phase 3 complete. Matching cycle finished: {} users matched, {} users remain in queue",
-            matchedUsers.size, finalRemainingUsers.size
-        )
+//        logger.info(
+//            "Phase 3 complete. Matching cycle finished: {} users matched, {} users remain in queue",
+//            matchedUsers.size, finalRemainingUsers.size
+//        )
     }
 
     /**

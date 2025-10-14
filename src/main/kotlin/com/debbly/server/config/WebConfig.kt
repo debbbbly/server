@@ -1,14 +1,19 @@
 package com.debbly.server.config
 
 import com.debbly.server.auth.UserIdArgumentResolver
+import com.debbly.server.auth.UserEmailArgumentResolver
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.method.support.HandlerMethodArgumentResolver
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
 
 @Configuration
-class WebConfig(private val userIdArgumentResolver: UserIdArgumentResolver) : WebMvcConfigurer {
+class WebConfig(
+    private val userIdArgumentResolver: UserIdArgumentResolver,
+    private val userEmailArgumentResolver: UserEmailArgumentResolver
+) : WebMvcConfigurer {
 
     override fun addArgumentResolvers(resolvers: MutableList<HandlerMethodArgumentResolver>) {
         resolvers.add(userIdArgumentResolver)
+        resolvers.add(userEmailArgumentResolver)
     }
 }

@@ -8,6 +8,10 @@ spring:
     serialization:
       write-dates-as-timestamps: false
       write-date-timestamps-as-nanoseconds: false
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
   # JWT configuration is handled in JwtConfig.kt
   datasource:
     url: ${DB_URL}
@@ -24,11 +28,28 @@ spring:
       api-key: ${OPENAI_API_KEY}
       chat:
         options:
-          model: gpt-3.5-turbo
+          model: ${OPENAI_API_MODEL}
           temperature: 0.0
 
 server:
   port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+  endpoint:
+    health:
+      show-details: when-authorized
+    prometheus:
+      enabled: true
 
 livekit:
   url: ${LIVEKIT_API_URL}
@@ -40,15 +61,27 @@ supabase:
   publishable-key: ${SUPABASE_PUBLISHABLE_KEY}
   secret-key: ${SUPABASE_SECRET_KEY}
 
+s3:
+  default:
+    endpoint: ${S3_DEFAULT_ENDPOINT}
+    public-endpoint: ${S3_DEFAULT_PUBLIC_ENDPOINT}
+    region: ${S3_DEFAULT_REGION}
+    access-key: ${S3_DEFAULT_ACCESS_KEY}
+    secret: ${S3_DEFAULT_SECRET}
+    bucket:
+      users: ${S3_DEFAULT_BUCKET_USERS}
+  lk:
+    endpoint: ${S3_LK_ENDPOINT}
+    public-endpoint: ${S3_LK_PUBLIC_ENDPOINT}
+    region: ${S3_LK_REGION}
+    access-key: ${S3_LK_ACCESS_KEY}
+    secret: ${S3_LK_SECRET}
+    bucket:
+      egress: ${S3_LK_BUCKET_EGRESS}
+
 stage:
-  limit-minutes: 15
+  limit-minutes: 10
 
 logging:
   level:
     root: INFO
-    com.debbly: DEBUG
-    org.springframework.web.socket: DEBUG
-    org.springframework.security: DEBUG
-    org.springframework.security.oauth2: DEBUG
-    org.springframework.security.oauth2.server.resource: DEBUG
-    okhttp3: DEBUG

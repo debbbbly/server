@@ -2,19 +2,18 @@ package com.debbly.server.livekit
 
 import com.debbly.server.IdService
 import com.debbly.server.config.LiveKitConfig
-import com.debbly.server.config.S3ConfigProperties
 import com.debbly.server.settings.SettingsService
 import io.livekit.server.*
-import livekit.LivekitModels
 import livekit.LivekitEgress
 import livekit.LivekitEgress.ImageFileSuffix.IMAGE_SUFFIX_INDEX
+import livekit.LivekitModels
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
 @Service
 class LiveKitService(
     private val liveKitConfig: LiveKitConfig,
-    private val s3Config: S3ConfigProperties,
+    private val s3Config: S3LiveKitProperties,
     private val idService: IdService,
     private val livekitRoomService: RoomServiceClient,
     private val livekitEgressService: EgressServiceClient,
@@ -29,7 +28,7 @@ class LiveKitService(
     fun createRoom(stageId: String, maxParticipants: Int = 10, emptyTimeoutSeconds: Int = 10): LivekitModels.Room? {
         val call = livekitRoomService.createRoom(stageId, emptyTimeoutSeconds, maxParticipants)
         val response = call.execute()
-        
+
         if (response.isSuccessful) {
             logger.info("Created room: $stageId with maxParticipants: $maxParticipants, timeout: ${emptyTimeoutSeconds}min")
             return response.body()
@@ -41,11 +40,11 @@ class LiveKitService(
 
     fun getParticipants(stageId: String): List<LivekitModels.ParticipantInfo> {
         logger.debug("Attempting to get participants for room: $stageId")
-        
+
         repeat(3) { attempt ->
             val call = livekitRoomService.listParticipants(stageId)
             val response = call.execute()
-            
+
             if (response.isSuccessful) {
                 val listParticipantsResponse = response.body()
                 val participantsList = listParticipantsResponse ?: emptyList()
@@ -204,7 +203,7 @@ class LiveKitService(
         val allEgresses = listAllEgresses(roomName)
         return allEgresses.filter {
             it.status == LivekitEgress.EgressStatus.EGRESS_ACTIVE ||
-            it.status == LivekitEgress.EgressStatus.EGRESS_STARTING
+                    it.status == LivekitEgress.EgressStatus.EGRESS_STARTING
         }
     }
 
@@ -253,7 +252,7 @@ class LiveKitService(
     fun endRoom(stageId: String): Boolean {
         val call = livekitRoomService.deleteRoom(stageId)
         val response = call.execute()
-        
+
         if (response.isSuccessful) {
             logger.info("Successfully ended room: $stageId")
             return true
@@ -269,7 +268,7 @@ class LiveKitService(
     fun removeParticipant(stageId: String, participantIdentity: String): Boolean {
         val call = livekitRoomService.removeParticipant(stageId, participantIdentity)
         val response = call.execute()
-        
+
         if (response.isSuccessful) {
             logger.info("Successfully removed participant $participantIdentity from room: $stageId")
             return true
@@ -285,7 +284,7 @@ class LiveKitService(
     fun muteParticipant(stageId: String, participantIdentity: String, muted: Boolean): Boolean {
         val call = livekitRoomService.mutePublishedTrack(stageId, participantIdentity, "", muted)
         val response = call.execute()
-        
+
         if (response.isSuccessful) {
             logger.info("Successfully ${if (muted) "muted" else "unmuted"} participant $participantIdentity in room: $stageId")
             return true
@@ -301,7 +300,7 @@ class LiveKitService(
     fun getRoomInfo(stageId: String): LivekitModels.Room? {
         val call = livekitRoomService.listRooms(listOf(stageId))
         val response = call.execute()
-        
+
         if (response.isSuccessful) {
             val rooms = response.body()
             return rooms?.firstOrNull()

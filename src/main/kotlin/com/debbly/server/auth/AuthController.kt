@@ -3,7 +3,6 @@ package com.debbly.server.auth
 import com.debbly.server.IdService
 import com.debbly.server.auth.AuthErrorCode.*
 import com.debbly.server.auth.service.SupabaseAuthService
-import com.debbly.server.auth.UserStatus
 import com.debbly.server.user.UserService
 import com.debbly.server.user.UserValidator.isUserComplete
 import com.debbly.server.user.repository.UserCachedRepository
@@ -117,9 +116,11 @@ class AuthController(
                     return ResponseEntity.status(UNAUTHORIZED)
                         .body(UnifiedAuthResponse(error = AUTH_LOGIN_FAILED))
                 }
+
                 UserStatus.UNCONFIRMED -> {
                     logger.info("User ${request.email} exists but is unconfirmed, allowing re-registration")
                 }
+
                 UserStatus.NOT_FOUND -> {
                     // User doesn't exist - continue to signup
                     // Fall through to signup logic
@@ -388,8 +389,6 @@ class AuthController(
                 .body(GoogleOAuthResponse(error = AUTH_GENERIC_ERROR))
         }
     }
-
-
 
     fun HttpServletResponse.setCookie(
         name: String,

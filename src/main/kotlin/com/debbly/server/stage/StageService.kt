@@ -5,9 +5,9 @@ import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.repository.ClaimJpaRepository
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
-import com.debbly.server.config.S3ConfigProperties
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.livekit.LiveKitService
+import com.debbly.server.livekit.S3LiveKitProperties
 import com.debbly.server.match.model.Match
 import com.debbly.server.settings.SettingsService
 import com.debbly.server.settings.UserSettingsName
@@ -40,7 +40,7 @@ class StageService(
     private val stageProperties: StageProperties,
     private val userSettingsRepository: UserSettingsCachedRepository,
     private val settingsService: SettingsService,
-    private val s3Config: S3ConfigProperties,
+    private val s3Config: S3LiveKitProperties,
     private val clock: Clock,
     private val socialUsernameCachedRepository: com.debbly.server.user.repository.SocialUsernameCachedRepository
 ) {
@@ -455,10 +455,7 @@ class StageService(
     }
 
     private fun buildHlsUrl(stageId: String): String {
-        // Use the S3 endpoint from config to construct the public URL
-        // Format: https://{endpoint}/{bucket}/{stageId}/playlist.m3u8
-
-        return "${s3Config.endpoint}/${s3Config.bucket.egress}/$stageId/playlist.m3u8"
+        return "${s3Config.publicEndpoint}/${s3Config.bucket.egress}/$stageId/playlist.m3u8"
     }
 
     private fun shouldStartEgressForStage(stage: StageModel): Boolean {

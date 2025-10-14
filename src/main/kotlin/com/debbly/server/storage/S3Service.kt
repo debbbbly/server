@@ -1,6 +1,7 @@
 package com.debbly.server.storage
 
-import com.debbly.server.config.S3ConfigProperties
+import com.debbly.server.config.S3DefaultProperties
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 import software.amazon.awssdk.core.sync.RequestBody
@@ -11,16 +12,16 @@ import java.util.*
 
 @Service
 class S3Service(
-    private val s3Client: S3Client,
-    private val s3ConfigProperties: S3ConfigProperties
+    @Qualifier("s3DefaultClient") private val s3Client: S3Client,
+    private val s3ConfigProperties: S3DefaultProperties
 ) {
 
     fun uploadAvatar(file: MultipartFile, userId: String): String {
         val fileExtension = file.originalFilename?.substringAfterLast('.', "jpg")
-        val fileName = "avatars/${userId}_${UUID.randomUUID()}.$fileExtension"
+        val fileName = "${userId}/avatars/${UUID.randomUUID()}.$fileExtension"
 
         val putObjectRequest = PutObjectRequest.builder()
-            .bucket(s3ConfigProperties.bucket.avatars)
+            .bucket(s3ConfigProperties.bucket.users)
             .key(fileName)
             .contentType(file.contentType ?: "image/jpeg")
             .build()
@@ -30,14 +31,14 @@ class S3Service(
             RequestBody.fromInputStream(file.inputStream, file.size)
         )
 
-        return buildPublicUrl(s3ConfigProperties.bucket.avatars, fileName)
+        return buildPublicUrl(s3ConfigProperties.bucket.users, fileName)
     }
 
     fun deleteAvatar(avatarUrl: String) {
-        val key = extractKeyFromUrl(avatarUrl, s3ConfigProperties.bucket.avatars)
+        val key = extractKeyFromUrl(avatarUrl, s3ConfigProperties.bucket.users)
         if (key != null) {
             val deleteObjectRequest = DeleteObjectRequest.builder()
-                .bucket(s3ConfigProperties.bucket.avatars)
+                .bucket(s3ConfigProperties.bucket.users)
                 .key(key)
                 .build()
 
@@ -46,7 +47,7 @@ class S3Service(
     }
 
     private fun buildPublicUrl(bucket: String, key: String): String {
-        return "${s3ConfigProperties.endpoint}/$bucket/$key"
+        return "${s3ConfigProperties.publicEndpoint}/$bucket/$key"
     }
 
     private fun extractKeyFromUrl(url: String, bucket: String): String? {
