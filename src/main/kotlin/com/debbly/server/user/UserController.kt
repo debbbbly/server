@@ -8,12 +8,14 @@ import com.debbly.server.user.repository.SocialUsernameCachedRepository
 import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
 import java.util.*
 
 @RestController
-@RequestMapping("/users")
+@RequestMapping("/api/public/users")
 class UserController(
     private val userCachedRepository: UserCachedRepository,
     private val idService: IdService,
@@ -159,6 +161,7 @@ class UserController(
     fun updateUsername(
         @PathVariable userId: String,
         @ExternalUserId externalUserId: String?,
+        @AuthenticationPrincipal jwt: Jwt?,
         @RequestBody request: UpdateUsernameRequest
     ): ResponseEntity<UpdateUsernameResponse> {
         if (externalUserId == null) {
@@ -172,7 +175,8 @@ class UserController(
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
         }
 
-        val result = userService.updateUsername(user, request.username)
+        val accessToken = jwt?.tokenValue
+        val result = userService.updateUsername(user, request.username, accessToken)
 
         return if (result.success) {
             ResponseEntity.ok(UpdateUsernameResponse(true, result.message))

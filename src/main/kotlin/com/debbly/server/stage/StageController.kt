@@ -11,7 +11,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
 @RestController
-@RequestMapping("/stages")
+@RequestMapping("/api/public/stages")
 class StageController(
     private val stageService: StageService,
     private val liveStageRedisRepository: LiveStageRedisRepository,

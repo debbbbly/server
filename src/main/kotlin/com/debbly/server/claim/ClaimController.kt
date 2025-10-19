@@ -13,7 +13,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
 @RestController
-@RequestMapping("/claims")
+@RequestMapping("/api/public/claims")
 class ClaimController(
     private val claimService: ClaimService,
     private val userClaimService: UserClaimService,

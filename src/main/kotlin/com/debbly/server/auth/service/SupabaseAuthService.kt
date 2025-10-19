@@ -234,6 +234,31 @@ class SupabaseAuthService(
         return getUserStatusByEmail(email) != UserStatus.NOT_FOUND
     }
 
+    fun updateUserMetadata(accessToken: String, metadata: Map<String, Any>): Boolean {
+        val url = "${supabaseConfig.authUrl}/user"
+        val headers = createHeaders()
+        headers.setBearerAuth(accessToken)
+
+        val request = mapOf(
+            "data" to metadata
+        )
+
+        return try {
+            val entity = HttpEntity(request, headers)
+            val response = restTemplate.exchange(
+                url,
+                org.springframework.http.HttpMethod.PUT,
+                entity,
+                Map::class.java
+            )
+
+            response.statusCode.is2xxSuccessful
+        } catch (e: RestClientException) {
+            logger.error("Failed to update user metadata", e)
+            false
+        }
+    }
+
     private fun createHeaders(): HttpHeaders {
         val headers = HttpHeaders()
         headers.contentType = MediaType.APPLICATION_JSON
@@ -290,12 +315,14 @@ class SupabaseAuthService(
     }
 
     private fun parseUser(userData: Map<String, Any>): SupabaseUser {
+        val userMetadata = userData["user_metadata"] as? Map<String, Any>
         return SupabaseUser(
             id = userData["id"] as String,
             email = userData["email"] as? String,
             emailConfirmed = userData["email_confirmed_at"] != null,
             createdAt = userData["created_at"] as? String,
-            updatedAt = userData["updated_at"] as? String
+            updatedAt = userData["updated_at"] as? String,
+            username = userMetadata?.get("username") as? String
         )
     }
 }
@@ -322,6 +349,7 @@ data class SupabaseUser(
     val email: String?,
     val emailConfirmed: Boolean,
     val createdAt: String?,
-    val updatedAt: String?
+    val updatedAt: String?,
+    val username: String? = null
 )
 
