@@ -23,6 +23,7 @@ spring:
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
+      connection-init-sql: "DEALLOCATE ALL"
   jpa:
     hibernate:
       ddl-auto: none
