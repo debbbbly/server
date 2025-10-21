@@ -12,7 +12,7 @@ spring:
     multipart:
       max-file-size: 5MB
       max-request-size: 5MB
-  # JWT configuration is handled in JwtConfig.kt
+
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -44,7 +44,7 @@ spring:
       chat:
         options:
           model: ${OPENAI_API_MODEL}
-          temperature: 0.0
+          temperature: 1
 
 server:
   port: 8080
