@@ -32,3 +32,30 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Environment & Secrets ###
+env/.env
+env/.env.production
+env/.env.local
+local/.env.local
+local/.env
+secrets.txt
+*.pem
+*.key
+!src/main/resources/**/*.key
+
+### macOS ###
+.DS_Store
+
+### Build Artifacts ###
+*.tar
+*.tar.gz
+
+### Local Development ###
+local/dev.sh
+local/loki.yaml
+local/promtail.yaml
+local/.env.local
+
+### Personal Notes ###
+prompt.md

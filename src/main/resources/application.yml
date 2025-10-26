@@ -23,7 +23,6 @@ spring:
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
-      connection-init-sql: "DEALLOCATE ALL"
   jpa:
     hibernate:
       ddl-auto: none
@@ -37,8 +36,7 @@ spring:
     default-schema: debbly
   data:
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT:6379}
+      url: ${REDIS_URL:redis://${REDIS_HOST:localhost}:${REDIS_PORT:6379}}
   ai:
     openai:
       api-key: ${OPENAI_API_KEY}
@@ -48,7 +46,7 @@ spring:
           temperature: 1
 
 server:
-  port: 8080
+  port: ${PORT:8080}
 
 management:
   endpoints:

@@ -1,0 +1,54 @@
+# Build outputs
+target/
+!target/server-*.jar
+*.class
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+
+# Local environment
+env/.env
+.env.local
+env/.env.production
+.env.*
+!env/.env.example
+
+# Docker files
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Local dev
+local/
+*.log
+logs/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+CLAUDE.md
+prompt.md
+*.md
+
+# Test files
+src/test/
+
+# Secrets
+secrets.txt
+*.pem
+*.key
+*.crt
+
+# Misc
+*.tar
+*.gz
+*.zip
