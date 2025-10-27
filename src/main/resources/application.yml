@@ -74,6 +74,7 @@ supabase:
   url: ${SUPABASE_URL}
   publishable-key: ${SUPABASE_PUBLISHABLE_KEY}
   secret-key: ${SUPABASE_SECRET_KEY}
+  jwt-secret: ${SUPABASE_JWT_SECRET}
 
 s3:
   default:

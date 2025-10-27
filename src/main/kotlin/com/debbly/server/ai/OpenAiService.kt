@@ -1,6 +1,7 @@
 package com.debbly.server.ai
 
 import com.debbly.server.category.repository.CategoryCachedRepository
+import com.debbly.server.user.UserValidator.invalidCharsRegex
 import com.debbly.server.user.UserValidator.usernameRegex
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -173,7 +174,7 @@ class OpenAIService(
     }
 
     fun generateUsernames(seed: String): List<String> {
-        val normalizedSeed = seed.replace(usernameRegex, "").take(15)
+        val normalizedSeed = seed.replace(invalidCharsRegex, "").take(15)
         val prompt = """
             Generate 5 funny and memorable usernames for a debating platform.
             Make them short, easy to read, and inspired by debating or argument styles.

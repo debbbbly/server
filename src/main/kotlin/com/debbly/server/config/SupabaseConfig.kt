@@ -14,6 +14,7 @@ data class SupabaseConfigProperties(
     val url: String = "",
     val publishableKey: String = "",
     val secretKey: String = "",
+    val jwtSecret: String = "",
 ) {
     val authUrl: String
         get() = "$url/auth/v1"
@@ -31,14 +32,19 @@ class SupabaseConfig(private val supabaseConfigProperties: SupabaseConfigPropert
     @Bean
     fun jwtDecoder(): JwtDecoder {
         return try {
-            logger.info("Configuring JWT decoder for Supabase with JWKS URL: ${supabaseConfigProperties.jwksUrl}")
+            logger.info("Configuring JWT decoder for self-hosted Supabase with JWT secret")
+
+            // Self-hosted Supabase uses symmetric key signing (HS256)
+            val secretKey = javax.crypto.spec.SecretKeySpec(
+                supabaseConfigProperties.jwtSecret.toByteArray(),
+                "HmacSHA256"
+            )
 
             NimbusJwtDecoder
-                .withJwkSetUri(supabaseConfigProperties.jwksUrl)
-                .jwsAlgorithm(SignatureAlgorithm.ES256)
+                .withSecretKey(secretKey)
                 .build()
                 .apply {
-                    logger.info("JWT decoder configured successfully")
+                    logger.info("JWT decoder configured successfully for self-hosted Supabase")
                 }
         } catch (e: Exception) {
             logger.error("Failed to configure JWT decoder for Supabase", e)

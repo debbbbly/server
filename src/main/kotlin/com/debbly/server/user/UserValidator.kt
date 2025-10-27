@@ -6,6 +6,7 @@ import java.time.Period
 
 object UserValidator {
     val usernameRegex = Regex("^[a-zA-Z0-9_]{5,20}$")
+    val invalidCharsRegex = Regex("[^a-zA-Z0-9_]")
 
     fun isValidBirthdate(birthdate: LocalDate) =
         Period.between(birthdate, LocalDate.now()).years >= 14
