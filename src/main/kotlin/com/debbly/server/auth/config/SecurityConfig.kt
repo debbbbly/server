@@ -2,6 +2,7 @@ package com.debbly.server.auth.config
 
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.http.HttpMethod.OPTIONS
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.core.authority.SimpleGrantedAuthority
@@ -26,6 +27,7 @@ class SecurityConfig {
             .cors { it.configurationSource(corsConfigurationSource()) }
             .authorizeHttpRequests {
                 it
+                    .requestMatchers(OPTIONS, "/**").permitAll()
                     .requestMatchers("/actuator/health", "/actuator/prometheus", "/actuator/metrics/**").permitAll()
                     .requestMatchers("/auth/logout").authenticated()
                     .anyRequest().permitAll()
