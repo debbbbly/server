@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*
  * Provides endpoints to trigger rating recalculations for all claims or individual claims.
  */
 @RestController
-@RequestMapping("/api/public/claims/ratings")
+@RequestMapping("/claims/ratings")
 class ClaimRatingController(
     private val claimRatingService: ClaimRatingService
 ) {

@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-@RequestMapping("/api/public/livekit")
+@RequestMapping("/livekit")
 class LiveKitController(
     liveKitConfig: LiveKitConfig,
     private val liveKitWebhookService: LiveKitWebhookService

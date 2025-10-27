@@ -8,7 +8,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
 @RestController
-@RequestMapping("/api/public/users")
+@RequestMapping("/users")
 class FollowersController(
     private val userCachedRepository: UserCachedRepository,
     private val userFollowService: UserFollowService,

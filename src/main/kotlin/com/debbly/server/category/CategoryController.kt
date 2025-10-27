@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-@RequestMapping("/api/public/categories")
+@RequestMapping("/categories")
 class CategoryController(
     private val categoryCachedRepository: CategoryCachedRepository,
 ) {

@@ -19,7 +19,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.web.bind.annotation.*
 
 @RestController
-@RequestMapping("/api/public/auth")
+@RequestMapping("/auth")
 class AuthController(
     private val supabaseAuthService: SupabaseAuthService,
     private val userCachedRepository: UserCachedRepository,

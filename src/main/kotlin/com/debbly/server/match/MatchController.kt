@@ -10,7 +10,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
 @RestController
-@RequestMapping("/api/public/match")
+@RequestMapping("/match")
 class MatchController(
     private val matchService: MatchService,
     private val authService: AuthService,

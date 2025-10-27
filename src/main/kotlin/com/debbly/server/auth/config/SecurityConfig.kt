@@ -27,7 +27,7 @@ class SecurityConfig {
             .authorizeHttpRequests {
                 it
                     .requestMatchers("/actuator/health", "/actuator/prometheus", "/actuator/metrics/**").permitAll()
-                    .requestMatchers("/api/public/auth/logout").authenticated()
+                    .requestMatchers("/auth/logout").authenticated()
                     .anyRequest().permitAll()
             }
             .oauth2ResourceServer { oauth2 ->

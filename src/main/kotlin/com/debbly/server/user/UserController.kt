@@ -15,7 +15,7 @@ import org.springframework.web.multipart.MultipartFile
 import java.util.*
 
 @RestController
-@RequestMapping("/api/public/users")
+@RequestMapping("/users")
 class UserController(
     private val userCachedRepository: UserCachedRepository,
     private val idService: IdService,
