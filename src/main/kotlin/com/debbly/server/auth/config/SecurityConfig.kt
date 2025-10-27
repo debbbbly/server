@@ -58,6 +58,7 @@ class SecurityConfig {
     fun corsConfigurationSource(): CorsConfigurationSource {
         val config = CorsConfiguration()
         config.addAllowedOrigin("https://debbly.com")
+        config.addAllowedOriginPattern("https://*.debbly.com")
         config.addAllowedOriginPattern("http://localhost:*")
 
         config.allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS")
