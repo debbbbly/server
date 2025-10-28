@@ -5,7 +5,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
 
@@ -15,13 +14,7 @@ data class SupabaseConfigProperties(
     val publishableKey: String = "",
     val secretKey: String = "",
     val jwtSecret: String = "",
-) {
-    val authUrl: String
-        get() = "$url/auth/v1"
-
-    val jwksUrl: String
-        get() = "$url/auth/v1/.well-known/jwks.json"
-}
+)
 
 @Configuration
 @EnableConfigurationProperties(SupabaseConfigProperties::class)
