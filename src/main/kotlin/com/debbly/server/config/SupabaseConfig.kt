@@ -14,10 +14,7 @@ data class SupabaseConfigProperties(
     val publishableKey: String = "",
     val secretKey: String = "",
     val jwtSecret: String = "",
-) {
-    val authUrl: String
-        get() = "$url/auth/v1"
-}
+)
 
 @Configuration
 @EnableConfigurationProperties(SupabaseConfigProperties::class)
