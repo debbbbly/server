@@ -11,6 +11,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
 @ConfigurationProperties(prefix = "supabase")
 data class SupabaseConfigProperties(
     val url: String = "",
+    val publicUrl: String = "",
     val publishableKey: String = "",
     val secretKey: String = "",
     val jwtSecret: String = "",

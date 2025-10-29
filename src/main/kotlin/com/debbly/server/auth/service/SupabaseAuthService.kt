@@ -298,7 +298,9 @@ class SupabaseAuthService(
     }
 
     fun initiateGoogleOAuth(redirectUrl: String? = null): SupabaseOAuthResponse {
-        val baseUrl = "${supabaseConfig.url}/authorize"
+        // Use publicUrl for browser-accessible OAuth redirect
+        val publicUrl = supabaseConfig.publicUrl.ifEmpty { supabaseConfig.url }
+        val baseUrl = "$publicUrl/authorize"
         val params = mutableMapOf(
             "provider" to "google"
         )
