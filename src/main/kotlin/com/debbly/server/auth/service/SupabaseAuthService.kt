@@ -19,7 +19,7 @@ class SupabaseAuthService(
     private val logger = LoggerFactory.getLogger(javaClass)
 
     fun signUp(email: String, password: String): SupabaseAuthResponse {
-        val url = "${supabaseConfig.url}/signup"
+        val url = "${supabaseConfig.authUrl}/signup"
         val headers = createHeaders()
 
         val request = mapOf(
@@ -43,7 +43,7 @@ class SupabaseAuthService(
     }
 
     fun signIn(email: String, password: String): SupabaseAuthResponse {
-        val url = "${supabaseConfig.url}/token?grant_type=password"
+        val url = "${supabaseConfig.authUrl}/token?grant_type=password"
         val headers = createHeaders()
         val request = mapOf("email" to email, "password" to password)
 
@@ -63,7 +63,7 @@ class SupabaseAuthService(
     }
 
     fun refreshToken(refreshToken: String): SupabaseAuthResponse {
-        val url = "${supabaseConfig.url}/token?grant_type=refresh_token"
+        val url = "${supabaseConfig.authUrl}/token?grant_type=refresh_token"
         val headers = createHeaders()
 
         val request = mapOf(
@@ -86,7 +86,7 @@ class SupabaseAuthService(
     }
 
     fun signOut(accessToken: String): SupabaseAuthResponse {
-        val url = "${supabaseConfig.url}/logout"
+        val url = "${supabaseConfig.authUrl}/logout"
         val headers = createHeaders()
         headers.setBearerAuth(accessToken)
 
@@ -106,7 +106,7 @@ class SupabaseAuthService(
     }
 
     fun resetPassword(email: String): SupabaseAuthResponse {
-        val url = "${supabaseConfig.url}/recover"
+        val url = "${supabaseConfig.authUrl}/recover"
         val headers = createHeaders()
 
         val request = mapOf(
@@ -129,7 +129,7 @@ class SupabaseAuthService(
     }
 
     fun confirmSignUp(token: String, type: String = "signup"): SupabaseAuthResponse {
-        val url = "${supabaseConfig.url}/verify"
+        val url = "${supabaseConfig.authUrl}/verify"
         val headers = createHeaders()
 
         val request = mapOf(
@@ -153,7 +153,7 @@ class SupabaseAuthService(
     }
 
     fun resendConfirmation(email: String): SupabaseAuthResponse {
-        val url = "${supabaseConfig.url}/resend"
+        val url = "${supabaseConfig.authUrl}/resend"
         val headers = createHeaders()
 
         val request = mapOf(
@@ -177,7 +177,7 @@ class SupabaseAuthService(
     }
 
     fun validateToken(accessToken: String): SupabaseUser? {
-        val url = "${supabaseConfig.url}/user"
+        val url = "${supabaseConfig.authUrl}/user"
         val headers = createHeaders()
         headers.setBearerAuth(accessToken)
 
@@ -199,7 +199,7 @@ class SupabaseAuthService(
     }
 
     fun getUserStatusByEmail(email: String): UserStatus {
-        val url = "${supabaseConfig.url}/admin/users"
+        val url = "${supabaseConfig.authUrl}/admin/users"
         val headers = createAdminHeaders()
 
         return try {
@@ -235,7 +235,7 @@ class SupabaseAuthService(
     }
 
     fun updateUserMetadata(accessToken: String, metadata: Map<String, Any>): Boolean {
-        val url = "${supabaseConfig.url}/user"
+        val url = "${supabaseConfig.authUrl}/user"
         val headers = createHeaders()
         headers.setBearerAuth(accessToken)
 
@@ -298,7 +298,7 @@ class SupabaseAuthService(
     }
 
     fun initiateGoogleOAuth(redirectUrl: String? = null): SupabaseOAuthResponse {
-        val baseUrl = "${supabaseConfig.url}/authorize"
+        val baseUrl = "${supabaseConfig.authUrl}/authorize"
         val params = mutableMapOf(
             "provider" to "google"
         )
