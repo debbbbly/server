@@ -9,6 +9,13 @@ import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.livekit.LiveKitService
 import com.debbly.server.livekit.S3LiveKitProperties
 import com.debbly.server.match.model.Match
+import com.debbly.server.pusher.model.PusherEventName
+import com.debbly.server.pusher.model.PusherEventName.*
+import com.debbly.server.pusher.model.PusherMessage
+import com.debbly.server.pusher.model.PusherMessage.Companion.message
+import com.debbly.server.pusher.model.PusherMessageType.STAGE_CLOSED
+import com.debbly.server.pusher.model.PusherMessageType.STAGE_OPEN
+import com.debbly.server.pusher.service.PusherService
 import com.debbly.server.settings.SettingsService
 import com.debbly.server.settings.UserSettingsName
 import com.debbly.server.settings.repository.UserSettingsCachedRepository
@@ -43,7 +50,7 @@ class StageService(
     private val s3Config: S3LiveKitProperties,
     private val clock: Clock,
     private val socialUsernameCachedRepository: com.debbly.server.user.repository.SocialUsernameCachedRepository,
-    private val pusherService: com.debbly.server.pusher.service.PusherService
+    private val pusherService: PusherService
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -593,16 +600,13 @@ class StageService(
 
     private fun broadcastDebateStarted(stageId: String, stage: StageModel) {
         try {
-            val systemMessage = mapOf(
-                "type" to "DEBATE_STARTED",
-                "message" to "Debate has started",
-                "data" to mapOf(
-                    "stageId" to stageId,
-                    "openedAt" to stage.openedAt,
-                    "limitMinutes" to stageProperties.limitMinutes
-                )
+            val data = mapOf(
+                "stageId" to stageId,
+//                "openedAt" to stage.openedAt,
+//                "limitMinutes" to stageProperties.limitMinutes
             )
-            pusherService.sendStageSystemMessage(stageId, systemMessage)
+            val message = message(STAGE_OPEN, data)
+            pusherService.sendChannelMessage(stageId, STAGE_EVENT, message)
             logger.info("Broadcast debate started for stage $stageId")
         } catch (e: Exception) {
             logger.error("Failed to broadcast debate started for stage $stageId", e)
@@ -611,16 +615,15 @@ class StageService(
 
     private fun broadcastDebateEnded(stageId: String, stage: StageModel, reason: String) {
         try {
-            val systemMessage = mapOf(
-                "type" to "DEBATE_ENDED",
-                "message" to "Debate has ended",
+            val data = mapOf(
                 "data" to mapOf(
                     "stageId" to stageId,
-                    "closedAt" to stage.closedAt,
+//                    "closedAt" to stage.closedAt,
                     "reason" to reason
                 )
             )
-            pusherService.sendStageSystemMessage(stageId, systemMessage)
+            val message = message(STAGE_CLOSED, data)
+            pusherService.sendChannelMessage(stageId, STAGE_EVENT, message)
             logger.info("Broadcast debate ended for stage $stageId, reason: $reason")
         } catch (e: Exception) {
             logger.error("Failed to broadcast debate ended for stage $stageId", e)

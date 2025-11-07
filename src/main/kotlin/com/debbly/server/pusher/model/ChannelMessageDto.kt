@@ -1,8 +1,7 @@
-package com.debbly.server.pusher.dto
+package com.debbly.server.pusher.model
 
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
-import java.time.Instant
 
 data class SendMessageRequest(
     @field:NotBlank(message = "Message cannot be blank")
@@ -15,7 +14,7 @@ data class ChannelMessageResponse(
     val userId: String,
     val username: String,
     val message: String,
-    val timestamp: Instant
+    val timestamp: String  // ISO-8601 format
 )
 
 data class ChannelHistoryResponse(

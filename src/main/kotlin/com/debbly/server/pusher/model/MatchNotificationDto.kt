@@ -1,4 +1,4 @@
-package com.debbly.server.pusher.dto
+package com.debbly.server.pusher.model
 
 import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.match.model.Match
@@ -7,7 +7,7 @@ import com.debbly.server.match.model.MatchStatus
 
 /**
  * DTO for Match notifications sent via Pusher.
- * Converts Instant to epoch milliseconds for Gson serialization.
+ * Uses ISO-8601 timestamp format for consistent serialization.
  */
 data class MatchNotificationDto(
     val matchId: String,
@@ -15,7 +15,7 @@ data class MatchNotificationDto(
     val status: MatchStatus,
     val opponents: List<MatchOpponentDto>,
     val ttl: Long,
-    val updatedAt: Long  // Epoch milliseconds instead of Instant
+    val updatedAt: String  // ISO-8601 format
 ) {
     data class MatchOpponentDto(
         val userId: String,
@@ -50,7 +50,5 @@ fun Match.toNotificationDto() = MatchNotificationDto(
         )
     },
     ttl = ttl,
-
-    // todo update to string
-    updatedAt = updatedAt.toEpochMilli()
+    updatedAt = updatedAt.toString()
 )

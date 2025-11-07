@@ -2,7 +2,7 @@ package com.debbly.server.pusher.controller
 
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.auth.service.AuthService
-import com.debbly.server.pusher.dto.PresenceUserInfo
+import com.debbly.server.pusher.model.PresenceUserInfo
 import com.pusher.rest.Pusher
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
