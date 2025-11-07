@@ -2,7 +2,7 @@ package com.debbly.server.user
 
 import com.debbly.server.IdService
 import com.debbly.server.ai.OpenAIService
-import com.debbly.server.auth.service.SupabaseAuthService
+import com.debbly.server.auth.service.AuthService
 import com.debbly.server.storage.S3Service
 import com.debbly.server.user.UserValidator.isValidUsername
 import com.debbly.server.user.model.SocialUsernameModel
@@ -22,7 +22,7 @@ class UserService(
     private val openAIService: OpenAIService,
     private val s3Service: S3Service,
     private val cacheManager: CacheManager,
-    private val supabaseAuthService: SupabaseAuthService
+    private val authService: AuthService
 ) {
 
     fun createUser(externalUserId: String, email: String): UserModel {
@@ -95,7 +95,7 @@ class UserService(
         // Sync username with Supabase metadata
         if (accessToken != null) {
             val metadata = mapOf("username" to newUsername.trim())
-            supabaseAuthService.updateUserMetadata(accessToken, metadata)
+            authService.updateUserMetadata(accessToken, metadata)
         }
 
         return UpdateUsernameResult(

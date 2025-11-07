@@ -71,12 +71,12 @@ livekit:
   api-key: ${LIVEKIT_API_KEY}
   api-secret: ${LIVEKIT_API_SECRET}
 
-supabase:
-  url: ${SUPABASE_URL}
-  public-url: ${SUPABASE_PUBLIC_URL:${SUPABASE_URL}}
-  publishable-key: ${SUPABASE_PUBLISHABLE_KEY}
-  secret-key: ${SUPABASE_SECRET_KEY}
-  jwt-secret: ${SUPABASE_JWT_SECRET}
+auth:
+  url: ${AUTH_URL:${AUTH_PUBLIC_URL}}
+  public-url: ${AUTH_PUBLIC_URL}
+  publishable-key: ${AUTH_PUBLISHABLE_KEY}
+  secret-key: ${AUTH_SECRET_KEY}
+  jwt-secret: ${AUTH_JWT_SECRET}
 
 s3:
   default:
@@ -98,6 +98,12 @@ s3:
 
 stage:
   limit-minutes: 10
+
+pusher:
+  app-id: ${PUSHER_APP_ID}
+  key: ${PUSHER_KEY}
+  secret: ${PUSHER_SECRET}
+  cluster: ${PUSHER_CLUSTER}
 
 logging:
   level:

@@ -5,15 +5,12 @@ import org.springframework.stereotype.Component
 
 @Component
 class MatchJob(
-    private val matchService: MatchService
+    private val matchmakingService: MatchmakingService
 ) {
-
-//    ShedLock: library built exactly for this (works with Redis, JDBC, Mongo, etc.).
-//    Simple to add, widely used.
 
     @Scheduled(fixedRate = 5000)
     fun scheduleMatching() {
-        matchService.runMatching()
+        matchmakingService.runMatching()
     }
 
 }

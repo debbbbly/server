@@ -1,64 +1,70 @@
 package com.debbly.server.match
 
 import com.debbly.server.match.model.Match
-import com.debbly.server.websocket.MatchingMessage
-import com.debbly.server.websocket.MatchingService
-import com.debbly.server.websocket.MessageType
+import com.debbly.server.pusher.dto.toNotificationDto
+import com.debbly.server.pusher.service.PusherService
 import org.springframework.stereotype.Service
 
 @Service
 class MatchNotificationService(
-    private val matchingService: MatchingService
+    private val pusherService: PusherService
 ) {
 
     fun notifyMatchFound(match: Match) {
         val userIds = match.opponents.map { it.userId }
-        matchingService.sendMatchingMessage(userIds, MatchingMessage(
-            type = MessageType.MATCH_FOUND,
-            message = "Match found!",
-            data = match
-        ))
+        val notification = mapOf(
+            "type" to "MATCH_FOUND",
+//            "message" to "Match found!",
+            "data" to match.toNotificationDto()
+        )
+        pusherService.sendUserNotifications(userIds, notification)
     }
 
     fun notifyOpponentAccepted(match: Match, userId: String) {
         val otherUserIds = match.opponents.filter { it.userId != userId }.map { it.userId }
-        matchingService.sendMatchingMessage(otherUserIds, MatchingMessage(
-            type = MessageType.MATCH_ACCEPTED,
-            message = "Opponent has accepted the match",
-            data = mapOf(
+        val notification = mapOf(
+            "type" to "MATCH_ACCEPTED",
+//            "message" to "Opponent has accepted the match",
+            "data" to mapOf(
                 "matchId" to match.matchId,
-                "acceptedBy" to userId
+                "acceptedByUserId" to userId
             )
-        ))
+        )
+        pusherService.sendUserNotifications(otherUserIds, notification)
     }
 
-    fun notifyMatchConfirmedAll(match: Match) {
+    fun notifyMatchAcceptedAll(match: Match) {
         val userIds = match.opponents.map { it.userId }
-        matchingService.sendMatchingMessage(userIds, MatchingMessage(
-            type = MessageType.MATCH_ACCEPTED_ALL,
-            message = "Match confirmed! Starting debate room...",
-            data = match
-        ))
+        val notification = mapOf(
+            "type" to "MATCH_ACCEPTED_ALL",
+//            "message" to "Match confirmed! Starting debate room...",
+            "data" to match.toNotificationDto()
+        )
+        pusherService.sendUserNotifications(userIds, notification)
     }
 
     fun notifyMatchTimeout(match: Match) {
         val userIds = match.opponents.map { it.userId }
-        matchingService.sendMatchingMessage(userIds, MatchingMessage(
-            type = MessageType.MATCH_EXPIRED,
-            message = "Match expired, returning to queue",
-            data = mapOf("reason" to "timeout")
-        ))
+        val notification = mapOf(
+            "type" to "MATCH_EXPIRED",
+//            "message" to "Match expired, returning to queue",
+            "data" to mapOf(
+                "matchId" to match.matchId,
+            )
+        )
+        pusherService.sendUserNotifications(userIds, notification)
     }
 
     fun notifyMatchCancelled(match: Match, cancelledBy: String, reason: String) {
         val userIds = match.opponents.map { it.userId }
-        matchingService.sendMatchingMessage(userIds, MatchingMessage(
-            type = MessageType.MATCH_EXPIRED,
-            message = "Match cancelled, returning to queue",
-            data = mapOf(
+        val notification = mapOf(
+            "type" to "MATCH_EXPIRED",
+//            "message" to "Match cancelled, returning to queue",
+            "data" to mapOf(
                 "reason" to reason,
                 "cancelledBy" to cancelledBy
             )
-        ))
+        )
+        pusherService.sendUserNotifications(userIds, notification)
     }
 }

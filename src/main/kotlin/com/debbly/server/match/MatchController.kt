@@ -1,11 +1,11 @@
 package com.debbly.server.match
 
-import com.debbly.server.auth.AuthService
 import com.debbly.server.auth.ExternalUserId
+import com.debbly.server.auth.service.AuthService
+import com.debbly.server.infra.error.ForbiddenException
 import com.debbly.server.match.MatchService.MatchingState
 import com.debbly.server.match.model.Match
 import com.debbly.server.match.model.MatchRequest
-import com.debbly.server.infra.error.ForbiddenException
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 

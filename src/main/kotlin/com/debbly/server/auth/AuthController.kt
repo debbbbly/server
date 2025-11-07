@@ -2,7 +2,7 @@ package com.debbly.server.auth
 
 import com.debbly.server.IdService
 import com.debbly.server.auth.AuthErrorCode.*
-import com.debbly.server.auth.service.SupabaseAuthService
+import com.debbly.server.auth.service.AuthService
 import com.debbly.server.user.UserService
 import com.debbly.server.user.UserValidator.isUserComplete
 import com.debbly.server.user.repository.UserCachedRepository
@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.*
 @RestController
 @RequestMapping("/auth")
 class AuthController(
-    private val supabaseAuthService: SupabaseAuthService,
+    private val authService: AuthService,
     private val userCachedRepository: UserCachedRepository,
     private val userService: UserService,
     private val idService: IdService,
@@ -40,7 +40,7 @@ class AuthController(
 
             val email = userCachedRepository.findByUsername(req.usernameOrEmail)?.email ?: req.usernameOrEmail
 
-            val authResponse = supabaseAuthService.signIn(email, req.password)
+            val authResponse = authService.signIn(email, req.password)
 
             val userId = authResponse.user?.id
             val userEmail = authResponse.user?.email ?: email
@@ -85,7 +85,7 @@ class AuthController(
 
         try {
             // First try to sign in (existing user)
-            val signInResponse = supabaseAuthService.signIn(request.email, request.password)
+            val signInResponse = authService.signIn(request.email, request.password)
 
             if (signInResponse.error == null && signInResponse.user != null) {
                 // User exists and credentials are correct - return tokens
@@ -109,7 +109,7 @@ class AuthController(
             }
 
             // Sign in failed - check user status to determine the reason
-            val userStatus = supabaseAuthService.getUserStatusByEmail(request.email)
+            val userStatus = authService.getUserStatusByEmail(request.email)
 
             when (userStatus) {
                 UserStatus.CONFIRMED -> {
@@ -128,7 +128,7 @@ class AuthController(
             }
 
             // User doesn't exist - try to sign up
-            val signUpResponse = supabaseAuthService.signUp(request.email, request.password)
+            val signUpResponse = authService.signUp(request.email, request.password)
 
             return if (signUpResponse.error != null) {
                 logger.warn("Signup failed for new user: ${signUpResponse.error}")
@@ -210,7 +210,7 @@ class AuthController(
         }
 
         return try {
-            val response = supabaseAuthService.resendConfirmation(req.email)
+            val response = authService.resendConfirmation(req.email)
 
             if (response.error != null) {
                 ResponseEntity.status(BAD_REQUEST)
@@ -233,7 +233,7 @@ class AuthController(
         }
 
         return try {
-            val response = supabaseAuthService.resetPassword(req.email)
+            val response = authService.resetPassword(req.email)
 
             if (response.error != null) {
                 ResponseEntity.status(BAD_REQUEST)
@@ -251,7 +251,7 @@ class AuthController(
     @PostMapping("/reset-password")
     fun resetPassword(@RequestBody req: ResetPasswordRequest): ResponseEntity<ApiResponse> {
         return try {
-            val response = supabaseAuthService.confirmSignUp(req.code, "recovery")
+            val response = authService.confirmSignUp(req.code, "recovery")
 
             if (response.error != null) {
                 ResponseEntity.status(BAD_REQUEST)
@@ -277,7 +277,7 @@ class AuthController(
 
         if (tokenToUse != null) {
             try {
-                supabaseAuthService.signOut(tokenToUse)
+                authService.signOut(tokenToUse)
             } catch (e: Exception) {
                 logger.warn("Failed to sign out from Supabase", e)
             }
@@ -294,9 +294,11 @@ class AuthController(
     @PostMapping("/refresh")
     fun refreshToken(@CookieValue("refreshToken") refreshToken: String): ResponseEntity<TokenResponse> {
         return try {
-            val response = supabaseAuthService.refreshToken(refreshToken)
+            logger.info("Attempting to refresh token. Token length: ${refreshToken.length}, first 20 chars: ${refreshToken.take(20)}...")
+            val response = authService.refreshToken(refreshToken)
 
             if (response.error != null) {
+                logger.warn("Refresh token failed with error: ${response.error}")
                 ResponseEntity.status(UNAUTHORIZED).body(TokenResponse(error = AUTH_REFRESH_TOKEN_INVALID))
             } else {
                 ResponseEntity.ok(
@@ -313,20 +315,26 @@ class AuthController(
         }
     }
 
-    @PostMapping("/callback")
-    fun callback(
-        @RequestBody request: CallbackRequest,
+    /**
+     * Generic OAuth callback endpoint that handles tokens from any OAuth provider (Google, GitHub, Facebook, etc.)
+     * This endpoint receives tokens from Supabase after successful OAuth authentication
+     */
+    @PostMapping("/oauth/callback")
+    fun oauthCallback(
+        @RequestBody request: OAuthCallbackRequest,
         response: HttpServletResponse
     ): ResponseEntity<CallbackResponse> {
         return try {
-            logger.info("Processing auth callback for token type: ${request.type}")
+            logger.info("Processing OAuth callback with tokens from Supabase (provider: ${request.provider ?: "unknown"})")
 
-            val user = supabaseAuthService.validateToken(request.access_token)
+            // 1. Validate the access token and get user info from Supabase
+            val user = authService.validateToken(request.accessToken)
                 ?: return ResponseEntity.status(UNAUTHORIZED)
                     .body(CallbackResponse(false, error = AUTH_CALLBACK_INVALID_TOKEN))
 
-            logger.info("Token validated for user: ${user.email}")
+            logger.info("OAuth token validated for user: ${user.email} (provider: ${request.provider ?: "unknown"})")
 
+            // 2. Create/get user in your database
             val userModel = try {
                 userService.createUser(user.id, user.email ?: "")
             } catch (e: Exception) {
@@ -335,12 +343,14 @@ class AuthController(
                     .body(CallbackResponse(false, error = AUTH_CALLBACK_USER_CREATION_FAILED))
             }
 
+            // 3. Set authentication cookies
             val secure = "dev" !in env.activeProfiles
-            response.setCookie("accessToken", request.access_token, 60 * 60, "Lax", secure)
-            response.setCookie("idToken", request.access_token, 60 * 60, "Lax", secure)
-            request.refresh_token?.let { refreshToken ->
+            response.setCookie("accessToken", request.accessToken, 60 * 60, "Lax", secure)
+            response.setCookie("idToken", request.accessToken, 60 * 60, "Lax", secure) // accessToken IS the idToken in Supabase
+            request.refreshToken?.let { refreshToken ->
+                logger.info("Setting refresh token cookie. Token length: ${refreshToken.length}")
                 response.setCookie("refreshToken", refreshToken, 60 * 60 * 24 * 30, "Strict", secure)
-            }
+            } ?: logger.warn("No refresh token provided in OAuth callback")
 
             val callbackUser = CallbackUserInfo(
                 userId = userModel.userId,
@@ -349,16 +359,34 @@ class AuthController(
                 isComplete = isUserComplete(userModel)
             )
 
-            logger.info("Auth callback successful for user: ${userModel.email}")
+            logger.info("OAuth callback successful for user: ${userModel.email}")
             ResponseEntity.ok(CallbackResponse(true, user = callbackUser))
 
         } catch (e: Exception) {
-            logger.error("Auth callback failed", e)
+            logger.error("OAuth callback failed", e)
             ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(CallbackResponse(false, error = AUTH_GENERIC_ERROR))
         }
     }
 
+
+
+    data class OAuthCallbackRequest(
+        val accessToken: String,
+        val refreshToken: String?,
+        val expiresIn: Int?,
+        val provider: String? = null  // Optional: to track which OAuth provider was used
+    )
+
+    /**
+     * Sets authentication cookies from already-validated tokens.
+     *
+     * SECURITY NOTE: This endpoint does NOT validate tokens. It should ONLY be called:
+     * 1. After /auth/login or /auth/signup where tokens were validated by the backend
+     * 2. From the frontend to convert response tokens into HTTP-only cookies
+     *
+     * For OAuth flows, use /oauth/callback instead which validates tokens with Supabase first.
+     */
     @PostMapping("/set-cookie")
     fun setCookie(
         @RequestBody request: SetCookie,
@@ -373,9 +401,9 @@ class AuthController(
     }
 
     @PostMapping("/google/signin")
-    fun initiateGoogleOAuth(@RequestBody request: GoogleOAuthRequest): ResponseEntity<GoogleOAuthResponse> {
+    fun googleSignIn(@RequestBody request: GoogleOAuthRequest): ResponseEntity<GoogleOAuthResponse> {
         return try {
-            val oauthResponse = supabaseAuthService.initiateGoogleOAuth(request.redirectUrl)
+            val oauthResponse = authService.initiateGoogleOAuth(request.redirectUrl)
 
             if (oauthResponse.success && oauthResponse.authUrl != null) {
                 ResponseEntity.ok(GoogleOAuthResponse(authUrl = oauthResponse.authUrl))
@@ -460,14 +488,7 @@ class AuthController(
         @field:NotBlank val refreshToken: String
     )
 
-    data class CallbackRequest(
-        @field:NotBlank val access_token: String,
-        val refresh_token: String?,
-        val expires_at: String?,
-        val expires_in: String?,
-        val token_type: String?,
-        val type: String?
-    )
+
 
     data class CallbackResponse(
         val success: Boolean,

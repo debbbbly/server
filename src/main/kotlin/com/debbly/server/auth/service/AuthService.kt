@@ -1,25 +1,36 @@
 package com.debbly.server.auth.service
 
 import com.debbly.server.auth.UserStatus
-import com.debbly.server.config.SupabaseConfigProperties
+import com.debbly.server.config.AuthConfigProperties
+import com.debbly.server.infra.error.UnauthorizedException
+import com.debbly.server.user.repository.UserCachedRepository
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
-import org.springframework.http.*
+import org.springframework.http.HttpEntity
+import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpMethod.GET
+import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.client.RestClientException
 import org.springframework.web.client.RestTemplate
 import java.time.Instant
 
 @Service
-class SupabaseAuthService(
-    private val supabaseConfig: SupabaseConfigProperties,
+class AuthService(
+    private val authConfig: AuthConfigProperties,
     private val restTemplate: RestTemplate,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val userCachedRepository: UserCachedRepository
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    fun authenticate(externalUserId: String?) =
+        externalUserId?.let {
+            userCachedRepository.findByExternalUserId(externalUserId) ?: throw UnauthorizedException()
+        } ?: throw UnauthorizedException()
+
     fun signUp(email: String, password: String): SupabaseAuthResponse {
-        val url = "${supabaseConfig.url}/signup"
+        val url = "${authConfig.url}/signup"
         val headers = createHeaders()
 
         val request = mapOf(
@@ -43,7 +54,7 @@ class SupabaseAuthService(
     }
 
     fun signIn(email: String, password: String): SupabaseAuthResponse {
-        val url = "${supabaseConfig.url}/token?grant_type=password"
+        val url = "${authConfig.url}/token?grant_type=password"
         val headers = createHeaders()
         val request = mapOf("email" to email, "password" to password)
 
@@ -63,7 +74,7 @@ class SupabaseAuthService(
     }
 
     fun refreshToken(refreshToken: String): SupabaseAuthResponse {
-        val url = "${supabaseConfig.url}/token?grant_type=refresh_token"
+        val url = "${authConfig.url}/token?grant_type=refresh_token"
         val headers = createHeaders()
 
         val request = mapOf(
@@ -86,7 +97,7 @@ class SupabaseAuthService(
     }
 
     fun signOut(accessToken: String): SupabaseAuthResponse {
-        val url = "${supabaseConfig.url}/logout"
+        val url = "${authConfig.url}/logout"
         val headers = createHeaders()
         headers.setBearerAuth(accessToken)
 
@@ -106,7 +117,7 @@ class SupabaseAuthService(
     }
 
     fun resetPassword(email: String): SupabaseAuthResponse {
-        val url = "${supabaseConfig.url}/recover"
+        val url = "${authConfig.url}/recover"
         val headers = createHeaders()
 
         val request = mapOf(
@@ -128,8 +139,10 @@ class SupabaseAuthService(
         }
     }
 
+
+
     fun confirmSignUp(token: String, type: String = "signup"): SupabaseAuthResponse {
-        val url = "${supabaseConfig.url}/verify"
+        val url = "${authConfig.url}/verify"
         val headers = createHeaders()
 
         val request = mapOf(
@@ -153,7 +166,7 @@ class SupabaseAuthService(
     }
 
     fun resendConfirmation(email: String): SupabaseAuthResponse {
-        val url = "${supabaseConfig.url}/resend"
+        val url = "${authConfig.url}/resend"
         val headers = createHeaders()
 
         val request = mapOf(
@@ -177,13 +190,13 @@ class SupabaseAuthService(
     }
 
     fun validateToken(accessToken: String): SupabaseUser? {
-        val url = "${supabaseConfig.url}/user"
+        val url = "${authConfig.url}/user"
         val headers = createHeaders()
         headers.setBearerAuth(accessToken)
 
         return try {
             val entity = HttpEntity<String>(null, headers)
-            val response = restTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, Map::class.java)
+            val response = restTemplate.exchange(url, GET, entity, Map::class.java)
 
             if (response.statusCode.is2xxSuccessful) {
                 val userData = response.body as? Map<String, Any>
@@ -199,12 +212,12 @@ class SupabaseAuthService(
     }
 
     fun getUserStatusByEmail(email: String): UserStatus {
-        val url = "${supabaseConfig.url}/admin/users"
+        val url = "${authConfig.url}/admin/users"
         val headers = createAdminHeaders()
 
         return try {
             val entity = HttpEntity<String>(null, headers)
-            val response = restTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, Map::class.java)
+            val response = restTemplate.exchange(url, GET, entity, Map::class.java)
 
             if (response.statusCode.is2xxSuccessful) {
                 val responseBody = response.body as? Map<String, Any>
@@ -235,7 +248,7 @@ class SupabaseAuthService(
     }
 
     fun updateUserMetadata(accessToken: String, metadata: Map<String, Any>): Boolean {
-        val url = "${supabaseConfig.url}/user"
+        val url = "${authConfig.url}/user"
         val headers = createHeaders()
         headers.setBearerAuth(accessToken)
 
@@ -262,16 +275,15 @@ class SupabaseAuthService(
     private fun createHeaders(): HttpHeaders {
         val headers = HttpHeaders()
         headers.contentType = MediaType.APPLICATION_JSON
-        headers["apikey"] = supabaseConfig.publishableKey
-        //headers["Authorization"] = "Bearer ${supabaseConfig.publishableKey}"
+        headers["apikey"] = authConfig.publishableKey
         return headers
     }
 
     private fun createAdminHeaders(): HttpHeaders {
         val headers = HttpHeaders()
         headers.contentType = MediaType.APPLICATION_JSON
-        headers["apikey"] = supabaseConfig.secretKey
-        headers["Authorization"] = "Bearer ${supabaseConfig.secretKey}"
+        headers["apikey"] = authConfig.secretKey
+        headers["Authorization"] = "Bearer ${authConfig.secretKey}"
         return headers
     }
 
@@ -299,7 +311,7 @@ class SupabaseAuthService(
 
     fun initiateGoogleOAuth(redirectUrl: String? = null): SupabaseOAuthResponse {
         // Use publicUrl for browser-accessible OAuth redirect
-        val publicUrl = supabaseConfig.publicUrl.ifEmpty { supabaseConfig.url }
+        val publicUrl = authConfig.publicUrl.ifEmpty { authConfig.url }
         val baseUrl = "$publicUrl/authorize"
         val params = mutableMapOf(
             "provider" to "google"
@@ -307,7 +319,8 @@ class SupabaseAuthService(
 
         redirectUrl?.let { params["redirect_to"] = it }
 
-        val queryString = params.entries.joinToString("&") { "${it.key}=${java.net.URLEncoder.encode(it.value, "UTF-8")}" }
+        val queryString =
+            params.entries.joinToString("&") { "${it.key}=${java.net.URLEncoder.encode(it.value, "UTF-8")}" }
         val authUrl = "$baseUrl?$queryString"
 
         return SupabaseOAuthResponse(
@@ -315,6 +328,7 @@ class SupabaseAuthService(
             success = true
         )
     }
+
 
     private fun parseUser(userData: Map<String, Any>): SupabaseUser {
         val userMetadata = userData["user_metadata"] as? Map<String, Any>
@@ -354,4 +368,3 @@ data class SupabaseUser(
     val updatedAt: String?,
     val username: String? = null
 )
-

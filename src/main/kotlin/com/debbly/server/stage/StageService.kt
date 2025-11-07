@@ -42,7 +42,8 @@ class StageService(
     private val settingsService: SettingsService,
     private val s3Config: S3LiveKitProperties,
     private val clock: Clock,
-    private val socialUsernameCachedRepository: com.debbly.server.user.repository.SocialUsernameCachedRepository
+    private val socialUsernameCachedRepository: com.debbly.server.user.repository.SocialUsernameCachedRepository,
+    private val pusherService: com.debbly.server.pusher.service.PusherService
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -209,13 +210,8 @@ class StageService(
     fun createStage(match: Match): StageModel {
         val stageId = match.matchId
         return stageRepository.findById(stageId) ?: let {
-
-            val room = liveKitService.createRoom(stageId)
-            if (room == null) {
-                logger.error("Failed to create LiveKit room for stage: $stageId")
-            } else {
-                logger.info("Successfully created LiveKit room for stage: $stageId")
-            }
+            // Note: LiveKit room creation is now handled asynchronously via MatchEventListener
+            // to avoid blocking the match creation process
 
             val claim = claimCachedRepository.getById(match.claim.claimId)
 
@@ -313,13 +309,15 @@ class StageService(
             if (stage.hosts.none { it.userId == userId }) {
                 throw UnauthorizedException("User is not a host of this stage")
             }
-            stageRepository.save(
-                stage.copy(
-                    status = StageStatus.CLOSED,
-                    closedAt = Instant.now(clock)
-                )
+            val closedStage = stage.copy(
+                status = StageStatus.CLOSED,
+                closedAt = Instant.now(clock)
             )
+            stageRepository.save(closedStage)
             liveStageRedisRepository.deleteById(stageId)
+
+            // Broadcast debate ended event
+            broadcastDebateEnded(stageId, closedStage, "host_left")
         }
     }
 
@@ -344,7 +342,21 @@ class StageService(
             logger.info("🚨 No hosts remaining! Stopping egress and closing stage $stageId")
             // Stop egress recording before closing stage
             stopEgressIfActive(stageId)
-            closeStage(stage)
+
+            val closedStage = stage.copy(
+                status = StageStatus.CLOSED,
+                closedAt = Instant.now(clock)
+            )
+            stageRepository.save(closedStage)
+            liveStageRedisRepository.deleteById(stage.stageId)
+
+            // End the LiveKit room
+            liveKitService.endRoom(stage.stageId)
+
+            // Broadcast debate ended event
+            broadcastDebateEnded(stageId, closedStage, "all_hosts_left")
+
+            logger.info("Successfully closed stage ${stage.stageId} - all hosts left")
         } else {
             logger.info("⏳ ${connectedHosts.size} hosts still connected, keeping stage open")
         }
@@ -374,6 +386,9 @@ class StageService(
 
             // Create live stage in Redis and start egress
             createLiveStageWithEgress(updatedStage, openedAt)
+
+            // Broadcast debate started event to stage channel
+            broadcastDebateStarted(stageId, updatedStage)
         }
     }
 
@@ -570,10 +585,46 @@ class StageService(
         stageRepository.save(closedStage)
         liveStageRedisRepository.deleteById(stage.stageId)
 
-        // TODO: Send WebSocket notification to participants about timeout
-        // notifyStageTimeoutToParticipants(stage)
+        // Broadcast debate ended event to stage channel
+        broadcastDebateEnded(stage.stageId, closedStage, "timeout")
 
         logger.info("Successfully closed stage ${stage.stageId} due to timeout")
+    }
+
+    private fun broadcastDebateStarted(stageId: String, stage: StageModel) {
+        try {
+            val systemMessage = mapOf(
+                "type" to "DEBATE_STARTED",
+                "message" to "Debate has started",
+                "data" to mapOf(
+                    "stageId" to stageId,
+                    "openedAt" to stage.openedAt,
+                    "limitMinutes" to stageProperties.limitMinutes
+                )
+            )
+            pusherService.sendStageSystemMessage(stageId, systemMessage)
+            logger.info("Broadcast debate started for stage $stageId")
+        } catch (e: Exception) {
+            logger.error("Failed to broadcast debate started for stage $stageId", e)
+        }
+    }
+
+    private fun broadcastDebateEnded(stageId: String, stage: StageModel, reason: String) {
+        try {
+            val systemMessage = mapOf(
+                "type" to "DEBATE_ENDED",
+                "message" to "Debate has ended",
+                "data" to mapOf(
+                    "stageId" to stageId,
+                    "closedAt" to stage.closedAt,
+                    "reason" to reason
+                )
+            )
+            pusherService.sendStageSystemMessage(stageId, systemMessage)
+            logger.info("Broadcast debate ended for stage $stageId, reason: $reason")
+        } catch (e: Exception) {
+            logger.error("Failed to broadcast debate ended for stage $stageId", e)
+        }
     }
 
     data class StageDetails(

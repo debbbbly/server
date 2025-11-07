@@ -8,8 +8,8 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
 
-@ConfigurationProperties(prefix = "supabase")
-data class SupabaseConfigProperties(
+@ConfigurationProperties(prefix = "auth")
+data class AuthConfigProperties(
     val url: String = "",
     val publicUrl: String = "",
     val publishableKey: String = "",
@@ -18,8 +18,8 @@ data class SupabaseConfigProperties(
 )
 
 @Configuration
-@EnableConfigurationProperties(SupabaseConfigProperties::class)
-class SupabaseConfig(private val supabaseConfigProperties: SupabaseConfigProperties) {
+@EnableConfigurationProperties(AuthConfigProperties::class)
+class AuthConfig(private val authConfigProperties: AuthConfigProperties) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -30,7 +30,7 @@ class SupabaseConfig(private val supabaseConfigProperties: SupabaseConfigPropert
 
             // Self-hosted Supabase uses symmetric key signing (HS256)
             val secretKey = javax.crypto.spec.SecretKeySpec(
-                supabaseConfigProperties.jwtSecret.toByteArray(),
+                authConfigProperties.jwtSecret.toByteArray(),
                 "HmacSHA256"
             )
 

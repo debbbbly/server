@@ -13,7 +13,7 @@ data class UserModel(
     val userId: String,
     val externalUserId: String,
     var email: String,
-    var username: String? = null,
+    var username: String,
     var birthdate: LocalDate? = null,
     var avatarUrl: String? = null,
     var rank: Int = 0,
