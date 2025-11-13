@@ -100,7 +100,7 @@ class MatchmakingService(
         val expirationThreshold = now.minusSeconds(settings.getMatchTtl() - 1)
 
         val expiredMatches = matchRepository.findAll()
-            .filter { it.updatedAt.isBefore(expirationThreshold) }
+            .filter { it.updatedAt.isBefore(expirationThreshold) && it.status == MatchStatus.PENDING }
 
         if (expiredMatches.isNotEmpty()) {
             logger.info("Found {} expired matches to clean up", expiredMatches.size)

@@ -20,4 +20,15 @@ class AsyncConfig {
         executor.initialize()
         return executor
     }
+
+    @Bean(name = ["stageEventExecutor"])
+    fun stageEventExecutor(): Executor {
+        val executor = ThreadPoolTaskExecutor()
+        executor.corePoolSize = 2
+        executor.maxPoolSize = 5
+        executor.queueCapacity = 100
+        executor.setThreadNamePrefix("stage-event-")
+        executor.initialize()
+        return executor
+    }
 }

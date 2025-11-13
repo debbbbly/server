@@ -14,12 +14,11 @@ import com.debbly.server.pusher.model.PusherEventName.*
 import com.debbly.server.pusher.model.PusherMessage
 import com.debbly.server.pusher.model.PusherMessage.Companion.message
 import com.debbly.server.pusher.model.PusherMessageType.STAGE_CLOSED
-import com.debbly.server.pusher.model.PusherMessageType.STAGE_OPEN
 import com.debbly.server.pusher.service.PusherService
 import com.debbly.server.settings.SettingsService
-import com.debbly.server.settings.UserSettingsName
 import com.debbly.server.settings.repository.UserSettingsCachedRepository
 import com.debbly.server.stage.config.StageProperties
+import com.debbly.server.stage.event.AllHostsJoinedEvent
 import com.debbly.server.stage.model.LiveStageEntity
 import com.debbly.server.stage.model.LiveStageHost
 import com.debbly.server.stage.model.StageModel
@@ -30,6 +29,7 @@ import com.debbly.server.stage.repository.entities.StageStatus
 import com.debbly.server.user.SocialType
 import com.debbly.server.user.repository.UserCachedRepository
 import org.slf4j.LoggerFactory
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import java.time.Clock
 import java.time.Instant
@@ -50,7 +50,8 @@ class StageService(
     private val s3Config: S3LiveKitProperties,
     private val clock: Clock,
     private val socialUsernameCachedRepository: com.debbly.server.user.repository.SocialUsernameCachedRepository,
-    private val pusherService: PusherService
+    private val pusherService: PusherService,
+    private val eventPublisher: ApplicationEventPublisher
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -379,125 +380,8 @@ class StageService(
         if (liveKitParticipants.map { it.identity }.toSet()
                 .containsAll(allHostUserIds) && stage.status == StageStatus.PENDING
         ) {
-            // All hosts joined, open the stage
-            logger.info("All hosts joined stage: '$stageId'. Opening stage.")
-            val openedAt = Instant.now(clock)
-            val updatedStage = stage.copy(
-                status = StageStatus.OPEN,
-                openedAt = openedAt
-            )
-            stageRepository.save(updatedStage)
-
-            // Update ranks for all hosts
-            updateUserRanks(allHostUserIds)
-
-            // Create live stage in Redis and start egress
-            createLiveStageWithEgress(updatedStage, openedAt)
-
-            // Broadcast debate started event to stage channel
-            broadcastDebateStarted(stageId, updatedStage)
+            eventPublisher.publishEvent(AllHostsJoinedEvent(stageId))
         }
-    }
-
-    private fun updateUserRanks(userIds: List<String>) {
-        userIds.forEach { userId ->
-            try {
-                val stagesHosted = stageRepository.findAllByHostUserIdInLast30Days(userId)
-                val newRank = stagesHosted.size
-
-                val user = userCachedRepository.findById(userId)
-                if (user != null) {
-                    val updatedUser = user.copy(rank = newRank)
-                    userCachedRepository.save(updatedUser)
-                    logger.debug("Updated rank for user $userId to $newRank")
-                }
-            } catch (e: Exception) {
-                logger.error("Error updating rank for user $userId", e)
-            }
-        }
-    }
-
-    private fun createLiveStageWithEgress(stage: StageModel, openedAt: Instant) {
-        val users = stage.hosts.mapNotNull { userCachedRepository.findById(it.userId) }.associateBy { it.userId }
-        val claim = stage.claimId?.let { claimCachedRepository.getById(it) }
-
-        val shouldStartEgress = shouldStartEgressForStage(stage)
-
-        val egressId = if (shouldStartEgress) {
-            val egressInfo = try {
-                liveKitService.startRoomCompositeEgress(stage.stageId)
-            } catch (e: Exception) {
-                logger.error("Failed to start egress for stage ${stage.stageId}", e)
-                null
-            }
-
-            if (egressInfo?.egressId != null) {
-                logger.info("Started egress recording for stage ${stage.stageId}, egressId: ${egressInfo.egressId}")
-
-                // Build HLS URL from S3 config
-                val hlsUrl = buildHlsUrl(stage.stageId)
-
-                // Update stage with HLS URL
-                val updatedStage = stage.copy(hlsUrl = hlsUrl)
-                stageRepository.save(updatedStage)
-
-                logger.info("Updated stage ${stage.stageId} with HLS URL: $hlsUrl")
-                egressInfo.egressId
-            } else {
-                logger.warn("Failed to start egress recording for stage ${stage.stageId}")
-                null
-            }
-        } else {
-            null
-        }
-
-        // liveKitService.startThumbnailEgress(stage.stageId)
-
-        liveStageRedisRepository.save(
-            LiveStageEntity(
-                stageId = stage.stageId,
-                type = stage.type,
-                hosts = stage.hosts.mapNotNull { host ->
-                    users[host.userId]?.let { user ->
-                        LiveStageHost(
-                            userId = user.userId,
-                            username = user.username ?: "unknown",
-                            userUrl = user.avatarUrl,
-                            stance = host.stance
-                        )
-                    }
-                },
-                claimId = stage.claimId,
-                title = claim?.title,
-                openedAt = openedAt,
-                heartbeatAt = Instant.now(clock),
-                egressId = egressId
-            )
-        )
-    }
-
-    private fun buildHlsUrl(stageId: String): String {
-        return "${s3Config.publicEndpoint}/${s3Config.bucket.egress}/$stageId/playlist.m3u8"
-    }
-
-    private fun shouldStartEgressForStage(stage: StageModel): Boolean {
-        val maxEgressCount = settingsService.getSystemEgressLimit()
-        val currentActiveEgressCount = liveKitService.countActiveRoomCompositeEgresses()
-
-        if (currentActiveEgressCount >= maxEgressCount) {
-            logger.warn("Max egress limit reached ($currentActiveEgressCount/$maxEgressCount). Cannot start egress for stage ${stage.stageId}")
-            return false
-        }
-
-        val hasUserRequiringEgress = stage.hosts.any { host ->
-            val setting = userSettingsRepository.findByUserIdAndName(
-                host.userId,
-                UserSettingsName.ALWAYS_EGRESS_STAGE_HLS
-            )
-            setting?.value == "true"
-        }
-
-        return hasUserRequiringEgress
     }
 
     private fun stopEgressIfActive(stageId: String) {
@@ -596,21 +480,6 @@ class StageService(
         broadcastDebateEnded(stage.stageId, closedStage, "timeout")
 
         logger.info("Successfully closed stage ${stage.stageId} due to timeout")
-    }
-
-    private fun broadcastDebateStarted(stageId: String, stage: StageModel) {
-        try {
-            val data = mapOf(
-                "stageId" to stageId,
-//                "openedAt" to stage.openedAt,
-//                "limitMinutes" to stageProperties.limitMinutes
-            )
-            val message = message(STAGE_OPEN, data)
-            pusherService.sendChannelMessage(stageId, STAGE_EVENT, message)
-            logger.info("Broadcast debate started for stage $stageId")
-        } catch (e: Exception) {
-            logger.error("Failed to broadcast debate started for stage $stageId", e)
-        }
     }
 
     private fun broadcastDebateEnded(stageId: String, stage: StageModel, reason: String) {

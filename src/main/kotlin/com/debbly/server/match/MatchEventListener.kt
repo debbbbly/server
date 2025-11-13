@@ -55,6 +55,7 @@ class MatchEventListener(
 
         try {
             stageService.createStage(event.match)
+
             matchNotificationService.notifyMatchAcceptedAll(event.match)
         } catch (e: Exception) {
             logger.error("Failed to handle MatchAcceptedAllEvent for match ${event.match.matchId}", e)
