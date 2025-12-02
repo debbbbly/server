@@ -1,10 +1,28 @@
 name: debbly
 
-networks:
-  debbly-network:
-    driver: bridge
-
 services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: debbly-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - debbly-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -18,35 +36,39 @@ services:
     networks:
       - debbly-network
 
+  # LiveKit - Real-time video/audio communication server for live calls
+  # Depends on Redis used for distributed locks and room state
   livekit:
     image: livekit/livekit-server:latest
     container_name: debbly-livekit
     restart: unless-stopped
     ports:
-      - "7880:7880"
-      - "7881:7881"
-      - "6789:6789"
-      - "6000-6100:6000-6100/udp"
+      - "7880:7880"              # HTTP API
+      - "7881:7881"              # WebRTC over TCP
+      - "6789:6789"              # TURN server for NAT traversal
+      - "6000-6100:6000-6100/udp"  # WebRTC media ports (UDP)
     volumes:
       - ./livekit.yaml:/livekit.yaml
     env_file:
-      - .env.local
-    command: ["--config", "/livekit.yaml"]
+      - .env
+    command: [ "--config", "/livekit.yaml" ]
     depends_on:
       - redis
     networks:
       - debbly-network
 
+  # Egress - Records and exports debate sessions to S3 storage
+  # Needs both Redis (for queue management) and LiveKit (for room access)
   egress:
     image: livekit/egress:latest
     container_name: debbly-egress
     restart: always
     ports:
-      - "9094:9094"
+      - "9094:9094"  # Egress service API
     volumes:
       - ./egress.yaml:/egress.yaml
     env_file:
-      - .env.local
+      - .env
     environment:
       - EGRESS_CONFIG_FILE=/egress.yaml
     depends_on:
@@ -55,38 +77,37 @@ services:
     networks:
       - debbly-network
 
-  prometheus:
-    image: prom/prometheus
-    container_name: debbly-prometheus
+  # MinIO - S3-compatible local object storage for debate recordings
+  # After first startup, create 'egress' bucket via web console
+  # Access console at http://localhost:9001 with credentials from .env
+  minio:
+    image: minio/minio:latest
+    container_name: debbly-minio
     restart: unless-stopped
+    env_file:
+      - .env
     ports:
-      - "9090:9090"
+      - "9000:9000"  # S3 API endpoint
+      - "9001:9001"  # Web console UI
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    depends_on:
-      - livekit
-      - egress
-    networks:
-      - debbly-network
-
-  grafana:
-    image: grafana/grafana
-    container_name: debbly-grafana
-    restart: unless-stopped
-    ports:
-      - "4000:3000"
+      - minio_data:/data
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana_data:/var/lib/grafana
-    depends_on:
-      - prometheus
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
     networks:
       - debbly-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 30s
+      timeout: 20s
+      retries: 3
 
 volumes:
   redis_data:
-  prometheus_data:
-  grafana_data:
+  postgres_data:
+  minio_data:
+
+networks:
+  debbly-network:
+    driver: bridge
