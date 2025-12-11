@@ -47,7 +47,7 @@ class S3Service(
     }
 
     private fun buildPublicUrl(bucket: String, key: String): String {
-        return "${s3ConfigProperties.publicEndpoint}/$bucket/$key"
+        return "${s3ConfigProperties.endpoint}/$bucket/$key"
     }
 
     private fun extractKeyFromUrl(url: String, bucket: String): String? {

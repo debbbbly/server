@@ -30,11 +30,11 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     properties:
       hibernate:
-        default_schema: debbly
+        default_schema: ${DB_SCHEMA}
 
   liquibase:
     change-log: classpath:/db/changelog/db.changelog-master.yaml
-    default-schema: debbly
+    default-schema: ${DB_SCHEMA}
   data:
     redis:
       url: ${REDIS_URL:redis://${REDIS_HOST:localhost}:${REDIS_PORT:6379}}
@@ -74,14 +74,12 @@ livekit:
 auth:
   url: ${AUTH_URL:${AUTH_PUBLIC_URL}}
   public-url: ${AUTH_PUBLIC_URL}
-  publishable-key: ${AUTH_PUBLISHABLE_KEY}
-  secret-key: ${AUTH_SECRET_KEY}
   jwt-secret: ${AUTH_JWT_SECRET}
 
 s3:
   default:
     endpoint: ${S3_DEFAULT_ENDPOINT}
-    public-endpoint: ${S3_DEFAULT_PUBLIC_ENDPOINT}
+#    public-endpoint: ${S3_DEFAULT_PUBLIC_ENDPOINT}
     region: ${S3_DEFAULT_REGION}
     access-key: ${S3_DEFAULT_ACCESS_KEY}
     secret: ${S3_DEFAULT_SECRET}
@@ -89,7 +87,7 @@ s3:
       users: ${S3_DEFAULT_BUCKET_USERS}
   lk:
     endpoint: ${S3_LK_ENDPOINT}
-    public-endpoint: ${S3_LK_PUBLIC_ENDPOINT}
+#    public-endpoint: ${S3_LK_PUBLIC_ENDPOINT}
     region: ${S3_LK_REGION}
     access-key: ${S3_LK_ACCESS_KEY}
     secret: ${S3_LK_SECRET}

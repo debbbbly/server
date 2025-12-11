@@ -11,10 +11,10 @@ redis:
   address: redis:6379
 
 keys:
-  dev-livekit-api-key-for-development: dev-livekit-api-secret-for-development
+  livekit-api-key-for-local-development: livekit-api-secret-for-local-development
 
 webhook:
-  api_key: dev-livekit-api-key-for-development
+  api_key: livekit-api-key-for-local-development
   urls:
     - 'http://host.docker.internal:8080/livekit/webhook'
 

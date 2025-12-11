@@ -703,3 +703,13 @@ databaseChangeLog:
         - dropColumn:
             tableName: claim_proposals
             columnName: resulting_claim_id
+  - changeSet:
+      id: 12
+      author: claude
+      changes:
+        - update:
+            tableName: categories
+            columns:
+              - column:
+                  name: active
+                  valueBoolean: true

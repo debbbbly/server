@@ -2,15 +2,7 @@
 
 There are very few steps you have to do to run, test and develop Debbly locally.
 
-## Backend
-
-### 1. Check out backend (server)
-
-```bash
-git clone git@github.com:debbbbly/server.git
-```
-
-### 2. Start Docker containers
+### 1. Start infrastructure Docker containers
 
 Go to `/local` folder and start Docker containers for Redis, Postgres, LiveKit, Egress, and MinIO:
 
@@ -20,13 +12,13 @@ docker-compose up -d
 ```
 
 This will start:
+
 - **Postgres** - Database on port 5432
 - **Redis** - Cache and queue on port 6379
 - **LiveKit** - Real-time video/audio server on port 7880
 - **LiveKit Egress** - Recording service on port 9094
-- **MinIO** - S3-compatible storage on ports 9000 (API) and 9001 (console)
 
-### 3. Verify all services are running
+### 1.1 Verify all services are running
 
 ```bash
 docker-compose ps
@@ -37,8 +29,6 @@ All services should show status "Up" or "Up (healthy)". If any service is restar
 ```bash
 docker-compose logs [service-name]
 ```
-
-## Quick Tests
 
 ### Postgres
 
@@ -72,20 +62,6 @@ Expected output: `PONG`
 redis-cli -h localhost -p 6379
 ```
 
-### MinIO
-
-Open your browser and navigate to:
-
-```
-http://localhost:9001
-```
-
-Login with credentials from `.env`:
-- **Username:** `debbly_user`
-- **Password:** `debbly_password`
-
-**Important:** Create an `egress` bucket in the MinIO UI after first login. This bucket is required for LiveKit Egress to store debate recordings.
-
 ### LiveKit
 
 Test the LiveKit server by opening in your browser:
@@ -96,24 +72,47 @@ http://localhost:7880
 
 You should get `OK` back, indicating the LiveKit server is running properly.
 
-## Environment Variables
+## 2. Set Environment Variables
 
-All configuration is stored in the `.env` file in the `/local` directory. Default development credentials:
+In IntelliJ IDEA go to Run > Edit Configurations and set Environment variables:
 
-- **Database:** `debbly_user` / `debbly_password` / `debbly`
-- **MinIO:** `debbly_user` / `debbly_password`
-- **LiveKit API:** See `.env` file for keys
+```
+AUTH_JWT_SECRET=
+AUTH_PUBLIC_URL=
 
-## Stopping Services
+DB_NAME=debbly
+DB_PASSWORD=debbly_password
+DB_SCHEMA=public
+DB_URL=jdbc:postgresql://localhost:5432/debbly
+DB_USER=debbly_user
+DB_USERNAME=debbly_user
 
-To stop all services:
+LIVEKIT_API_KEY=livekit-api-key-for-local-development
+LIVEKIT_API_SECRET=livekit-api-secret-for-local-development
+LIVEKIT_API_URL=http://localhost:7880
+LIVEKIT_WS_URL=ws://localhost:7880
 
-```bash
-docker-compose down
+OPENAI_API_KEY=
+OPENAI_API_MODEL=gpt-5-nano
+
+PUSHER_APP_ID=2085654
+PUSHER_CLUSTER=mt1
+PUSHER_KEY=
+PUSHER_SECRET=
+
+REDIS_HOST=localhost
+
+S3_DEFAULT_ACCESS_KEY=
+S3_DEFAULT_BUCKET_USERS=
+S3_DEFAULT_ENDPOINT=https://s3.us-east-1.amazonaws.com
+S3_DEFAULT_REGION=us-east-1
+S3_DEFAULT_SECRET=
+
+S3_LK_ACCESS_KEY=
+S3_LK_BUCKET_EGRESS=
+S3_LK_ENDPOINT=https://s3.us-east-1.amazonaws.com
+S3_LK_REGION=us-east-1
+S3_LK_SECRET=
 ```
 
-To stop and remove all volumes (WARNING: this deletes all data):
-
-```bash
-docker-compose down -v
-```
+# 3. Start the service 

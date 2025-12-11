@@ -1,16 +1,15 @@
 redis:
   address: redis:6379
 
-api_key: dev-livekit-api-key-for-development
-api_secret: dev-livekit-api-secret-for-development
+api_key: livekit-api-key-for-local-development
+api_secret: livekit-api-secret-for-local-development
 ws_url: ws://livekit:7880
 
 s3:
-  endpoint: https://fsn1.your-objectstorage.com
-  access_key: 89OJVM4IPAK8E5Y022WF
-  secret: cUlgL6ZoJxJmWwvWwZufUvR8pTgd9adFMUQfr1XC
-  bucket: debbly-hls
-  force_path_style: true
+  endpoint: https://s3.us-east-1.amazonaws.com
+  access_key: AKIARU3CPQWX2PVVSOOW
+  secret: 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
+  bucket: dev-debbly-egress-113486300591
 
 # Enable Prometheus metrics
 prometheus_port: 9094

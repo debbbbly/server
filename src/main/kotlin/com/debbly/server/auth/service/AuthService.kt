@@ -139,8 +139,6 @@ class AuthService(
         }
     }
 
-
-
     fun confirmSignUp(token: String, type: String = "signup"): SupabaseAuthResponse {
         val url = "${authConfig.url}/verify"
         val headers = createHeaders()
@@ -275,15 +273,19 @@ class AuthService(
     private fun createHeaders(): HttpHeaders {
         val headers = HttpHeaders()
         headers.contentType = MediaType.APPLICATION_JSON
-        headers["apikey"] = authConfig.publishableKey
+        // For self-hosted GoTrue, use JWT secret as apikey
+//        val apikey = authConfig.publishableKey.ifEmpty { authConfig.jwtSecret }
+//        headers["apikey"] = apikey
         return headers
     }
 
     private fun createAdminHeaders(): HttpHeaders {
         val headers = HttpHeaders()
         headers.contentType = MediaType.APPLICATION_JSON
-        headers["apikey"] = authConfig.secretKey
-        headers["Authorization"] = "Bearer ${authConfig.secretKey}"
+        // For self-hosted GoTrue, use JWT secret for admin operations
+//        val serviceRoleKey = authConfig.secretKey.ifEmpty { authConfig.jwtSecret }
+//        headers["apikey"] = serviceRoleKey
+//        headers["Authorization"] = "Bearer $serviceRoleKey"
         return headers
     }
 

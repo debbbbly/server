@@ -143,7 +143,7 @@ class StageEventListener(
     }
 
     private fun buildHlsUrl(stageId: String): String {
-        return "${s3Config.publicEndpoint}/${s3Config.bucket.egress}/$stageId/playlist.m3u8"
+        return "${s3Config.endpoint}/${s3Config.bucket.egress}/$stageId/playlist.m3u8"
     }
 
     private fun shouldStartEgressForStage(stage: StageModel): Boolean {
