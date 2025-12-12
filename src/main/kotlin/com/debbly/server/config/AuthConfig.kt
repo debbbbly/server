@@ -7,13 +7,12 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
+import javax.crypto.spec.SecretKeySpec
 
 @ConfigurationProperties(prefix = "auth")
 data class AuthConfigProperties(
     val url: String = "",
     val publicUrl: String = "",
-    val publishableKey: String = "",
-    val secretKey: String = "",
     val jwtSecret: String = "",
 )
 
@@ -26,10 +25,8 @@ class AuthConfig(private val authConfigProperties: AuthConfigProperties) {
     @Bean
     fun jwtDecoder(): JwtDecoder {
         return try {
-            logger.info("Configuring JWT decoder for self-hosted Supabase with JWT secret")
 
-            // Self-hosted Supabase uses symmetric key signing (HS256)
-            val secretKey = javax.crypto.spec.SecretKeySpec(
+            val secretKey = SecretKeySpec(
                 authConfigProperties.jwtSecret.toByteArray(),
                 "HmacSHA256"
             )
@@ -38,11 +35,10 @@ class AuthConfig(private val authConfigProperties: AuthConfigProperties) {
                 .withSecretKey(secretKey)
                 .build()
                 .apply {
-                    logger.info("JWT decoder configured successfully for self-hosted Supabase")
+                    logger.info("JWT decoder configured successfully with HS256 algorithm")
                 }
         } catch (e: Exception) {
-            logger.error("Failed to configure JWT decoder for Supabase", e)
-            throw IllegalStateException("Could not configure JWT decoder for Supabase authentication", e)
+            throw IllegalStateException("Could not configure JWT decoder for GoTrue authentication", e)
         }
     }
 }

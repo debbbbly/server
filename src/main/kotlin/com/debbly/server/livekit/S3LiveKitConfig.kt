@@ -13,7 +13,6 @@ import java.net.URI
 @ConfigurationProperties(prefix = "s3.lk")
 data class S3LiveKitProperties(
     val endpoint: String = "",
-    val publicEndpoint: String = "",
     val bucket: BucketConfig = BucketConfig(),
     val region: String = "",
     val accessKey: String = "",

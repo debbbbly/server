@@ -38,7 +38,6 @@ class StageController(
         return ResponseEntity.ok(stageDetails)
     }
 
-
     //TODO backdoor for testing purposes
     @PostMapping
     fun createStage( @RequestBody request: CreateStageRequest): ResponseEntity<StageModel> {
