@@ -16,7 +16,6 @@ import com.debbly.server.stage.model.LiveStageHost
 import com.debbly.server.stage.model.StageModel
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageCachedRepository
-import com.debbly.server.stage.repository.entities.StageStatus
 import com.debbly.server.user.repository.UserCachedRepository
 import org.slf4j.LoggerFactory
 import org.springframework.context.event.EventListener
@@ -147,7 +146,7 @@ class StageEventListener(
     }
 
     private fun shouldStartEgressForStage(stage: StageModel): Boolean {
-        val maxEgressCount = settingsService.getSystemEgressLimit()
+        val maxEgressCount = settingsService.getHlsParallelLimit()
         val currentActiveEgressCount = liveKitService.countActiveRoomCompositeEgresses()
 
         if (currentActiveEgressCount >= maxEgressCount) {
@@ -158,7 +157,7 @@ class StageEventListener(
         val hasUserRequiringEgress = stage.hosts.any { host ->
             val setting = userSettingsRepository.findByUserIdAndName(
                 host.userId,
-                UserSettingsName.ALWAYS_EGRESS_STAGE_HLS
+                UserSettingsName.ALWAYS_EGRESS
             )
             setting?.value == "true"
         }

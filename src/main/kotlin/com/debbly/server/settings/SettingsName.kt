@@ -1,6 +1,7 @@
 package com.debbly.server.settings
 
 enum class SettingsName {
-    SYSTEM_EGRESS_LIMIT,
-    HLS_SEGMENT_DURATION
+    HLS_PARALLEL_LIMIT,
+    HLS_SEGMENT_DURATION,
+    DEBATE_STAGE_DURATION
 }

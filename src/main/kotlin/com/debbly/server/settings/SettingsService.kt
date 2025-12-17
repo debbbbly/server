@@ -1,7 +1,8 @@
 package com.debbly.server.settings
 
 import com.debbly.server.settings.SettingsName.HLS_SEGMENT_DURATION
-import com.debbly.server.settings.SettingsName.SYSTEM_EGRESS_LIMIT
+import com.debbly.server.settings.SettingsName.HLS_PARALLEL_LIMIT
+import com.debbly.server.settings.SettingsName.DEBATE_STAGE_DURATION
 import com.debbly.server.settings.repository.SettingsJpaRepository
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.github.benmanes.caffeine.cache.LoadingCache
@@ -14,8 +15,9 @@ class SettingsService(
     private val settingsRepository: SettingsJpaRepository
 ) {
     companion object {
-        const val SYSTEM_EGRESS_LIMIT_DEFAULT = 2;
-        const val HLS_SEGMENT_DURATION_DEFAULT = 2;
+        const val HLS_PARALLEL_LIMIT_DEFAULT = 2;
+        const val HLS_SEGMENT_DURATION_DEFAULT = 4;
+        const val DEBATE_STAGE_DURATION_DEFAULT = 15 * 60;
     }
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -29,9 +31,9 @@ class SettingsService(
                 .also { logger.debug("Loaded setting {} from database: {}", key, it) }
         }
 
-    fun getSystemEgressLimit(): Int {
-        val value = cache.get(SYSTEM_EGRESS_LIMIT)
-        return value.toIntOrNull() ?: SYSTEM_EGRESS_LIMIT_DEFAULT
+    fun getHlsParallelLimit(): Int {
+        val value = cache.get(HLS_PARALLEL_LIMIT)
+        return value.toIntOrNull() ?: HLS_PARALLEL_LIMIT_DEFAULT
     }
 
     fun getHlsSegmentDuration(): Int {
@@ -41,6 +43,11 @@ class SettingsService(
 
     fun getMatchTtl(): Long {
         return 20;
+    }
+
+    fun getDebateStageDuration(): Int {
+        val value = cache.get(DEBATE_STAGE_DURATION)
+        return value.toIntOrNull() ?: DEBATE_STAGE_DURATION_DEFAULT
     }
 
     fun getSetting(name: SettingsName): String? {

@@ -32,7 +32,7 @@ class MatchController(
         return ResponseEntity.ok().build()
     }
 
-    // TODO: remove ??? looks like a backdoor
+    // TODO: remove, looks like a backdoor
     @GetMapping("/queue")
     fun getQueue(): ResponseEntity<GetQueueResponse> {
         return ResponseEntity.ok(GetQueueResponse(matchService.getQueue()))

@@ -28,6 +28,7 @@ import com.debbly.server.stage.repository.StageCachedRepository
 import com.debbly.server.stage.repository.entities.StageStatus
 import com.debbly.server.user.SocialType
 import com.debbly.server.user.repository.UserCachedRepository
+import com.debbly.server.match.repository.MatchRepository
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
@@ -51,7 +52,8 @@ class StageService(
     private val clock: Clock,
     private val socialUsernameCachedRepository: com.debbly.server.user.repository.SocialUsernameCachedRepository,
     private val pusherService: PusherService,
-    private val eventPublisher: ApplicationEventPublisher
+    private val eventPublisher: ApplicationEventPublisher,
+    private val matchRepository: MatchRepository
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -190,7 +192,7 @@ class StageService(
             createdAt = stage.createdAt,
             openedAt = stage.openedAt,
             closedAt = stage.closedAt,
-            limitMinutes = stageProperties.limitMinutes,
+            limitMinutes = settingsService.getDebateStageDuration() / 60,
             hlsUrl = stage.hlsUrl
         )
     }
@@ -358,6 +360,10 @@ class StageService(
             stageRepository.save(closedStage)
             liveStageRedisRepository.deleteById(stage.stageId)
 
+            // Delete the related match (has the same ID as stage)
+            matchRepository.delete(stageId)
+            logger.info("Deleted match for stage $stageId")
+
             // End the LiveKit room
             liveKitService.endRoom(stage.stageId)
 
@@ -433,8 +439,8 @@ class StageService(
      */
     fun closeExpiredStages() {
         val now = Instant.now(clock)
-        val timeLimitSeconds = stageProperties.limitMinutes * 60L
-        val cutoffTime = now.minusSeconds(timeLimitSeconds)
+        val timeLimitSeconds = settingsService.getDebateStageDuration()
+        val cutoffTime = now.minusSeconds(timeLimitSeconds.toLong())
 
         // Find live stages (Redis) that have exceeded the time limit
         val expiredLiveStages = liveStageRedisRepository.findAll()
@@ -444,12 +450,11 @@ class StageService(
 
         expiredLiveStages.forEach { liveStage ->
             try {
-                // Stop egress recording before closing expired stage
                 stopEgressIfActive(liveStage.stageId)
 
-                // Get the full stage model from database for closeStage()
                 val stage = stageRepository.findById(liveStage.stageId)
                 if (stage != null) {
+                    logger.info("Closing stage ${stage.stageId} due to time limit (${timeLimitSeconds / 60} minutes)")
                     closeStage(stage)
                 } else {
                     logger.warn("Stage ${liveStage.stageId} found in Redis but not in database, cleaning up Redis")
@@ -462,7 +467,6 @@ class StageService(
     }
 
     private fun closeStage(stage: StageModel) {
-        logger.info("Closing stage ${stage.stageId} due to time limit (${stageProperties.limitMinutes} minutes)")
 
         val roomClosed = liveKitService.endRoom(stage.stageId)
         if (!roomClosed) {

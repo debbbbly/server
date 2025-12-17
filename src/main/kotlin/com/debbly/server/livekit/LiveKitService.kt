@@ -20,7 +20,7 @@ class LiveKitService(
     private val settings: SettingsService
 ) {
     companion object {
-        private const val DEFAULT_TOKEN_TTL: Long = 60 * 15;
+        private const val TOKEN_TTL_EXTRA_SECONDS: Long = 60;
     }
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -30,7 +30,7 @@ class LiveKitService(
         val response = call.execute()
 
         if (response.isSuccessful) {
-            logger.info("Created room: $stageId with maxParticipants: $maxParticipants, timeout: ${emptyTimeoutSeconds}min")
+            logger.info("Created room: $stageId with maxParticipants: $maxParticipants, empty timeout: ${emptyTimeoutSeconds}min")
             return response.body()
         } else {
             logger.error("Failed to create room $stageId: ${response.code()} ${response.message()}")
@@ -232,7 +232,7 @@ class LiveKitService(
 
             name = tokenUserId
             identity = tokenUserId
-            ttl = DEFAULT_TOKEN_TTL
+            ttl = settings.getDebateStageDuration().toLong() + TOKEN_TTL_EXTRA_SECONDS
             metadata = null
 
             addGrants(
