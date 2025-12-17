@@ -27,6 +27,48 @@ class OpenAIService(
     private val restTemplate = RestTemplate()
     private val moderationUrl = "https://api.openai.com/v1/moderations"
 
+    companion object {
+        private val MODERATION_REPLACEMENT_MESSAGES = listOf(
+            "I was about to say something… but moderation saved us all",
+            "My brain started a sentence and immediately shut it down",
+            "My thoughts did not pass internal review",
+            "I had a point. It ran away",
+            "I almost typed something",
+            "Let's pretend this message was very smart",
+            "I forgot what I was trying to say",
+            "My thoughts are not PG-13 right now",
+            "This message was canceled",
+            "I decided silence is better",
+            "This sounded better in my head",
+            "I started typing and lost confidence",
+            "I will respectfully not finish my thought",
+            "My brain said \"nope\"",
+            "My message failed the vibe check",
+            "I had a sentence, then reconsidered my life choices",
+            "I chose not to send the original message",
+            "My thoughts took a wrong turn",
+            "I almost said something",
+            "I stopped myself just in time",
+            "I'll pretend this message made sense",
+            "I started typing and immediately regretted it",
+            "This thought did not age well",
+            "I'm not sure what I was trying to achieve here",
+            "I decided not to continue this sentence",
+            "That idea sounded better five seconds ago",
+            "I had words. They're gone now",
+            "I'm going to leave this unfinished",
+            "My brain rebooted mid-message",
+            "This message is a placeholder for a better one",
+            "I was about to say something unnecessary",
+            "I forgot my point halfway through",
+            "I'll save my thought for never",
+            "I stopped typing for everyone's benefit",
+            "I realized this wasn't worth finishing",
+            "I had a thought. It expired",
+            "Love"
+        )
+    }
+
     fun validateClaim(title: String): ClaimValidationResult {
         val prompt = """
             You are a content moderator and classifier for an online debating platform 
@@ -326,6 +368,48 @@ class OpenAIService(
             BioValidationResult(valid = true, reason = "")
         }
     }
+
+    fun moderateChatMessage(message: String): ChatModerationResult {
+        return try {
+            val headers = HttpHeaders()
+            headers.contentType = MediaType.APPLICATION_JSON
+            headers.setBearerAuth(openaiApiKey)
+
+            val requestBody = mapOf(
+                "model" to "omni-moderation-latest",
+                "input" to message
+            )
+
+            val request = HttpEntity(requestBody, headers)
+            val response = restTemplate.postForObject(
+                moderationUrl,
+                request,
+                ModerationResponse::class.java
+            )
+
+            val result = response?.results?.firstOrNull()
+            if (result?.flagged == true) {
+                val replacementMessage = MODERATION_REPLACEMENT_MESSAGES.random()
+                logger.info("Chat message moderated and replaced with: $replacementMessage")
+                ChatModerationResult(
+                    message = replacementMessage,
+                    wasModerated = true
+                )
+            } else {
+                ChatModerationResult(
+                    message = message,
+                    wasModerated = false
+                )
+            }
+        } catch (e: Exception) {
+            logger.error("Error moderating chat message: ${e.message}", e)
+            // Fail open - return original message if moderation check fails
+            ChatModerationResult(
+                message = message,
+                wasModerated = false
+            )
+        }
+    }
 }
 
 data class ClaimValidationResult(
@@ -364,4 +448,9 @@ data class ModerationResult(
     val categories: Map<String, Boolean>,
     @JsonProperty("category_scores")
     val categoryScores: Map<String, Double>? = null
+)
+
+data class ChatModerationResult(
+    val message: String,
+    val wasModerated: Boolean
 )

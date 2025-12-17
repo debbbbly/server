@@ -1,5 +1,6 @@
 package com.debbly.server.chat
 
+import com.debbly.server.ai.OpenAIService
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.auth.service.AuthService
 import com.debbly.server.pusher.model.ChannelHistoryResponse
@@ -19,7 +20,8 @@ import org.springframework.web.bind.annotation.*
 class ChatController(
     private val pusherService: PusherService,
     private val chatService: ChatService,
-    private val authService: AuthService
+    private val authService: AuthService,
+    private val openAIService: OpenAIService
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -32,11 +34,13 @@ class ChatController(
         try {
             val user = authService.authenticate(externalUserId)
 
+            val moderationResult = openAIService.moderateChatMessage(request.message)
+
             val channelMessage = chatService.saveMessage(
                 channelId = chatId,
                 userId = user.userId,
                 username = user.username,
-                message = request.message
+                message = moderationResult.message
             )
 
             val response = ChannelMessageResponse(
