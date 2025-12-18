@@ -1,6 +1,7 @@
 package com.debbly.server.stage
 
 import com.debbly.server.livekit.LiveKitService
+import com.debbly.server.settings.SettingsService
 import com.debbly.server.stage.config.StageProperties
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
@@ -12,6 +13,7 @@ import java.time.Instant
 class EgressCleanupTask(
     private val liveKitService: LiveKitService,
     private val stageProperties: StageProperties,
+    private val settingsService: SettingsService,
     private val clock: Clock
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -23,6 +25,10 @@ class EgressCleanupTask(
     @Scheduled(fixedRate = 300000) // 5 minutes
     fun cleanupOldEgresses() {
         try {
+            if (!settingsService.isCleanupOldEgresses()) {
+                return
+            }
+
             logger.debug("Checking for old egresses to cleanup...")
 
             val now = Instant.now(clock)

@@ -1,8 +1,6 @@
 package com.debbly.server.settings
 
-import com.debbly.server.settings.SettingsName.HLS_SEGMENT_DURATION
-import com.debbly.server.settings.SettingsName.HLS_PARALLEL_LIMIT
-import com.debbly.server.settings.SettingsName.DEBATE_STAGE_DURATION
+import com.debbly.server.settings.SettingsName.*
 import com.debbly.server.settings.repository.SettingsJpaRepository
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.github.benmanes.caffeine.cache.LoadingCache
@@ -18,6 +16,7 @@ class SettingsService(
         const val HLS_PARALLEL_LIMIT_DEFAULT = 2;
         const val HLS_SEGMENT_DURATION_DEFAULT = 4;
         const val DEBATE_STAGE_DURATION_DEFAULT = 15 * 60;
+        const val CLEANUP_OLD_EGRESSES_DEFAULT = false;
     }
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -48,6 +47,11 @@ class SettingsService(
     fun getDebateStageDuration(): Int {
         val value = cache.get(DEBATE_STAGE_DURATION)
         return value.toIntOrNull() ?: DEBATE_STAGE_DURATION_DEFAULT
+    }
+
+    fun isCleanupOldEgresses(): Boolean {
+        val value = cache.get(CLEANUP_OLD_EGRESSES)
+        return value.toBooleanStrictOrNull() ?: CLEANUP_OLD_EGRESSES_DEFAULT
     }
 
     fun getSetting(name: SettingsName): String? {
