@@ -53,4 +53,13 @@ class MatchNotificationService(
         val message = message(MATCH_EXPIRED, data)
         pusherService.sendUserNotifications(userIds, MATCH_EVENT, message)
     }
+
+    fun notifyMatchFailed(match: Match, reason: String) {
+        val userIds = match.opponents.map { it.userId }
+        val data = mapOf(
+            "matchId" to match.matchId,
+            "reason" to reason
+        )
+        pusherService.sendUserNotifications(userIds, MATCH_EVENT, message(MATCH_FAILED, data))
+    }
 }
