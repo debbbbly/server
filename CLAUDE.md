@@ -3,7 +3,8 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
-Debbly is a live video debating platform built with Kotlin/Spring Boot. The backend handles user authentication via AWS Cognito, debate matching, live debate room management through LiveKit, and claim/stance tracking.
+Debbly is a live video debating platform built with Kotlin/Spring Boot. 
+The backend handles user authentication via self hosted Supabase Auth (GoTrue), debate matching, live debate room management through LiveKit, and claim/stance tracking.
 
 ## Development Commands
 
@@ -26,13 +27,12 @@ Debbly is a live video debating platform built with Kotlin/Spring Boot. The back
 ## Architecture Overview
 
 ### Core Components
-- **Authentication**: AWS Cognito integration with JWT tokens, supports both header and cookie-based auth
 - **Matchmaking**: Redis-based queue system for matching users for debates
 - **Live Rooms**: LiveKit integration for real-time video/audio communication
 - **Claims System**: Users can take stances on debate claims with categories and tags
 
 ### Key Modules
-- **auth/**: Cognito authentication, JWT configuration, rate limiting
+- **auth/**: Self hosted Supabase Auth (GoTrue), JWT configuration
 - **backstage/**: Matchmaking queue and match management  
 - **stage/**: Live debate room/stage management with caching layer
 - **claim/**: Debate claims, categories, tags, and user stances
@@ -50,7 +50,7 @@ Debbly is a live video debating platform built with Kotlin/Spring Boot. The back
 - Configuration in `application.yml` and `application-test.yml`
 
 ### Security
-- JWT-based authentication with AWS Cognito
+- JWT-based authentication with self hosted Supabase Auth (GoTrue)
 - CORS configured for localhost:3000 (frontend)
 - Rate limiting on authentication endpoints
 - Most endpoints are permitAll except logout
