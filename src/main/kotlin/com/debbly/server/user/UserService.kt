@@ -12,7 +12,6 @@ import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.cache.CacheManager
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
-import kotlin.random.Random
 
 @Service
 class UserService(
@@ -22,7 +21,8 @@ class UserService(
     private val openAIService: OpenAIService,
     private val s3Service: S3Service,
     private val cacheManager: CacheManager,
-    private val authService: AuthService
+    private val authService: AuthService,
+    private val usernameService: UsernameService
 ) {
 
     fun createUser(externalUserId: String, email: String): UserModel {
@@ -31,8 +31,7 @@ class UserService(
             return existingUser
         }
 
-        val generatedUsernames = openAIService.generateUsernames(email)
-        val username = takeAvailable(generatedUsernames)
+        val username = usernameService.generateUsername()
         val avatarUrl = "https://api.dicebear.com/9.x/initials/svg?seed=${username}"
 
         val newUser = UserModel(
@@ -44,16 +43,6 @@ class UserService(
         )
 
         return userCachedRepository.save(newUser)
-    }
-
-    private fun takeAvailable(generatedUsernames: List<String>): String {
-        for (username in generatedUsernames) {
-            if (userCachedRepository.findByUsername(username) == null) {
-                return username
-            }
-        }
-
-        return (generatedUsernames.firstOrNull() ?: "User") + Random.nextInt(100000, 999999)
     }
 
     fun updateUsername(user: UserModel, newUsername: String, accessToken: String? = null): UpdateUsernameResult {
