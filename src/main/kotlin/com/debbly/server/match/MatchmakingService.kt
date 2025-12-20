@@ -34,12 +34,23 @@ class MatchmakingService(
 
         val waitingUsers = matchQueueRepository.findAll().sortedBy { it.joinedAt }
         val matchedUsers = mutableSetOf<String>()
+        val queueSize = matchQueueRepository.count()
+
+        logger.info("=== MATCHING CYCLE START ===")
+        logger.info("Queue size: {}, Users waiting: {}", queueSize, waitingUsers.size)
+
+        if (waitingUsers.isEmpty()) {
+            logger.info("=== MATCHING CYCLE END (empty queue) ===")
+            return
+        }
 
         waitingUsers.forEach { user ->
-            logger.debug(
-                "User {} in queue: {} claims, {} skipped, waiting since {}",
-                user.userId, user.claimIdToStance.size, user.skipClaimIds.size, user.joinedAt
+            logger.info(
+                "Queue entry: userId={}, claims={}, skipped={}, joinedAt={}, ignores={}",
+                user.userId, user.claimIdToStance.size, user.skipClaimIds.size, user.joinedAt, user.ignores
             )
+            logger.debug("  -> Claims: {}", user.claimIdToStance)
+            logger.debug("  -> Skip list: {}", user.skipClaimIds)
         }
 
         logger.debug("Phase 1: Matching users by common claims with opposite stances")
@@ -89,9 +100,35 @@ class MatchmakingService(
         }
 
         val finalRemainingUsers = waitingUsers.filter { it.userId !in matchedUsers }
+
+        logger.info("=== MATCHING CYCLE COMPLETE ===")
+        logger.info("Total users matched: {}", matchedUsers.size)
+        logger.info("Users remaining in queue: {}", finalRemainingUsers.size)
+
+        if (finalRemainingUsers.isNotEmpty()) {
+            logger.info("Re-queuing {} unmatched users:", finalRemainingUsers.size)
+            finalRemainingUsers.forEach { user ->
+                logger.info("  -> User {}: {} claims, {} skipped", user.userId, user.claimIdToStance.size, user.skipClaimIds.size)
+            }
+        }
+
+        logger.debug("Clearing queue and re-adding {} remaining users", finalRemainingUsers.size)
         matchQueueRepository.removeAll()
         if (finalRemainingUsers.isNotEmpty()) {
             finalRemainingUsers.forEach { matchQueueRepository.save(it) }
+        }
+
+        val currentMatches = matchRepository.findAll()
+        logger.info("Current active matches: {}", currentMatches.size)
+        currentMatches.forEach { match ->
+            logger.debug(
+                "  -> Match {}: {} vs {}, claim: {}, status: {}",
+                match.matchId,
+                match.opponents[0].userId,
+                match.opponents[1].userId,
+                match.claim.title,
+                match.status
+            )
         }
     }
 
@@ -281,6 +318,11 @@ class MatchmakingService(
         val stanceA = userA.claimIdToStance[claimId] ?: ClaimStance.EITHER
         val stanceB = userB.claimIdToStance[claimId] ?: ClaimStance.EITHER
 
+        logger.info(
+            "Creating match: reason={}, userA={} (stance={}), userB={} (stance={}), claim={} ('{}')",
+            reason, userA.userId, stanceA, userB.userId, stanceB, claimId, claim.title
+        )
+
         val (finalA, finalB) = when {
             stanceA != ClaimStance.EITHER && stanceB == ClaimStance.EITHER ->
                 stanceA to stanceA.opposite()
@@ -293,6 +335,10 @@ class MatchmakingService(
 
             else ->
                 stanceA to stanceB
+        }
+
+        if (finalA != stanceA || finalB != stanceB) {
+            logger.info("Stances adjusted: userA {} -> {}, userB {} -> {}", stanceA, finalA, stanceB, finalB)
         }
 
         val match = Match(
@@ -322,6 +368,13 @@ class MatchmakingService(
         )
 
         matchRepository.save(match)
+        logger.info(
+            "Match created and saved: matchId={}, {} ({}/{}) vs {} ({}/{}), ttl={}s",
+            matchId,
+            userAEntity.username, userA.userId, finalA,
+            userBEntity.username, userB.userId, finalB,
+            settings.getMatchTtl()
+        )
         eventPublisher.publishEvent(MatchFoundEvent(match))
     }
 

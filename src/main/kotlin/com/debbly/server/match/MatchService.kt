@@ -35,29 +35,48 @@ class MatchService(
 
     fun join(user: UserModel) {
         cancelExistingMatchIfPresent(user.userId)
-        matchQueueRepository.save(buildMatchRequest(user))
+        val matchRequest = buildMatchRequest(user)
+        matchQueueRepository.save(matchRequest)
 
-        logger.debug("User {} joined matchmaking queue", user.userId)
+        logger.info(
+            "User {} ({}) joined queue with {} claims, {} skipped",
+            user.userId, user.username, matchRequest.claimIdToStance.size, matchRequest.skipClaimIds.size
+        )
+        logger.debug("  -> Claims: {}", matchRequest.claimIdToStance)
+        logger.debug("  -> Skipped: {}", matchRequest.skipClaimIds)
+
+        val queueSize = matchQueueRepository.count()
+        logger.info("Queue size after join: {}", queueSize)
     }
 
     fun leave(user: UserModel) {
+        val existingRequest = matchQueueRepository.find(user.userId)
         matchQueueRepository.remove(userId = user.userId)
 
-        logger.debug("User {} left matchmaking queue", user.userId)
+        if (existingRequest != null) {
+            logger.info("User {} ({}) left matchmaking queue", user.userId, user.username)
+            val queueSize = matchQueueRepository.count()
+            logger.info("Queue size after leave: {}", queueSize)
+        } else {
+            logger.warn("User {} ({}) attempted to leave queue but was not in queue", user.userId, user.username)
+        }
     }
 
     fun skip(match: Match, user: UserModel) {
         matchValidationService.validateMatchOperation(match, user.userId, "skip")
 
-        logger.debug(
-            "User {} skipped match {} on claim '{}'",
-            user.userId, match.matchId, match.claim.title
+        logger.info(
+            "User {} ({}) skipped match {} on claim '{}', adding claim to skip list",
+            user.userId, user.username, match.matchId, match.claim.title
         )
 
         matchRepository.delete(match.matchId)
         matchNotificationService.notifyMatchCancelled(match, user.userId, "skip")
 
-        matchQueueRepository.save(buildMatchRequest(user, withSkipClaimIds = setOf(match.claim.claimId)))
+        val matchRequest = buildMatchRequest(user, withSkipClaimIds = setOf(match.claim.claimId))
+        matchQueueRepository.save(matchRequest)
+        logger.info("User {} re-queued with {} skipped claims", user.userId, matchRequest.skipClaimIds.size)
+
         addOpponentsBackToQueue(match, user.userId)
     }
 
@@ -128,9 +147,9 @@ class MatchService(
     private fun cancelExistingMatchIfPresent(userId: String) {
         val existingMatch = matchRepository.findByUserId(userId) ?: return
 
-        logger.debug(
-            "User {} has active match {} - cancelling it to join queue",
-            userId, existingMatch.matchId
+        logger.info(
+            "User {} has active match {} (claim: '{}') - cancelling to join queue",
+            userId, existingMatch.matchId, existingMatch.claim.title
         )
         matchNotificationService.notifyMatchCancelled(existingMatch, userId, "rejoin")
         matchRepository.delete(existingMatch.matchId)
@@ -139,11 +158,27 @@ class MatchService(
     }
 
     private fun addOpponentsBackToQueue(match: Match, excludeUserId: String) {
-        match.opponents
-            .filter { it.userId != excludeUserId }
-            .forEach { opponent ->
-                matchQueueRepository.save(buildMatchRequest(userRepository.getById(opponent.userId)))
-            }
+        val opponents = match.opponents.filter { it.userId != excludeUserId }
+
+        if (opponents.isEmpty()) {
+            logger.debug("No opponents to re-queue for match {}", match.matchId)
+            return
+        }
+
+        logger.info(
+            "Re-queuing {} opponent(s) from match {} (excludes user {})",
+            opponents.size, match.matchId, excludeUserId
+        )
+
+        opponents.forEach { opponent ->
+            val user = userRepository.getById(opponent.userId)
+            val matchRequest = buildMatchRequest(user)
+            matchQueueRepository.save(matchRequest)
+            logger.info(
+                "  -> Re-queued opponent {} ({}) with {} claims",
+                opponent.userId, opponent.username, matchRequest.claimIdToStance.size
+            )
+        }
     }
 
     private fun buildMatchRequest(
