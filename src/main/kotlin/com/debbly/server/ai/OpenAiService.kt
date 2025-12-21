@@ -1,8 +1,6 @@
 package com.debbly.server.ai
 
 import com.debbly.server.category.repository.CategoryCachedRepository
-import com.debbly.server.user.UserValidator.invalidCharsRegex
-import com.debbly.server.user.UserValidator.usernameRegex
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -14,7 +12,7 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.client.RestTemplate
-import java.util.Base64
+import java.util.*
 
 @Service
 class OpenAIService(
@@ -146,7 +144,7 @@ class OpenAIService(
                   "normalized": "Governments should prioritize climate change mitigation over economic growth",
                   "violations": [],
                   "reasoning": "The claim is specific and debatable, addressing a significant policy issue.",
-                  "categoryId": "economy-environment",
+                  "categoryId": "economy",
                   "tags": ["Government", "Climate Change", "Environment", "Economy"]
                 }
                 
@@ -154,7 +152,7 @@ class OpenAIService(
                 Response: 
                 {
                   "valid": true,
-                  "normalized": "The US has a moral obligation to intervene in international conflicts.",
+                  "normalized": "The U.S. has a moral obligation to intervene in international conflicts.",
                   "violations": [],
                   "reasoning": "The claim is debatable and pertains to international relations without violating platform rules",
                   "categoryId": "politics",
@@ -347,9 +345,9 @@ class OpenAIService(
 
             val result = response?.results?.firstOrNull()
             if (result?.flagged == true) {
-                val emojiParts = result.categories
+                val replacement = result.categories
                     .filter { it.value } // Only flagged categories
-                    .map { (category, _) ->
+                    .flatMap { (category, _) ->
                         val score = result.categoryScores?.get(category) ?: 0.0
                         val emoji = EMOJI_BY_CATEGORY[category] ?: DEFAULT_MODERATION_EMOJI
 
@@ -359,13 +357,13 @@ class OpenAIService(
                             else -> 1
                         }
 
-                        emoji.repeat(count)
+                        List(count) { emoji }
                     }
+                    .shuffled()
+                    .joinToString("")
 
-                val replacementMessage = emojiParts.joinToString("")
-                logger.info("Chat message moderated and replaced with: $replacementMessage (categories: ${result.categories.filter { it.value }.keys})")
                 ChatModerationResult(
-                    message = replacementMessage,
+                    message = replacement,
                     wasModerated = true
                 )
             } else {
