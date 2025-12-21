@@ -28,44 +28,22 @@ class OpenAIService(
     private val moderationUrl = "https://api.openai.com/v1/moderations"
 
     companion object {
-        private val MODERATION_REPLACEMENT_MESSAGES = listOf(
-            "I was about to say something… but moderation saved us all",
-            "My brain started a sentence and immediately shut it down",
-            "My thoughts did not pass internal review",
-            "I had a point. It ran away",
-            "I almost typed something",
-            "Let's pretend this message was very smart",
-            "I forgot what I was trying to say",
-            "My thoughts are not PG-13 right now",
-            "This message was canceled",
-            "I decided silence is better",
-            "This sounded better in my head",
-            "I started typing and lost confidence",
-            "I will respectfully not finish my thought",
-            "My brain said \"nope\"",
-            "My message failed the vibe check",
-            "I had a sentence, then reconsidered my life choices",
-            "I chose not to send the original message",
-            "My thoughts took a wrong turn",
-            "I almost said something",
-            "I stopped myself just in time",
-            "I'll pretend this message made sense",
-            "I started typing and immediately regretted it",
-            "This thought did not age well",
-            "I'm not sure what I was trying to achieve here",
-            "I decided not to continue this sentence",
-            "That idea sounded better five seconds ago",
-            "I had words. They're gone now",
-            "I'm going to leave this unfinished",
-            "My brain rebooted mid-message",
-            "This message is a placeholder for a better one",
-            "I was about to say something unnecessary",
-            "I forgot my point halfway through",
-            "I'll save my thought for never",
-            "I stopped typing for everyone's benefit",
-            "I realized this wasn't worth finishing",
-            "I had a thought. It expired",
-            "Love"
+        private const val DEFAULT_MODERATION_EMOJI = "🚫"
+
+        private val EMOJI_BY_CATEGORY = mapOf(
+            "sexual" to "🍆",
+            "sexual/minors" to "🍎",
+            "harassment" to "🌶️",
+            "harassment/threatening" to "🌶️",
+            "hate" to "🍋",
+            "hate/threatening" to "🍍",
+            "illicit" to "🍄",
+            "illicit/violent" to "🌵",
+            "self-harm" to "🥀",
+            "self-harm/intent" to "🍃",
+            "self-harm/instructions" to "🌿",
+            "violence" to "🥕",
+            "violence/graphic" to "🍅"
         )
     }
 
@@ -361,8 +339,23 @@ class OpenAIService(
 
             val result = response?.results?.firstOrNull()
             if (result?.flagged == true) {
-                val replacementMessage = MODERATION_REPLACEMENT_MESSAGES.random()
-                logger.info("Chat message moderated and replaced with: $replacementMessage")
+                val emojiParts = result.categories
+                    .filter { it.value } // Only flagged categories
+                    .map { (category, _) ->
+                        val score = result.categoryScores?.get(category) ?: 0.0
+                        val emoji = EMOJI_BY_CATEGORY[category] ?: DEFAULT_MODERATION_EMOJI
+
+                        val count = when {
+                            score >= 0.95 -> 3
+                            score >= 0.85 -> 2
+                            else -> 1
+                        }
+
+                        emoji.repeat(count)
+                    }
+
+                val replacementMessage = emojiParts.joinToString("")
+                logger.info("Chat message moderated and replaced with: $replacementMessage (categories: ${result.categories.filter { it.value }.keys})")
                 ChatModerationResult(
                     message = replacementMessage,
                     wasModerated = true
