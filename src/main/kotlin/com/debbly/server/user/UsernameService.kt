@@ -2,7 +2,6 @@ package com.debbly.server.user
 
 import com.debbly.server.ai.OpenAIService
 import com.debbly.server.ai.UsernameValidationResult
-import com.debbly.server.user.UserValidator.isValidUsername
 import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.stereotype.Service
 import kotlin.random.Random
@@ -30,32 +29,62 @@ class UsernameService(
         "Broccoli", "Grain"
     )
 
-    // Reserved usernames that cannot be used
-    private val reservedUsernames = setOf(
-        // Administrative & System
-        "admin", "administrator", "root", "system", "moderator", "mod", "mods", "support",
-        "staff", "team", "official", "service", "bot", "api", "automated",
+    private val reservedUsernames: Set<String> = setOf(
+        // Administrative & Authority
+        "admin", "administrator", "root", "system", "moderator", "mod", "mods",
+        "support", "staff", "team", "official", "service", "security",
+        "ceo", "founder", "owner", "verified", "trusted",
 
-        // Platform/Technical
-        "debbly", "app", "server", "client", "backend", "frontend", "web", "mobile",
-        "debug", "test", "testing", "demo", "example", "sample",
+        // Platform / Brand
+        "debbly", "debblyapp", "debblysupport",
 
-        // Authentication/Security
-        "login", "logout", "signin", "signout", "signup", "register", "auth",
-        "authenticate", "password", "reset", "security", "verify", "verification",
-        "confirmation", "token",
+        // Bots & Automation
+        "bot", "bots", "automated", "automation", "ai",
 
-        // User Management
-        "user", "users", "guest", "anonymous", "anon", "everyone", "nobody",
+        // Auth / Security
+        "login", "logout", "signin", "signout", "signup", "register",
+        "auth", "authenticate", "password", "reset", "token", "verify", "verification",
+
+        // User states
+        "user", "users", "guest", "anonymous", "anon",
         "null", "undefined", "unknown", "deleted", "removed", "banned", "suspended",
 
-        // Common Endpoints/Routes
+        // App routes / pages
         "about", "help", "contact", "privacy", "terms", "tos", "rules", "faq",
         "settings", "profile", "account", "dashboard", "home", "index",
 
-        // Reserved Actions
-        "create", "delete", "update", "edit", "remove", "add", "new", "post",
-        "get", "put", "patch", "upload", "download"
+        // Core product concepts
+        "debate", "debates", "stage", "stages", "room", "rooms",
+        "claim", "claims", "topic", "topics", "match", "matching",
+        "feed", "live", "stream", "broadcast",
+
+        // System / routing
+        "api", "assets", "static", "cdn", "media", "images",
+        "robots", "sitemap", "favicon",
+
+        // Business / monetization
+        "billing", "payment", "payments", "wallet",
+        "subscription", "premium", "pro", "enterprise",
+        "ads", "advertising", "sponsor", "sponsored",
+
+        // Legal
+        "legal", "lawyer", "compliance", "dmca", "copyright", "trademark",
+
+        // Generic noise
+        "everyone", "someone", "anyone", "nobody", "all", "none",
+        "true"
+    )
+
+    private val reservedPrefixes = listOf(
+        "_", "admin", "moderator", "support", "system", "official", "security"
+    )
+
+    private val reservedSuffixes = listOf(
+        "_", "admin", "moderator", "support", "official", "bot", "ai"
+    )
+
+    val usernameRegex = Regex(
+        "^(?!.*__)(?!^(.)\\1+$)(?!.*debbly)[A-Za-z0-9_]{5,18}$"
     )
 
     fun generateUsername(): String {
@@ -77,16 +106,21 @@ class UsernameService(
     }
 
     fun validateUsername(username: String, currentUserId: String? = null): UsernameValidationResult {
-        val trimmedUsername = username.trim()
+        val trimmed = username.trim()
 
-        if (!isValidUsername(trimmedUsername)) {
+        if (!trimmed.matches(usernameRegex)) {
             return UsernameValidationResult(
                 valid = false,
-                reason = "Invalid username format. Must be 6-18 characters, alphanumeric and underscores only"
+                reason = "Username must be 5–18 characters long and contain only letters, digits, or underscores"
             )
         }
 
-        val existingUser = userCachedRepository.findByUsername(trimmedUsername)
+        val normalized = trimmed
+            .lowercase()
+            .replace('0', 'o')
+            .replace('1', 'l')
+
+        val existingUser = userCachedRepository.findByUsername(normalized)
         if (existingUser != null && existingUser.userId != currentUserId) {
             return UsernameValidationResult(
                 valid = false,
@@ -94,13 +128,16 @@ class UsernameService(
             )
         }
 
-        if (reservedUsernames.contains(trimmedUsername.lowercase())) {
+        if (reservedUsernames.contains(normalized) ||
+            reservedPrefixes.any { normalized.startsWith(it) } ||
+            reservedSuffixes.any { normalized.endsWith(it) }
+        ) {
             return UsernameValidationResult(
                 valid = false,
                 reason = "This username is reserved and cannot be used"
             )
         }
 
-        return openAIService.validateUsername(trimmedUsername)
+        return openAIService.validateUsername(normalized)
     }
 }
