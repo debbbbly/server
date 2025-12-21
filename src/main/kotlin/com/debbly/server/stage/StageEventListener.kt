@@ -154,15 +154,15 @@ class StageEventListener(
             return false
         }
 
-        val hasUserRequiringEgress = stage.hosts.any { host ->
-            val setting = userSettingsRepository.findByUserIdAndName(
-                host.userId,
-                UserSettingsName.ALWAYS_EGRESS
-            )
-            setting?.value == "true"
-        }
+//        val hasUserRequiringEgress = stage.hosts.any { host ->
+//            val setting = userSettingsRepository.findByUserIdAndName(
+//                host.userId,
+//                UserSettingsName.ALWAYS_EGRESS
+//            )
+//            setting?.value == "true"
+//        }
 
-        return hasUserRequiringEgress
+        return true
     }
 
     private fun broadcastDebateStarted(stageId: String, stage: StageModel) {
