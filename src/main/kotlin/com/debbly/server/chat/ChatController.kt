@@ -34,6 +34,12 @@ class ChatController(
         try {
             val user = authService.authenticate(externalUserId)
 
+            // Rate limiting: 1 message per second per user
+            if (!ChatRateLimiter.tryConsume(user.userId)) {
+                logger.warn("Rate limit exceeded for user ${user.userId} in chat $chatId")
+                return ResponseEntity.status(429).build()
+            }
+
             val moderationResult = openAIService.moderateChatMessage(request.message)
 
             val channelMessage = chatService.saveMessage(

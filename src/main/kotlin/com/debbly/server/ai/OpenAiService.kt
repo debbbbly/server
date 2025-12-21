@@ -29,6 +29,7 @@ class OpenAIService(
 
     companion object {
         private const val DEFAULT_MODERATION_EMOJI = "🚫"
+        private const val MAX_CHAT_MESSAGE_LENGTH = 500
 
         private val EMOJI_BY_CATEGORY = mapOf(
             "sexual" to "🍆",
@@ -320,6 +321,13 @@ class OpenAIService(
     }
 
     fun moderateChatMessage(message: String): ChatModerationResult {
+        // Truncate message if too long
+        val processedMessage = if (message.length > MAX_CHAT_MESSAGE_LENGTH) {
+            message.take(MAX_CHAT_MESSAGE_LENGTH - 3) + "..."
+        } else {
+            message
+        }
+
         return try {
             val headers = HttpHeaders()
             headers.contentType = MediaType.APPLICATION_JSON
@@ -327,7 +335,7 @@ class OpenAIService(
 
             val requestBody = mapOf(
                 "model" to "omni-moderation-latest",
-                "input" to message
+                "input" to processedMessage
             )
 
             val request = HttpEntity(requestBody, headers)
@@ -362,15 +370,15 @@ class OpenAIService(
                 )
             } else {
                 ChatModerationResult(
-                    message = message,
+                    message = processedMessage,
                     wasModerated = false
                 )
             }
         } catch (e: Exception) {
             logger.error("Error moderating chat message: ${e.message}", e)
-            // Fail open - return original message if moderation check fails
+            // Fail open - return processed (truncated) message if moderation check fails
             ChatModerationResult(
-                message = message,
+                message = processedMessage,
                 wasModerated = false
             )
         }
