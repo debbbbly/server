@@ -37,6 +37,14 @@ class ClaimService(
 
     fun findAll(): List<ClaimModel> = claimCachedRepository.findAll()
 
+    fun findByCategoryIds(categoryIds: List<String>): List<ClaimModel> {
+        if (categoryIds.isEmpty()) {
+            return findAll()
+        }
+        return claimCachedRepository.findAll()
+            .filter { claim -> claim.category.categoryId in categoryIds }
+    }
+
     fun save(claim: ClaimModel): ClaimModel = claimCachedRepository.save(claim)
 
     fun getTopClaims(limit: Int): List<ClaimModel> {

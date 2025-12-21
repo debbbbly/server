@@ -22,7 +22,8 @@ class ClaimController(
 
     @GetMapping("/top")
     fun getTopClaims(
-        @ExternalUserId externalUserId: String?
+        @ExternalUserId externalUserId: String?,
+        @RequestParam(required = false) categoryIds: List<String>?
     ): List<GetTopClaimsResponse> {
         val userId = externalUserId?.let { authService.authenticate(it).userId }
 
@@ -31,7 +32,7 @@ class ClaimController(
         }
             ?: emptyMap()
 
-        return claimService.findAll().map { claim ->
+        return claimService.findByCategoryIds(categoryIds ?: emptyList()).map { claim ->
             val userClaim = claimIdToUserClaim[claim.claimId]
             GetTopClaimsResponse(
                 claimId = claim.claimId,

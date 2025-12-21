@@ -116,355 +116,62 @@ databaseChangeLog:
                   value: "politics"
               - column:
                   name: title
-                  value: "Politics"
+                  value: "Politics & Power"
               - column:
                   name: avatar_url
                   value: "./categories/politics.png"
-        - update:
-            tableName: categories
-            columns:
               - column:
-                  name: description
-                  value: "Political topics, governance, elections, policy"
-            where: "category_id = 'politics'"
+                  name: active
+                  valueBoolean: true
         - insert:
             tableName: categories
             columns:
               - column:
                   name: category_id
-                  value: "social-issues-culture"
+                  value: "society"
               - column:
                   name: title
-                  value: "Social Issues & Culture"
+                  value: "Society, Identity & Culture"
               - column:
-                  name: avatar_url
-                  value: "https://debbly.com/categories/social-issues-culture.png"
-        - update:
-            tableName: categories
-            columns:
-              - column:
-                  name: description
-                  value: "Social topics, cultural issues, ethics, human rights"
-            where: "category_id = 'social-issues-culture'"
+                  name: active
+                  valueBoolean: true
         - insert:
             tableName: categories
             columns:
               - column:
                   name: category_id
-                  value: "economy-environment"
+                  value: "economy"
               - column:
                   name: title
                   value: "Economy & Environment"
               - column:
-                  name: avatar_url
-                  value: "https://debbly.com/categories/economy-environment.png"
-        - update:
-            tableName: categories
-            columns:
-              - column:
-                  name: description
-                  value: "Economic policy, environmental issues, business, sustainability"
-            where: "category_id = 'economy-environment'"
+                  name: active
+                  valueBoolean: true
         - insert:
             tableName: categories
             columns:
               - column:
                   name: category_id
-                  value: "sports-entertainment-lifestyle"
+                  value: "entertainment"
               - column:
                   name: title
                   value: "Sports, Entertainment & Lifestyle"
               - column:
-                  name: avatar_url
-                  value: "https://debbly.com/categories/sports-entertainment-lifestyle.png"
-        - update:
-            tableName: categories
-            columns:
-              - column:
-                  name: description
-                  value: "Sports, entertainment, lifestyle, health, fitness"
-            where: "category_id = 'sports-entertainment-lifestyle'"
+                  name: active
+                  valueBoolean: true
         - insert:
             tableName: categories
             columns:
               - column:
                   name: category_id
-                  value: "technology-innovation"
+                  value: "technology"
               - column:
                   name: title
-                  value: "Technology & Innovation"
-              - column:
-                  name: avatar_url
-                  value: "https://debbly.com/categories/technology-innovation.png"
-        - update:
-            tableName: categories
-            columns:
-              - column:
-                  name: description
-                  value: "Technology, AI, innovation, science, digital topics"
-            where: "category_id = 'technology-innovation'"
-  - changeSet:
-      id: 4
-      author: gemini
-      changes:
-        - insert:
-            tableName: tags
-            columns:
-              - column:
-                  name: tag_id
-                  value: "tag_001"
-              - column:
-                  name: title
-                  value: "AI Regulation"
-        - insert:
-            tableName: tags
-            columns:
-              - column:
-                  name: tag_id
-                  value: "tag_002"
-              - column:
-                  name: title
-                  value: "Technology Policy"
-        - insert:
-            tableName: tags
-            columns:
-              - column:
-                  name: tag_id
-                  value: "tag_003"
-              - column:
-                  name: title
-                  value: "Government Oversight"
-        - insert:
-            tableName: tags
-            columns:
-              - column:
-                  name: tag_id
-                  value: "tag_004"
-              - column:
-                  name: title
-                  value: "TikTok"
-        - insert:
-            tableName: tags
-            columns:
-              - column:
-                  name: tag_id
-                  value: "tag_005"
-              - column:
-                  name: title
-                  value: "National Security"
-        - insert:
-            tableName: tags
-            columns:
-              - column:
-                  name: tag_id
-                  value: "tag_006"
-              - column:
-                  name: title
-                  value: "Privacy"
-        - insert:
-            tableName: tags
-            columns:
-              - column:
-                  name: tag_id
-                  value: "tag_007"
-              - column:
-                  name: title
-                  value: "Trump"
-        - insert:
-            tableName: tags
-            columns:
-              - column:
-                  name: tag_id
-                  value: "tag_008"
-              - column:
-                  name: title
-                  value: "Tariffs"
-        - insert:
-            tableName: tags
-            columns:
-              - column:
-                  name: tag_id
-                  value: "tag_009"
-              - column:
-                  name: title
-                  value: "Economy"
-        - insert:
-            tableName: tags
-            columns:
-              - column:
-                  name: tag_id
-                  value: "tag_010"
-              - column:
-                  name: title
-                  value: "Immigration"
-        - insert:
-            tableName: tags
-            columns:
-              - column:
-                  name: tag_id
-                  value: "tag_011"
-              - column:
-                  name: title
-                  value: "Border Policy"
+                  value: "Technology & Science"
 
-        - insert:
-            tableName: claims
-            columns:
               - column:
-                  name: claim_id
-                  value: "claim_001"
-              - column:
-                  name: category_id
-                  value: "politics"
-              - column:
-                  name: title
-                  value: "The U.S. government should regulate AI development as strictly as pharmaceuticals."
-        - insert:
-            tableName: claims_tags
-            columns:
-              - column:
-                  name: claims_claim_id
-                  value: "claim_001"
-              - column:
-                  name: tags_tag_id
-                  value: "tag_001"
-        - insert:
-            tableName: claims_tags
-            columns:
-              - column:
-                  name: claims_claim_id
-                  value: "claim_001"
-              - column:
-                  name: tags_tag_id
-                  value: "tag_002"
-        - insert:
-            tableName: claims_tags
-            columns:
-              - column:
-                  name: claims_claim_id
-                  value: "claim_001"
-              - column:
-                  name: tags_tag_id
-                  value: "tag_003"
-
-        - insert:
-            tableName: claims
-            columns:
-              - column:
-                  name: claim_id
-                  value: "claim_002"
-              - column:
-                  name: category_id
-                  value: "politics"
-              - column:
-                  name: title
-                  value: "Banning TikTok in the U.S. is necessary to protect national security."
-        - insert:
-            tableName: claims_tags
-            columns:
-              - column:
-                  name: claims_claim_id
-                  value: "claim_002"
-              - column:
-                  name: tags_tag_id
-                  value: "tag_004"
-        - insert:
-            tableName: claims_tags
-            columns:
-              - column:
-                  name: claims_claim_id
-                  value: "claim_002"
-              - column:
-                  name: tags_tag_id
-                  value: "tag_005"
-        - insert:
-            tableName: claims_tags
-            columns:
-              - column:
-                  name: claims_claim_id
-                  value: "claim_002"
-              - column:
-                  name: tags_tag_id
-                  value: "tag_006"
-
-        - insert:
-            tableName: claims
-            columns:
-              - column:
-                  name: claim_id
-                  value: "claim_003"
-              - column:
-                  name: category_id
-                  value: "politics"
-              - column:
-                  name: title
-                  value: "Trump’s tariffs will ruin the U.S. economy."
-        - insert:
-            tableName: claims_tags
-            columns:
-              - column:
-                  name: claims_claim_id
-                  value: "claim_003"
-              - column:
-                  name: tags_tag_id
-                  value: "tag_007"
-        - insert:
-            tableName: claims_tags
-            columns:
-              - column:
-                  name: claims_claim_id
-                  value: "claim_003"
-              - column:
-                  name: tags_tag_id
-                  value: "tag_008"
-        - insert:
-            tableName: claims_tags
-            columns:
-              - column:
-                  name: claims_claim_id
-                  value: "claim_003"
-              - column:
-                  name: tags_tag_id
-                  value: "tag_009"
-        - insert:
-            tableName: claims
-            columns:
-              - column:
-                  name: claim_id
-                  value: "claim_004"
-              - column:
-                  name: category_id
-                  value: "politics"
-              - column:
-                  name: title
-                  value: "Immigration should be significantly reduced in the United States."
-        - insert:
-            tableName: claims_tags
-            columns:
-              - column:
-                  name: claims_claim_id
-                  value: "claim_004"
-              - column:
-                  name: tags_tag_id
-                  value: "tag_010"
-        - insert:
-            tableName: claims_tags
-            columns:
-              - column:
-                  name: claims_claim_id
-                  value: "claim_004"
-              - column:
-                  name: tags_tag_id
-                  value: "tag_011"
-        - insert:
-            tableName: claims_tags
-            columns:
-              - column:
-                  name: claims_claim_id
-                  value: "claim_004"
-              - column:
-                  name: tags_tag_id
-                  value: "tag_005"
+                  name: active
+                  valueBoolean: true
   - changeSet:
       id: 5
       author: gemini
@@ -703,13 +410,3 @@ databaseChangeLog:
         - dropColumn:
             tableName: claim_proposals
             columnName: resulting_claim_id
-  - changeSet:
-      id: 12
-      author: claude
-      changes:
-        - update:
-            tableName: categories
-            columns:
-              - column:
-                  name: active
-                  valueBoolean: true
