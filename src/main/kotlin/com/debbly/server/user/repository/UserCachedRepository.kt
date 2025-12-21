@@ -25,14 +25,14 @@ class UserCachedRepository(
     @Cacheable(value = ["usersByExternalId"], key = "#externalId", unless = "#result == null")
     fun findByExternalUserId(externalId: String): UserModel? = userJpaRepository.findByExternalUserId(externalId).getOrNull()?.toModel()
 
-    @Cacheable(value = ["usersByUsername"], key = "#username", unless = "#result == null")
-    fun findByUsername(username: String): UserModel? = userJpaRepository.findByUsername(username).getOrNull()?.toModel()
+    @Cacheable(value = ["usersByUsername"], key = "#username.toLowerCase()", unless = "#result == null")
+    fun findByUsername(username: String): UserModel? = userJpaRepository.findByUsernameNormalized(username.lowercase()).getOrNull()?.toModel()
 
     @Caching(
         evict = [
             CacheEvict(value = ["users"], key = "#result.userId"),
             CacheEvict(value = ["usersByExternalId"], key = "#result.externalUserId"),
-            CacheEvict(value = ["usersByUsername"], key = "#result.username", condition = "#result.username != null")
+            CacheEvict(value = ["usersByUsername"], key = "#result.usernameNormalized")
         ]
     )
     fun save(user: UserModel): UserModel = userJpaRepository.save(user.toEntity()).toModel()

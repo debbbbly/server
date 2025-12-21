@@ -3,7 +3,6 @@ package com.debbly.server.user
 import com.debbly.server.IdService
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.auth.UserEmail
-import com.debbly.server.user.UserValidator.isValidUsername
 import com.debbly.server.user.repository.SocialUsernameCachedRepository
 import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.http.HttpStatus
@@ -21,7 +20,8 @@ class UserController(
     private val idService: IdService,
     private val onlineUsersService: OnlineUsersService,
     private val userService: UserService,
-    private val socialUsernameCachedRepository: SocialUsernameCachedRepository
+    private val socialUsernameCachedRepository: SocialUsernameCachedRepository,
+    private val usernameService: UsernameService
 ) {
 
     @GetMapping("/me")
@@ -67,18 +67,13 @@ class UserController(
 
     @PostMapping("/verify-username")
     fun verifyUsername(@RequestBody request: VerifyUsernameRequest): ResponseEntity<VerifyUsernameResponse> {
-        if (!isValidUsername(request.username)) {
-            return ResponseEntity.badRequest().body(
-                VerifyUsernameResponse(false, errorMessage = "Invalid username format")
-            )
-        }
+        val result = usernameService.validateUsername(request.username)
 
-        val isAvailable = userCachedRepository.findByUsername(request.username.trim()) == null
-        return if (isAvailable) {
+        return if (result.valid) {
             ResponseEntity.ok(VerifyUsernameResponse(true))
         } else {
-            ResponseEntity.status(HttpStatus.CONFLICT).body(
-                VerifyUsernameResponse(false, errorMessage = "Username is already taken")
+            ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                VerifyUsernameResponse(false, errorMessage = result.reason)
             )
         }
     }

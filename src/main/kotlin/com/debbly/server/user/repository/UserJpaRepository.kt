@@ -9,6 +9,7 @@ import java.util.Optional
 
 interface UserJpaRepository : JpaRepository<UserEntity, String> {
     fun findByUsername(username: String): Optional<UserEntity>
+    fun findByUsernameNormalized(usernameNormalized: String): Optional<UserEntity>
     fun findByExternalUserId(externalUserId: String): Optional<UserEntity>
     fun findAllByUserIdIn(ids: List<String>): List<UserEntity>
 

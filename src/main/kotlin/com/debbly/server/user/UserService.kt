@@ -4,7 +4,6 @@ import com.debbly.server.IdService
 import com.debbly.server.ai.OpenAIService
 import com.debbly.server.auth.service.AuthService
 import com.debbly.server.storage.S3Service
-import com.debbly.server.user.UserValidator.isValidUsername
 import com.debbly.server.user.model.SocialUsernameModel
 import com.debbly.server.user.model.UserModel
 import com.debbly.server.user.repository.SocialUsernameCachedRepository
@@ -39,6 +38,7 @@ class UserService(
             externalUserId = externalUserId,
             email = email,
             username = username,
+            usernameNormalized = username.lowercase(),
             avatarUrl = avatarUrl
         )
 
@@ -46,44 +46,24 @@ class UserService(
     }
 
     fun updateUsername(user: UserModel, newUsername: String, accessToken: String? = null): UpdateUsernameResult {
-        // Validate format
-        if (!isValidUsername(newUsername)) {
+        val result = usernameService.validateUsername(newUsername, user.userId)
+        if (!result.valid) {
             return UpdateUsernameResult(
                 success = false,
-                message = "Invalid username format. Must be 5-30 characters, alphanumeric and underscores only"
+                message = result.reason
             )
         }
 
-        // Check if username is already taken
-        val existingUser = userCachedRepository.findByUsername(newUsername.trim())
-        if (existingUser != null && existingUser.userId != user.userId) {
-            return UpdateUsernameResult(
-                success = false,
-                message = "Username is already taken"
-            )
-        }
+        val trimmedUsername = newUsername.trim()
 
-        // Validate with AI
-        val aiValidation = openAIService.validateUsername(newUsername.trim())
-        if (!aiValidation.valid) {
-            return UpdateUsernameResult(
-                success = false,
-                message = "Username violates platform rules: ${aiValidation.reason}"
-            )
-        }
+        cacheManager.getCache("usersByUsername")?.evict(user.usernameNormalized)
 
-        // Evict old username from cache
-        user.username?.let { oldUsername ->
-            cacheManager.getCache("usersByUsername")?.evict(oldUsername)
-        }
-
-        // Update username
-        user.username = newUsername.trim()
+        user.username = trimmedUsername
+        user.usernameNormalized = trimmedUsername.lowercase()
         userCachedRepository.save(user)
 
-        // Sync username with Supabase metadata
         if (accessToken != null) {
-            val metadata = mapOf("username" to newUsername.trim())
+            val metadata = mapOf("username" to trimmedUsername)
             authService.updateUserMetadata(accessToken, metadata)
         }
 

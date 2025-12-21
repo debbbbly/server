@@ -175,3 +175,26 @@ databaseChangeLog:
             referencedColumnNames: user_id
             constraintName: fk_user_social_usernames_user
             onDelete: CASCADE
+
+  - changeSet:
+      id: 8
+      author: claude
+      changes:
+        - addColumn:
+            tableName: users
+            columns:
+              - column:
+                  name: username_normalized
+                  type: varchar(255)
+        - sql:
+            sql: UPDATE users SET username_normalized = LOWER(username)
+        - addNotNullConstraint:
+            tableName: users
+            columnName: username_normalized
+        - dropUniqueConstraint:
+            tableName: users
+            constraintName: users_username_key
+        - addUniqueConstraint:
+            tableName: users
+            columnNames: username_normalized
+            constraintName: users_username_normalized_key

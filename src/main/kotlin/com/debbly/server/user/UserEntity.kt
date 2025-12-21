@@ -12,8 +12,8 @@ data class UserEntity(
     @Column(unique = true)
     val externalUserId: String,
     var email: String,
-    @Column(unique = true)
     var username: String,
+    var usernameNormalized: String,
     var birthdate: LocalDate? = null,
     var avatarUrl: String? = null,
     var rank: Int = 0,
@@ -26,6 +26,7 @@ data class UserEntity(
         externalUserId = externalUserId,
         email = email,
         username = username,
+        usernameNormalized = usernameNormalized,
         birthdate = birthdate,
         avatarUrl = avatarUrl,
         rank = rank,

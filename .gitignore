@@ -34,6 +34,9 @@ build/
 .vscode/
 
 ### Environment & Secrets ###
+.env
+.env.local
+.env.*.local
 env/.env
 env/.env.production
 env/.env.local
