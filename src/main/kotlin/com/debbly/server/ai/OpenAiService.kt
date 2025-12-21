@@ -87,11 +87,11 @@ class OpenAIService(
             
             Platform Claim Categories (categoryId / title):
             - politics / Politics
-            - technology-innovation / Technology & Innovation
-            - social-issues-culture / Social Issues & Culture
-            - economy-environment / Economy & Environment
-            - sports-entertainment-lifestyle / Sports, Entertainment & Lifestyle
-            (Default: social-issues-culture if unsure)
+            - technology / Technology & Science
+            - society / Society, Identity & Culture
+            - economy / Economy & Environment
+            - entertainment / Sports, Entertainment & Lifestyle
+            (Default: society if unsure)
             
             Tag requirements:
             - Assign 1–2 subject tags (entities, groups, or concrete topics: AI, Twich, Climate Change, US, Vaccines, etc.)
@@ -135,7 +135,7 @@ class OpenAIService(
                   "normalized": "The benefits of AI outweigh its risks to society.",
                   "violations": [],
                   "reasoning": "The claim is clear, specific, and debatable without violating any platform rules",
-                  "categoryId": "technology-innovation",
+                  "categoryId": "technology",
                   "tags": ["AI", "Technology", "Society"]
                 }
                 
