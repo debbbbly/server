@@ -175,7 +175,6 @@ class OpenAIService(
         }
     }
 
-
     private fun parseValidationResponse(response: String): ClaimValidationResult {
         return try {
             objectMapper.readValue<ClaimValidationResult>(response)
