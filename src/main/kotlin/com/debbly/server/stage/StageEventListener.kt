@@ -16,6 +16,7 @@ import com.debbly.server.stage.model.LiveStageHost
 import com.debbly.server.stage.model.StageModel
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageCachedRepository
+import com.debbly.server.stage.repository.entities.StageStatus.OPEN
 import com.debbly.server.user.repository.UserCachedRepository
 import org.slf4j.LoggerFactory
 import org.springframework.context.event.EventListener
@@ -51,7 +52,7 @@ class StageEventListener(
 
             val openedAt = Instant.now(clock)
             val updatedStage = stage.copy(
-                status = com.debbly.server.stage.repository.entities.StageStatus.OPEN,
+                status = OPEN,
                 openedAt = openedAt
             )
             stageRepository.save(updatedStage)

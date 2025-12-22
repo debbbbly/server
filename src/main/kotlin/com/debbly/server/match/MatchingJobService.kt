@@ -3,6 +3,7 @@ package com.debbly.server.match
 import com.debbly.server.IdService
 import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.ClaimCachedRepository
+import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.match.event.MatchFoundEvent
 import com.debbly.server.match.model.*
 import com.debbly.server.match.repository.MatchQueueRepository
@@ -16,10 +17,11 @@ import java.time.Clock
 import java.time.Instant
 
 @Service
-class MatchmakingService(
+class MatchingJobService(
     private val matchQueueRepository: MatchQueueRepository,
     private val matchRepository: MatchRepository,
     private val userRepository: UserCachedRepository,
+    private val userClaimRepository: UserClaimCachedRepository,
     private val idService: IdService,
     private val claimRepository: ClaimCachedRepository,
     private val matchNotificationService: MatchNotificationService,
@@ -34,13 +36,12 @@ class MatchmakingService(
 
         val waitingUsers = matchQueueRepository.findAll().sortedBy { it.joinedAt }
         val matchedUsers = mutableSetOf<String>()
-        val queueSize = matchQueueRepository.count()
 
-        logger.info("=== MATCHING CYCLE START ===")
-        logger.info("Queue size: {}, Users waiting: {}", queueSize, waitingUsers.size)
+//        logger.info("=== MATCHING CYCLE START ===")
+//        logger.info("Queue size: {}", waitingUsers.size)
 
         if (waitingUsers.isEmpty()) {
-            logger.info("=== MATCHING CYCLE END (empty queue) ===")
+//            logger.info("=== MATCHING CYCLE END (empty queue) ===")
             return
         }
 
@@ -53,7 +54,7 @@ class MatchmakingService(
             logger.debug("  -> Skip list: {}", user.skipClaimIds)
         }
 
-        logger.debug("Phase 1: Matching users by common claims with opposite stances")
+//        logger.debug("Phase 1: Matching users by common claims with opposite stances")
         for (i in 0 until waitingUsers.size) {
             val userA = waitingUsers[i]
             if (userA.userId in matchedUsers) continue
@@ -82,53 +83,53 @@ class MatchmakingService(
         }
 
         val remainingUsers = waitingUsers.filter { it.userId !in matchedUsers }
-        logger.debug("Phase 1 complete: {} users matched, {} remaining", matchedUsers.size, remainingUsers.size)
+//        logger.debug("Phase 1 complete: {} users matched, {} remaining", matchedUsers.size, remainingUsers.size)
         if (remainingUsers.size >= 2) {
-            logger.debug("Phase 2: Matching users by individual stances with assignment")
+//            logger.debug("Phase 2: Matching users by individual stances with assignment")
             matchWithUserStances(remainingUsers, matchedUsers)
         }
 
         val stillRemainingUsers = waitingUsers.filter { it.userId !in matchedUsers }
-        logger.debug(
-            "Phase 2 complete: {} users matched total, {} remaining",
-            matchedUsers.size,
-            stillRemainingUsers.size
-        )
+//        logger.debug(
+//            "Phase 2 complete: {} users matched total, {} remaining",
+//            matchedUsers.size,
+//            stillRemainingUsers.size
+//        )
         if (stillRemainingUsers.size >= 2) {
-            logger.debug("Phase 3: Matching users by top claims with random stances")
+//            logger.debug("Phase 3: Matching users by top claims with random stances")
             matchWithTopClaims(stillRemainingUsers, matchedUsers)
         }
 
         val finalRemainingUsers = waitingUsers.filter { it.userId !in matchedUsers }
 
-        logger.info("=== MATCHING CYCLE COMPLETE ===")
-        logger.info("Total users matched: {}", matchedUsers.size)
-        logger.info("Users remaining in queue: {}", finalRemainingUsers.size)
+//        logger.info("=== MATCHING CYCLE COMPLETE ===")
+//        logger.info("Total users matched: {}", matchedUsers.size)
+//        logger.info("Users remaining in queue: {}", finalRemainingUsers.size)
 
         if (finalRemainingUsers.isNotEmpty()) {
-            logger.info("Re-queuing {} unmatched users:", finalRemainingUsers.size)
+//            logger.info("Re-queuing {} unmatched users:", finalRemainingUsers.size)
             finalRemainingUsers.forEach { user ->
-                logger.info("  -> User {}: {} claims, {} skipped", user.userId, user.claimIdToStance.size, user.skipClaimIds.size)
+//                logger.info("  -> User {}: {} claims, {} skipped", user.userId, user.claimIdToStance.size, user.skipClaimIds.size)
             }
         }
 
-        logger.debug("Clearing queue and re-adding {} remaining users", finalRemainingUsers.size)
+//        logger.debug("Clearing queue and re-adding {} remaining users", finalRemainingUsers.size)
         matchQueueRepository.removeAll()
         if (finalRemainingUsers.isNotEmpty()) {
             finalRemainingUsers.forEach { matchQueueRepository.save(it) }
         }
 
         val currentMatches = matchRepository.findAll()
-        logger.info("Current active matches: {}", currentMatches.size)
+//        logger.info("Current active matches: {}", currentMatches.size)
         currentMatches.forEach { match ->
-            logger.debug(
-                "  -> Match {}: {} vs {}, claim: {}, status: {}",
-                match.matchId,
-                match.opponents[0].userId,
-                match.opponents[1].userId,
-                match.claim.title,
-                match.status
-            )
+//            logger.debug(
+//                "  -> Match {}: {} vs {}, claim: {}, status: {}",
+//                match.matchId,
+//                match.opponents[0].userId,
+//                match.opponents[1].userId,
+//                match.claim.title,
+//                match.status
+//            )
         }
     }
 
@@ -146,7 +147,25 @@ class MatchmakingService(
                 matchNotificationService.notifyMatchTimeout(match)
 
                 try {
-                    match.opponents.forEach { _ ->
+                    match.opponents.forEach { opponent ->
+//                        val user = userRepository.getById(opponent.userId)
+//                        val claimIdToStance = userClaimRepository.findByUserId(user.userId)
+//                            .filter { it.claim.category.active }
+//                            .associate { it.claim.claimId to it.stance }
+//
+//                        if (claimIdToStance.isNotEmpty()) {
+//                            val matchRequest = MatchRequest(
+//                                userId = user.userId,
+//                                claimIdToStance = claimIdToStance,
+//                                skipClaimIds = emptySet(),
+//                                joinedAt = Instant.now(clock),
+//                                ignores = opponent.ignores + 1
+//                            )
+//                            matchQueueRepository.save(matchRequest)
+//                            logger.info("Re-queued user {} from expired match {}", opponent.userId, match.matchId)
+//                        } else {
+//                            logger.warn("Cannot re-queue user {} from expired match - no matchable claims", opponent.userId)
+//                        }
                     }
                 } catch (e: Exception) {
                     logger.error("Error cleaning up expired match ${match.matchId}", e)

@@ -13,7 +13,7 @@ class StageTimeoutTask(
     /**
      * Check for expired stages every minute and close them
      */
-     @Scheduled(fixedRate = 5000)
+     @Scheduled(fixedRate = 1000)
     fun checkExpiredStages() {
         try {
             logger.debug("Checking for expired stages...")

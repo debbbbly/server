@@ -410,7 +410,7 @@ class StageService(
                         // Check if egress lasted more than 5 minutes (300 seconds)
                         if (result.startedAt != null && result.endedAt != null) {
                             val durationSeconds = result.endedAt - result.startedAt
-                            if (durationSeconds > 300) {
+                            if (durationSeconds > settingsService.getDebateStageRecordedThreshold()) {
                                 val stage = stageRepository.getById(stageId)
                                 val updatedStage = stage.copy(recorded = true)
                                 stageRepository.save(updatedStage)
@@ -513,7 +513,7 @@ class StageService(
         val createdAt: Instant,
         val openedAt: Instant?,
         val closedAt: Instant?,
-        val limitMinutes: Int,
+        val limitMinutes: Long,
         val hlsUrl: String?
     )
 
