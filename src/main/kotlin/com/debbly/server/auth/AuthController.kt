@@ -134,8 +134,34 @@ class AuthController(
                 logger.warn("Signup failed for new user: ${signUpResponse.error}")
                 ResponseEntity.badRequest()
                     .body(UnifiedAuthResponse(error = AUTH_GENERIC_ERROR))
+            } else if (signUpResponse.accessToken != null) {
+                // Signup returned tokens immediately (email confirmation disabled)
+                val userId = signUpResponse.user?.id
+                val userEmail = signUpResponse.user?.email ?: request.email
+
+                if (userId == null) {
+                    logger.error("Signup succeeded but no user ID returned")
+                    return ResponseEntity.badRequest()
+                        .body(UnifiedAuthResponse(error = AUTH_GENERIC_ERROR))
+                }
+
+                if (!isUserComplete(userService.createUser(userId, userEmail))) {
+                    return ResponseEntity.status(BAD_REQUEST)
+                        .body(UnifiedAuthResponse(error = AUTH_USER_INCOMPLETE))
+                }
+
+                ResponseEntity.ok(
+                    UnifiedAuthResponse(
+                        accessToken = signUpResponse.accessToken,
+                        idToken = signUpResponse.accessToken,
+                        refreshToken = signUpResponse.refreshToken,
+                        isNewUser = true,
+                        needsEmailConfirmation = false,
+                        success = true
+                    )
+                )
             } else {
-                // Signup successful - new user needs to confirm email
+                // Signup successful but no tokens - user needs to confirm email
                 ResponseEntity.ok(
                     UnifiedAuthResponse(
                         isNewUser = true,
@@ -249,20 +275,38 @@ class AuthController(
     }
 
     @PostMapping("/reset-password")
-    fun resetPassword(@RequestBody req: ResetPasswordRequest): ResponseEntity<ApiResponse> {
+    fun resetPassword(@RequestBody req: ResetPasswordRequest): ResponseEntity<TokenResponse> {
         return try {
-            val response = authService.confirmSignUp(req.code, "recovery")
+            // Step 1: Verify the recovery token (can be either URL token or 6-digit code)
+            val verifyResponse = authService.confirmSignUp(req.token, "recovery")
 
-            if (response.error != null) {
-                ResponseEntity.status(BAD_REQUEST)
-                    .body(ApiResponse(false, AUTH_RESET_PASSWORD_FAILED))
-            } else {
-                ResponseEntity.ok(ApiResponse(true))
+            if (verifyResponse.error != null || verifyResponse.accessToken == null) {
+                logger.warn("Token verification failed: ${verifyResponse.error}")
+                return ResponseEntity.status(BAD_REQUEST)
+                    .body(TokenResponse(error = AUTH_RESET_PASSWORD_FAILED))
             }
+
+            // Step 2: Use the temporary access token to update the password
+            val passwordUpdated = authService.updatePassword(verifyResponse.accessToken, req.newPassword)
+
+            if (!passwordUpdated) {
+                logger.error("Failed to update password after successful token verification")
+                return ResponseEntity.status(BAD_REQUEST)
+                    .body(TokenResponse(error = AUTH_RESET_PASSWORD_FAILED))
+            }
+
+            // Step 3: Return the tokens so user is automatically logged in
+            ResponseEntity.ok(
+                TokenResponse(
+                    accessToken = verifyResponse.accessToken,
+                    idToken = verifyResponse.accessToken,
+                    refreshToken = verifyResponse.refreshToken
+                )
+            )
         } catch (e: Exception) {
             logger.error("Reset password failed", e)
             ResponseEntity.status(BAD_REQUEST)
-                .body(ApiResponse(false, AUTH_RESET_PASSWORD_FAILED))
+                .body(TokenResponse(error = AUTH_RESET_PASSWORD_FAILED))
         }
     }
 
@@ -444,8 +488,7 @@ class AuthController(
     data class EmailRequest(@field:NotBlank val email: String)
 
     data class ResetPasswordRequest(
-        @field:NotBlank val email: String,
-        @field:NotBlank val code: String,
+        @field:NotBlank val token: String, // Can be either URL token or 6-digit code
         @field:NotBlank val newPassword: String
     )
 

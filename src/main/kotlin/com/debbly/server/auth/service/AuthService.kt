@@ -43,7 +43,15 @@ class AuthService(
             val response = restTemplate.postForEntity(url, entity, Map::class.java)
 
             if (response.statusCode.is2xxSuccessful) {
-                parseAuthResponse(response.body as Map<String, Any>)
+                val authResponse = parseAuthResponse(response.body as Map<String, Any>)
+
+                // If no tokens returned and autoLogin enabled, attempt to sign in
+                if (authResponse.accessToken == null) {
+                    logger.debug("No tokens in signup response, attempting auto-login")
+                    return signIn(email, password)
+                }
+
+                authResponse
             } else {
                 SupabaseAuthResponse(error = "Signup failed")
             }
@@ -236,7 +244,12 @@ class AuthService(
                 UserStatus.NOT_FOUND
             }
         } catch (e: RestClientException) {
-            logger.error("Error checking user status for email: $email", e)
+            // 401 errors are expected when admin credentials are not configured
+            if (e.message?.contains("401") == true) {
+                logger.warn("Failed to check user status (unauthorized): Check that auth.jwtSecret is configured correctly")
+            } else {
+                logger.error("Error checking user status for email: $email", e)
+            }
             UserStatus.NOT_FOUND
         }
     }
@@ -270,6 +283,31 @@ class AuthService(
         }
     }
 
+    fun updatePassword(accessToken: String, newPassword: String): Boolean {
+        val url = "${authConfig.url}/user"
+        val headers = createHeaders()
+        headers.setBearerAuth(accessToken)
+
+        val request = mapOf(
+            "password" to newPassword
+        )
+
+        return try {
+            val entity = HttpEntity(request, headers)
+            val response = restTemplate.exchange(
+                url,
+                org.springframework.http.HttpMethod.PUT,
+                entity,
+                Map::class.java
+            )
+
+            response.statusCode.is2xxSuccessful
+        } catch (e: RestClientException) {
+            logger.error("Failed to update password", e)
+            false
+        }
+    }
+
     private fun createHeaders(): HttpHeaders {
         val headers = HttpHeaders()
         headers.contentType = MediaType.APPLICATION_JSON
@@ -283,9 +321,7 @@ class AuthService(
         val headers = HttpHeaders()
         headers.contentType = MediaType.APPLICATION_JSON
         // For self-hosted GoTrue, use JWT secret for admin operations
-//        val serviceRoleKey = authConfig.secretKey.ifEmpty { authConfig.jwtSecret }
-//        headers["apikey"] = serviceRoleKey
-//        headers["Authorization"] = "Bearer $serviceRoleKey"
+        headers["Authorization"] = "Bearer ${authConfig.jwtSecret}"
         return headers
     }
 
