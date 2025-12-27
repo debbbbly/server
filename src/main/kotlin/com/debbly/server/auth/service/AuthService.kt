@@ -1,6 +1,5 @@
 package com.debbly.server.auth.service
 
-import com.debbly.server.auth.UserStatus
 import com.debbly.server.config.AuthConfigProperties
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.user.repository.UserCachedRepository
@@ -11,9 +10,9 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod.GET
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
+import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestClientException
 import org.springframework.web.client.RestTemplate
-import java.time.Instant
 
 @Service
 class AuthService(
@@ -29,61 +28,68 @@ class AuthService(
             userCachedRepository.findByExternalUserId(externalUserId) ?: throw UnauthorizedException()
         } ?: throw UnauthorizedException()
 
-    fun signUp(email: String, password: String): SupabaseAuthResponse {
-        val url = "${authConfig.url}/signup"
-        val headers = createHeaders()
+    fun signIn(email: String, password: String): SupabaseAuthResponse {
+        val url = "${authConfig.url}/token?grant_type=password"
 
+        val request = mapOf("email" to email, "password" to password)
+
+        try {
+            val entity = HttpEntity(request, defaultHeaders())
+            val response = restTemplate.postForEntity(url, entity, SupabaseAuthResponse::class.java)
+
+            return response.body ?: SupabaseAuthResponse(error = "Empty response from auth server")
+        } catch (e: HttpClientErrorException.BadRequest) {
+            return SupabaseAuthResponse(success = false, error = "Invalid credentials")
+        } catch (e: Exception) {
+            throw RuntimeException("Authentication failed during sign in.", e)
+        }
+    }
+
+    fun signUp(email: String, password: String): SupabaseAuthResponse {
+        val validationError = validatePassword(password)
+        if (validationError != null) {
+            return SupabaseAuthResponse(success = false, error = validationError)
+        }
+
+        val url = "${authConfig.url}/signup"
         val request = mapOf(
             "email" to email,
             "password" to password
         )
 
-        return try {
-            val entity = HttpEntity(request, headers)
-            val response = restTemplate.postForEntity(url, entity, Map::class.java)
+        try {
+            val entity = HttpEntity(request, defaultHeaders())
+            val response = restTemplate.postForEntity(url, entity, SupabaseUserResponse::class.java)
+            val userResponse = response.body ?: return SupabaseAuthResponse(error = "Empty response from auth server")
 
-            if (response.statusCode.is2xxSuccessful) {
-                val authResponse = parseAuthResponse(response.body as Map<String, Any>)
-
-                // If no tokens returned and autoLogin enabled, attempt to sign in
-                if (authResponse.accessToken == null) {
-                    logger.debug("No tokens in signup response, attempting auto-login")
-                    return signIn(email, password)
-                }
-
-                authResponse
-            } else {
-                SupabaseAuthResponse(error = "Signup failed")
-            }
-        } catch (e: RestClientException) {
-            logger.error("Signup failed", e)
-            SupabaseAuthResponse(error = e.message ?: "Signup failed")
+            return SupabaseAuthResponse(
+                user = userResponse.toSupabaseUser(),
+                success = true
+            )
+        } catch (e: HttpClientErrorException) {
+            return SupabaseAuthResponse(error = e.message ?: "Signup failed")
+        } catch (e: Exception) {
+            throw RuntimeException("Authentication failed during sign up.", e)
         }
     }
 
-    fun signIn(email: String, password: String): SupabaseAuthResponse {
-        val url = "${authConfig.url}/token?grant_type=password"
-        val headers = createHeaders()
-        val request = mapOf("email" to email, "password" to password)
+    fun getUserById(userId: String): SupabaseUserResponse? {
+        val url = "${authConfig.url}/admin/users/$userId"
 
-        return runCatching {
-            val entity = HttpEntity(request, headers)
-            val response = restTemplate.postForEntity(url, entity, Map::class.java)
-
-            if (response.statusCode.is2xxSuccessful) {
-                parseAuthResponse(response.body as Map<String, Any>)
-            } else {
-                SupabaseAuthResponse(error = "Signin failed: ${response.statusCode}")
-            }
-        }.getOrElse { e ->
-            logger.error("Signin failed", e)
-            SupabaseAuthResponse(error = e.message ?: "Signin failed")
+        return try {
+            val entity = HttpEntity<String>(null, adminHeaders())
+            val response = restTemplate.exchange(url, GET, entity, SupabaseUserResponse::class.java)
+            response.body
+        } catch (e: HttpClientErrorException.NotFound) {
+            null
+        } catch (e: Exception) {
+            throw RuntimeException("Authentication failed.", e)
         }
     }
 
     fun refreshToken(refreshToken: String): SupabaseAuthResponse {
         val url = "${authConfig.url}/token?grant_type=refresh_token"
-        val headers = createHeaders()
+        val headers = defaultHeaders()
 
         val request = mapOf(
             "refresh_token" to refreshToken
@@ -106,7 +112,7 @@ class AuthService(
 
     fun signOut(accessToken: String): SupabaseAuthResponse {
         val url = "${authConfig.url}/logout"
-        val headers = createHeaders()
+        val headers = defaultHeaders()
         headers.setBearerAuth(accessToken)
 
         return try {
@@ -126,7 +132,7 @@ class AuthService(
 
     fun resetPassword(email: String): SupabaseAuthResponse {
         val url = "${authConfig.url}/recover"
-        val headers = createHeaders()
+        val headers = defaultHeaders()
 
         val request = mapOf(
             "email" to email
@@ -149,7 +155,7 @@ class AuthService(
 
     fun confirmSignUp(token: String, type: String = "signup"): SupabaseAuthResponse {
         val url = "${authConfig.url}/verify"
-        val headers = createHeaders()
+        val headers = defaultHeaders()
 
         val request = mapOf(
             "token" to token,
@@ -173,7 +179,7 @@ class AuthService(
 
     fun resendConfirmation(email: String): SupabaseAuthResponse {
         val url = "${authConfig.url}/resend"
-        val headers = createHeaders()
+        val headers = defaultHeaders()
 
         val request = mapOf(
             "email" to email,
@@ -197,7 +203,7 @@ class AuthService(
 
     fun validateToken(accessToken: String): SupabaseUser? {
         val url = "${authConfig.url}/user"
-        val headers = createHeaders()
+        val headers = defaultHeaders()
         headers.setBearerAuth(accessToken)
 
         return try {
@@ -217,50 +223,9 @@ class AuthService(
         }
     }
 
-    fun getUserStatusByEmail(email: String): UserStatus {
-        val url = "${authConfig.url}/admin/users"
-        val headers = createAdminHeaders()
-
-        return try {
-            val entity = HttpEntity<String>(null, headers)
-            val response = restTemplate.exchange(url, GET, entity, Map::class.java)
-
-            if (response.statusCode.is2xxSuccessful) {
-                val responseBody = response.body as? Map<String, Any>
-                val users = responseBody?.get("users") as? List<Map<String, Any>>
-
-                val user = users?.find { user ->
-                    val userEmail = user["email"] as? String
-                    userEmail?.equals(email, ignoreCase = true) == true
-                }
-
-                when {
-                    user == null -> UserStatus.NOT_FOUND
-                    user["email_confirmed_at"] != null -> UserStatus.CONFIRMED
-                    else -> UserStatus.UNCONFIRMED
-                }
-            } else {
-                logger.warn("Failed to check user status: ${response.statusCode}")
-                UserStatus.NOT_FOUND
-            }
-        } catch (e: RestClientException) {
-            // 401 errors are expected when admin credentials are not configured
-            if (e.message?.contains("401") == true) {
-                logger.warn("Failed to check user status (unauthorized): Check that auth.jwtSecret is configured correctly")
-            } else {
-                logger.error("Error checking user status for email: $email", e)
-            }
-            UserStatus.NOT_FOUND
-        }
-    }
-
-    fun userExistsByEmail(email: String): Boolean {
-        return getUserStatusByEmail(email) != UserStatus.NOT_FOUND
-    }
-
     fun updateUserMetadata(accessToken: String, metadata: Map<String, Any>): Boolean {
         val url = "${authConfig.url}/user"
-        val headers = createHeaders()
+        val headers = defaultHeaders()
         headers.setBearerAuth(accessToken)
 
         val request = mapOf(
@@ -284,8 +249,14 @@ class AuthService(
     }
 
     fun updatePassword(accessToken: String, newPassword: String): Boolean {
+        val validationError = validatePassword(newPassword)
+        if (validationError != null) {
+            logger.error("Password validation failed: $validationError")
+            return false
+        }
+
         val url = "${authConfig.url}/user"
-        val headers = createHeaders()
+        val headers = defaultHeaders()
         headers.setBearerAuth(accessToken)
 
         val request = mapOf(
@@ -308,40 +279,23 @@ class AuthService(
         }
     }
 
-    private fun createHeaders(): HttpHeaders {
-        val headers = HttpHeaders()
-        headers.contentType = MediaType.APPLICATION_JSON
-        // For self-hosted GoTrue, use JWT secret as apikey
-//        val apikey = authConfig.publishableKey.ifEmpty { authConfig.jwtSecret }
-//        headers["apikey"] = apikey
-        return headers
+    private fun adminHeaders(): HttpHeaders = HttpHeaders().apply {
+        contentType = MediaType.APPLICATION_JSON
+        this["Authorization"] = "Bearer ${authConfig.serviceRoleKey}"
     }
 
-    private fun createAdminHeaders(): HttpHeaders {
-        val headers = HttpHeaders()
-        headers.contentType = MediaType.APPLICATION_JSON
-        // For self-hosted GoTrue, use JWT secret for admin operations
-        headers["Authorization"] = "Bearer ${authConfig.jwtSecret}"
-        return headers
+    private fun defaultHeaders(): HttpHeaders = HttpHeaders().apply {
+        contentType = MediaType.APPLICATION_JSON
     }
 
     private fun parseAuthResponse(responseBody: Map<String, Any>): SupabaseAuthResponse {
         val accessToken = responseBody["access_token"] as? String
         val refreshToken = responseBody["refresh_token"] as? String
-        val tokenType = responseBody["token_type"] as? String
-        val expiresIn = responseBody["expires_in"] as? Int
         val user = responseBody["user"] as? Map<String, Any>
-
-        val expiresAt = if (expiresIn != null) {
-            Instant.now().plusSeconds(expiresIn.toLong())
-        } else null
 
         return SupabaseAuthResponse(
             accessToken = accessToken,
             refreshToken = refreshToken,
-            tokenType = tokenType,
-            expiresIn = expiresIn,
-            expiresAt = expiresAt,
             user = user?.let { parseUser(it) },
             success = accessToken != null
         )
@@ -369,28 +323,80 @@ class AuthService(
 
 
     private fun parseUser(userData: Map<String, Any>): SupabaseUser {
-        val userMetadata = userData["user_metadata"] as? Map<String, Any>
         return SupabaseUser(
             id = userData["id"] as String,
-            email = userData["email"] as? String,
-            emailConfirmed = userData["email_confirmed_at"] != null,
-            createdAt = userData["created_at"] as? String,
-            updatedAt = userData["updated_at"] as? String,
-            username = userMetadata?.get("username") as? String
+            email = userData["email"] as? String
         )
+    }
+
+    private fun validatePassword(password: String): String? {
+        if (password.length < 8) {
+            return "Password must be at least 8 characters long"
+        }
+
+        val hasLetter = password.any { it.isLetter() }
+        if (!hasLetter) {
+            return "Password must contain at least one letter"
+        }
+
+        val hasDigit = password.any { it.isDigit() }
+        if (!hasDigit) {
+            return "Password must contain at least one digit"
+        }
+
+        return null
     }
 }
 
 data class SupabaseAuthResponse(
+    @com.fasterxml.jackson.annotation.JsonProperty("access_token")
     val accessToken: String? = null,
+
+    @com.fasterxml.jackson.annotation.JsonProperty("refresh_token")
     val refreshToken: String? = null,
-    val tokenType: String? = null,
-    val expiresIn: Int? = null,
-    val expiresAt: Instant? = null,
+
     val user: SupabaseUser? = null,
     val success: Boolean = false,
     val error: String? = null
 )
+
+data class SupabaseUser(
+    val id: String,
+    val email: String?
+)
+
+data class SupabaseUserResponse(
+    val id: String,
+    val email: String? = null,
+    val aud: String? = null,
+    val role: String? = null,
+
+    @com.fasterxml.jackson.annotation.JsonProperty("email_confirmed_at")
+    val emailConfirmedAt: String? = null,
+
+    @com.fasterxml.jackson.annotation.JsonProperty("confirmation_sent_at")
+    val confirmationSentAt: String? = null,
+
+    @com.fasterxml.jackson.annotation.JsonProperty("confirmed_at")
+    val confirmedAt: String? = null,
+
+    @com.fasterxml.jackson.annotation.JsonProperty("created_at")
+    val createdAt: String? = null,
+
+    @com.fasterxml.jackson.annotation.JsonProperty("updated_at")
+    val updatedAt: String? = null,
+
+    @com.fasterxml.jackson.annotation.JsonProperty("last_sign_in_at")
+    val lastSignInAt: String? = null,
+
+    @com.fasterxml.jackson.annotation.JsonProperty("app_metadata")
+    val appMetadata: Map<String, Any>? = null,
+
+    @com.fasterxml.jackson.annotation.JsonProperty("user_metadata")
+    val userMetadata: Map<String, Any>? = null
+) {
+    fun toSupabaseUser() = SupabaseUser(id = id, email = email)
+}
 
 data class SupabaseOAuthResponse(
     val authUrl: String? = null,
@@ -398,11 +404,3 @@ data class SupabaseOAuthResponse(
     val error: String? = null
 )
 
-data class SupabaseUser(
-    val id: String,
-    val email: String?,
-    val emailConfirmed: Boolean,
-    val createdAt: String?,
-    val updatedAt: String?,
-    val username: String? = null
-)

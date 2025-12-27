@@ -75,6 +75,7 @@ auth:
   url: ${AUTH_URL:${AUTH_PUBLIC_URL}}
   public-url: ${AUTH_PUBLIC_URL}
   jwt-secret: ${AUTH_JWT_SECRET}
+  service-role-key: ${AUTH_SERVICE_ROLE_KEY}
 
 s3:
   default:

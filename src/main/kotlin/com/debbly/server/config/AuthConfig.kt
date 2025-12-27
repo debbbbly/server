@@ -14,6 +14,7 @@ data class AuthConfigProperties(
     val url: String = "",
     val publicUrl: String = "",
     val jwtSecret: String = "",
+    val serviceRoleKey: String = ""
 )
 
 @Configuration

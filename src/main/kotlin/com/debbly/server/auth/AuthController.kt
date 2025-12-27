@@ -30,51 +30,11 @@ class AuthController(
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    @PostMapping("/login")
-    fun login(@RequestBody req: LoginRequest): ResponseEntity<TokenResponse> {
-        return try {
-            if (!AuthRateLimiter.tryConsume(req.usernameOrEmail)) {
-                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                    .body(TokenResponse(error = AUTH_TOO_MANY_ATTEMPTS))
-            }
-
-            val email = userCachedRepository.findByUsername(req.usernameOrEmail)?.email ?: req.usernameOrEmail
-
-            val authResponse = authService.signIn(email, req.password)
-
-            val userId = authResponse.user?.id
-            val userEmail = authResponse.user?.email ?: email
-
-            return when {
-                authResponse.error != null || userId == null -> {
-                    unauthorized(AUTH_LOGIN_FAILED)
-                }
-
-                !isUserComplete(userService.createUser(userId, userEmail)) -> {
-                    badRequest(AUTH_USER_INCOMPLETE)
-                }
-
-                else -> {
-                    ResponseEntity.ok(
-                        TokenResponse(
-                            accessToken = authResponse.accessToken,
-                            idToken = authResponse.accessToken, // deliberate?
-                            refreshToken = authResponse.refreshToken
-                        )
-                    )
-                }
-            }
-        } catch (e: Exception) {
-            logger.error("Login failed", e)
-            ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(TokenResponse(error = AUTH_GENERIC_ERROR))
-        }
-    }
-
     private fun unauthorized(error: AuthErrorCode) =
         ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(TokenResponse(error = error))
 
     private fun badRequest(error: AuthErrorCode) =
-        ResponseEntity.status(HttpStatus.BAD_REQUEST).body(TokenResponse(error = error))
+        ResponseEntity.status(BAD_REQUEST).body(TokenResponse(error = error))
 
     @PostMapping("/signup")
     fun signup(@RequestBody request: SignupRequest): ResponseEntity<UnifiedAuthResponse> {
@@ -84,94 +44,44 @@ class AuthController(
         }
 
         try {
-            // First try to sign in (existing user)
+
             val signInResponse = authService.signIn(request.email, request.password)
 
-            if (signInResponse.error == null && signInResponse.user != null) {
-                // User exists and credentials are correct - return tokens
+            if (signInResponse.accessToken != null && signInResponse.user != null) {
                 val userId = signInResponse.user.id
                 val userEmail = signInResponse.user.email ?: request.email
 
-                return if (!isUserComplete(userService.createUser(userId, userEmail))) {
-                    ResponseEntity.status(BAD_REQUEST)
-                        .body(UnifiedAuthResponse(error = AUTH_USER_INCOMPLETE))
-                } else {
-                    ResponseEntity.ok(
-                        UnifiedAuthResponse(
-                            accessToken = signInResponse.accessToken,
-                            idToken = signInResponse.accessToken,
-                            refreshToken = signInResponse.refreshToken,
-                            isNewUser = false,
-                            success = true
-                        )
+                userCachedRepository.findById(userId) ?: userService.createUser(userId, userEmail)
+
+                return ResponseEntity.ok(
+                    UnifiedAuthResponse(
+                        accessToken = signInResponse.accessToken,
+                        idToken = signInResponse.accessToken,
+                        refreshToken = signInResponse.refreshToken,
+                        signedUp = false,
+                        success = true
                     )
-                }
+                )
             }
 
-            // Sign in failed - check user status to determine the reason
-            val userStatus = authService.getUserStatusByEmail(request.email)
-
-            when (userStatus) {
-                UserStatus.CONFIRMED -> {
-                    return ResponseEntity.status(UNAUTHORIZED)
-                        .body(UnifiedAuthResponse(error = AUTH_LOGIN_FAILED))
-                }
-
-                UserStatus.UNCONFIRMED -> {
-                    logger.info("User ${request.email} exists but is unconfirmed, allowing re-registration")
-                }
-
-                UserStatus.NOT_FOUND -> {
-                    // User doesn't exist - continue to signup
-                    // Fall through to signup logic
-                }
-            }
-
-            // User doesn't exist - try to sign up
             val signUpResponse = authService.signUp(request.email, request.password)
 
-            return if (signUpResponse.error != null) {
-                logger.warn("Signup failed for new user: ${signUpResponse.error}")
-                ResponseEntity.badRequest()
-                    .body(UnifiedAuthResponse(error = AUTH_GENERIC_ERROR))
-            } else if (signUpResponse.accessToken != null) {
-                // Signup returned tokens immediately (email confirmation disabled)
-                val userId = signUpResponse.user?.id
-                val userEmail = signUpResponse.user?.email ?: request.email
+            val externalUserId = signUpResponse.user?.id ?: return ResponseEntity.badRequest()
+                .body(UnifiedAuthResponse(error = AUTH_GENERIC_ERROR))
 
-                if (userId == null) {
-                    logger.error("Signup succeeded but no user ID returned")
-                    return ResponseEntity.badRequest()
-                        .body(UnifiedAuthResponse(error = AUTH_GENERIC_ERROR))
-                }
+            // if user is missing by externalUserId - invalid credentials of existing user have been used
+            authService.getUserById(externalUserId)
+                ?: return ResponseEntity.status(BAD_REQUEST)
+                    .body(UnifiedAuthResponse(error = AUTH_INVALID_CREDENTIALS))
 
-                if (!isUserComplete(userService.createUser(userId, userEmail))) {
-                    return ResponseEntity.status(BAD_REQUEST)
-                        .body(UnifiedAuthResponse(error = AUTH_USER_INCOMPLETE))
-                }
-
-                ResponseEntity.ok(
-                    UnifiedAuthResponse(
-                        accessToken = signUpResponse.accessToken,
-                        idToken = signUpResponse.accessToken,
-                        refreshToken = signUpResponse.refreshToken,
-                        isNewUser = true,
-                        needsEmailConfirmation = false,
-                        success = true
-                    )
+            return ResponseEntity.ok(
+                UnifiedAuthResponse(
+                    signedUp = true,
+                    success = true
                 )
-            } else {
-                // Signup successful but no tokens - user needs to confirm email
-                ResponseEntity.ok(
-                    UnifiedAuthResponse(
-                        isNewUser = true,
-                        needsEmailConfirmation = true,
-                        success = true
-                    )
-                )
-            }
+            )
+
         } catch (e: Exception) {
-            logger.error("Unified signup/login failed", e)
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(UnifiedAuthResponse(error = AUTH_GENERIC_ERROR))
         }
@@ -338,7 +248,13 @@ class AuthController(
     @PostMapping("/refresh")
     fun refreshToken(@CookieValue("refreshToken") refreshToken: String): ResponseEntity<TokenResponse> {
         return try {
-            logger.info("Attempting to refresh token. Token length: ${refreshToken.length}, first 20 chars: ${refreshToken.take(20)}...")
+            logger.info(
+                "Attempting to refresh token. Token length: ${refreshToken.length}, first 20 chars: ${
+                    refreshToken.take(
+                        20
+                    )
+                }..."
+            )
             val response = authService.refreshToken(refreshToken)
 
             if (response.error != null) {
@@ -390,7 +306,13 @@ class AuthController(
             // 3. Set authentication cookies
             val secure = "dev" !in env.activeProfiles
             response.setCookie("accessToken", request.accessToken, 60 * 60, "Lax", secure)
-            response.setCookie("idToken", request.accessToken, 60 * 60, "Lax", secure) // accessToken IS the idToken in Supabase
+            response.setCookie(
+                "idToken",
+                request.accessToken,
+                60 * 60,
+                "Lax",
+                secure
+            ) // accessToken IS the idToken in Supabase
             request.refreshToken?.let { refreshToken ->
                 logger.info("Setting refresh token cookie. Token length: ${refreshToken.length}")
                 response.setCookie("refreshToken", refreshToken, 60 * 60 * 24 * 30, "Strict", secure)
@@ -412,7 +334,6 @@ class AuthController(
                 .body(CallbackResponse(false, error = AUTH_GENERIC_ERROR))
         }
     }
-
 
 
     data class OAuthCallbackRequest(
@@ -515,8 +436,9 @@ class AuthController(
         val accessToken: String? = null,
         val idToken: String? = null,
         val refreshToken: String? = null,
-        val isNewUser: Boolean = false,
-        val needsEmailConfirmation: Boolean = false,
+
+        val signedUp: Boolean? = null,
+
         val success: Boolean = false,
         val error: AuthErrorCode? = null
     )
@@ -530,7 +452,6 @@ class AuthController(
     data class RefreshTokenRequest(
         @field:NotBlank val refreshToken: String
     )
-
 
 
     data class CallbackResponse(
