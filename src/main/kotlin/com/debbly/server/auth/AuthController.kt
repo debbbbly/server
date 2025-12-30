@@ -44,7 +44,6 @@ class AuthController(
         }
 
         try {
-
             val signInResponse = authService.signIn(request.email, request.password)
 
             if (signInResponse.accessToken != null && signInResponse.user != null) {
@@ -87,80 +86,6 @@ class AuthController(
         }
     }
 
-//    @PostMapping("/confirm-email")
-//    fun confirmEmail(@RequestBody request: SignupConfirmEmailRequest): ResponseEntity<TokenResponse> {
-//        if (!AuthRateLimiter.tryConsume(request.email)) {
-//            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-//                .body(TokenResponse(error = AUTH_TOO_MANY_ATTEMPTS))
-//        }
-//
-//        try {
-//            val confirmResponse = supabaseAuthService.confirmSignUp(request.code)
-//
-//            if (confirmResponse.error != null) {
-//                return ResponseEntity.status(BAD_REQUEST)
-//                    .body(TokenResponse(error = AUTH_CONFIRMATION_CODE_INVALID))
-//            }
-//
-//            val authResponse = supabaseAuthService.signIn(request.email, request.password)
-//
-//            if (authResponse.error != null || authResponse.user == null) {
-//                return ResponseEntity.status(BAD_REQUEST)
-//                    .body(TokenResponse(error = AUTH_GENERIC_ERROR))
-//            }
-//
-//            val user = UserModel(
-//                userId = idService.getId(),
-//                externalUserId = authResponse.user.id,
-//                email = request.email,
-//                username = request.username.takeIf { isValidUsername(request.username) },
-//                birthdate = request.birthdate.takeIf { isValidBirthdate(request.birthdate) },
-//            )
-//
-//            userCachedRepository.save(user)
-//
-//            return if (!isUserComplete(user)) {
-//                ResponseEntity.status(BAD_REQUEST)
-//                    .body(TokenResponse(error = AUTH_USER_INCOMPLETE))
-//            } else {
-//                ResponseEntity.ok(
-//                    TokenResponse(
-//                        accessToken = authResponse.accessToken,
-//                        idToken = authResponse.accessToken,
-//                        refreshToken = authResponse.refreshToken
-//                    )
-//                )
-//            }
-//        } catch (e: Exception) {
-//            logger.error("Email confirmation failed", e)
-//            return ResponseEntity.status(BAD_REQUEST)
-//                .body(TokenResponse(error = AUTH_GENERIC_ERROR))
-//        }
-//    }
-
-    @PostMapping("/resend-confirmation")
-    fun resendConfirmation(@RequestBody req: EmailRequest): ResponseEntity<ApiResponse> {
-        if (!AuthRateLimiter.tryConsume(req.email)) {
-            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .body(ApiResponse(false, error = AUTH_TOO_MANY_ATTEMPTS))
-        }
-
-        return try {
-            val response = authService.resendConfirmation(req.email)
-
-            if (response.error != null) {
-                ResponseEntity.status(BAD_REQUEST)
-                    .body(ApiResponse(false, AUTH_RESEND_CONFIRMATION_FAILED))
-            } else {
-                ResponseEntity.ok(ApiResponse(true))
-            }
-        } catch (e: Exception) {
-            logger.error("Resend confirmation failed", e)
-            ResponseEntity.status(BAD_REQUEST)
-                .body(ApiResponse(false, AUTH_RESEND_CONFIRMATION_FAILED))
-        }
-    }
-
     @PostMapping("/forgot-password")
     fun forgotPassword(@RequestBody req: EmailRequest): ResponseEntity<ApiResponse> {
         if (!AuthRateLimiter.tryConsume(req.email)) {
@@ -185,38 +110,31 @@ class AuthController(
     }
 
     @PostMapping("/reset-password")
-    fun resetPassword(@RequestBody req: ResetPasswordRequest): ResponseEntity<TokenResponse> {
-        return try {
-            // Step 1: Verify the recovery token (can be either URL token or 6-digit code)
-            val verifyResponse = authService.confirmSignUp(req.token, "recovery")
+    fun resetPassword(
+        @RequestBody request: ResetPasswordRequest,
+        response: HttpServletResponse
+    ): ResponseEntity<CallbackResponse> {
+        try {
 
-            if (verifyResponse.error != null || verifyResponse.accessToken == null) {
-                logger.warn("Token verification failed: ${verifyResponse.error}")
-                return ResponseEntity.status(BAD_REQUEST)
-                    .body(TokenResponse(error = AUTH_RESET_PASSWORD_FAILED))
-            }
-
-            // Step 2: Use the temporary access token to update the password
-            val passwordUpdated = authService.updatePassword(verifyResponse.accessToken, req.newPassword)
+            val passwordUpdated = authService.updatePassword(request.accessToken, request.newPassword)
 
             if (!passwordUpdated) {
                 logger.error("Failed to update password after successful token verification")
                 return ResponseEntity.status(BAD_REQUEST)
-                    .body(TokenResponse(error = AUTH_RESET_PASSWORD_FAILED))
+                    .body(CallbackResponse(success = false, error = AUTH_RESET_PASSWORD_FAILED))
             }
 
-            // Step 3: Return the tokens so user is automatically logged in
-            ResponseEntity.ok(
-                TokenResponse(
-                    accessToken = verifyResponse.accessToken,
-                    idToken = verifyResponse.accessToken,
-                    refreshToken = verifyResponse.refreshToken
-                )
+            setCookie(
+                request.accessToken,
+                request.refreshToken,
+                response
             )
+
+            return ResponseEntity.ok(CallbackResponse(true))
+
         } catch (e: Exception) {
-            logger.error("Reset password failed", e)
-            ResponseEntity.status(BAD_REQUEST)
-                .body(TokenResponse(error = AUTH_RESET_PASSWORD_FAILED))
+            return ResponseEntity.status(BAD_REQUEST)
+                .body(CallbackResponse(success = false, error = AUTH_RESET_PASSWORD_FAILED))
         }
     }
 
@@ -273,6 +191,55 @@ class AuthController(
             logger.error("Token refresh failed", e)
             ResponseEntity.status(UNAUTHORIZED).body(TokenResponse(error = AUTH_REFRESH_TOKEN_INVALID))
         }
+    }
+
+    /**
+     * Generic callback endpoint for Supabase redirects (email confirmation, password reset, etc.)
+     * This endpoint receives tokens from Supabase after various authentication flows
+     */
+    @PostMapping("/callback")
+    fun callback(
+        @RequestBody request: SupabaseCallbackRequest,
+        response: HttpServletResponse
+    ): ResponseEntity<CallbackResponse> {
+        return try {
+            val supabaseUser = authService.validateToken(request.accessToken)
+                ?: return ResponseEntity.status(UNAUTHORIZED)
+                    .body(CallbackResponse(false, error = AUTH_CALLBACK_INVALID_TOKEN))
+
+            val user = userCachedRepository.findById(supabaseUser.id)
+                ?: userService.createUser(supabaseUser.id, supabaseUser.email)
+
+            setCookie(
+                request.accessToken,
+                request.refreshToken,
+                response
+            )
+
+            val callbackUser = CallbackUserInfo(
+                userId = user.userId,
+                email = user.email,
+                username = user.username,
+                isComplete = isUserComplete(user)
+            )
+
+            ResponseEntity.ok(CallbackResponse(true, user = callbackUser))
+
+        } catch (e: Exception) {
+            ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(CallbackResponse(false, error = AUTH_GENERIC_ERROR))
+        }
+    }
+
+    private fun setCookie(
+        accessToken: String,
+        refreshToken: String,
+        response: HttpServletResponse
+    ) {
+        val secure = "dev" !in env.activeProfiles
+        response.setCookie("accessToken", accessToken, 60 * 60, "Lax", secure)
+        response.setCookie("idToken", accessToken, 60 * 60, "Lax", secure)
+        response.setCookie("refreshToken", refreshToken, 60 * 60 * 24 * 30, "Strict", secure)
     }
 
     /**
@@ -335,6 +302,11 @@ class AuthController(
         }
     }
 
+    data class SupabaseCallbackRequest(
+        val accessToken: String,
+        val refreshToken: String,
+        val expiresIn: String?,
+    )
 
     data class OAuthCallbackRequest(
         val accessToken: String,
@@ -398,19 +370,13 @@ class AuthController(
 
     data class ApiResponse(val success: Boolean, val error: AuthErrorCode? = null)
 
-//    data class SignupConfirmEmailRequest(
-//        @field:NotBlank val email: String,
-//        @field:NotBlank val password: String,
-//        val code: String,
-//        @field:NotBlank val username: String,
-//        val birthdate: LocalDate
-//    )
-
     data class EmailRequest(@field:NotBlank val email: String)
 
     data class ResetPasswordRequest(
-        @field:NotBlank val token: String, // Can be either URL token or 6-digit code
-        @field:NotBlank val newPassword: String
+        @field:NotBlank val accessToken: String,
+        @field:NotBlank val refreshToken: String,
+        @field:NotBlank val expiresIn: String,
+        @field:NotBlank val newPassword: String,
     )
 
     data class SignupRequest(

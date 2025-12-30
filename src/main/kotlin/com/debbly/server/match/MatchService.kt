@@ -65,19 +65,15 @@ class MatchService(
     fun skip(match: Match, user: UserModel) {
         matchValidationService.validateMatchOperation(match, user.userId, "skip")
 
-//        logger.info(
-//            "User {} ({}) skipped match {} on claim '{}', adding claim to skip list",
-//            user.userId, user.username, match.matchId, match.claim.title
-//        )
-
         matchRepository.delete(match.matchId)
         matchNotificationService.notifyMatchCancelled(match, user.userId, "skip")
 
+        // Re-queue the user who skipped with the claim on skip list
         val matchRequest = buildMatchRequest(user, withSkipClaimIds = setOf(match.claim.claimId))
         matchQueueRepository.save(matchRequest)
-//        logger.info("User {} re-queued with {} skipped claims", user.userId, matchRequest.skipClaimIds.size)
 
-        addOpponentsBackToQueue(match, user.userId)
+        // Re-queue opponents
+        reQueueOpponents(match, user.userId)
     }
 
     fun switch(match: Match, user: UserModel) {
@@ -86,11 +82,6 @@ class MatchService(
         val userStance = match.opponents
             .firstOrNull() { it.userId == user.userId }
             ?.stance
-
-//        logger.info(
-//            "User {} switched stance to {} on match {} for claim '{}'.",
-//            user.userId, userStance, match.matchId, match.claim.title
-//        )
 
         val withClaimIdToStance = userStance
             ?.let { match.claim.claimId to it }
@@ -107,8 +98,11 @@ class MatchService(
         matchRepository.delete(match.matchId)
         matchNotificationService.notifyMatchCancelled(match, user.userId, "switch")
 
+        // Re-queue the user who switched with updated stance
         matchQueueRepository.save(buildMatchRequest(user, withClaimIdToStance = withClaimIdToStance))
-        addOpponentsBackToQueue(match, user.userId)
+
+        // Re-queue opponents
+        reQueueOpponents(match, user.userId)
     }
 
     fun accept(match: Match, user: UserModel) {
@@ -117,6 +111,20 @@ class MatchService(
         if (matchValidationService.userAlreadyAccepted(match, user.userId)) {
 //            logger.warn("User {} already accepted match {}", user.userId, match.matchId)
             return
+        }
+
+        // Update user stance when they accept the match
+        val userStance = match.opponents
+            .firstOrNull { it.userId == user.userId }
+            ?.stance
+
+        userStance?.let { stance ->
+            userClaimService.updateStance(
+                userId = user.userId,
+                claimId = match.claim.claimId,
+                stance = stance
+            )
+            logger.info("Updated stance for user {} on claim {} to {}", user.userId, match.claim.claimId, stance)
         }
 
         val updatedMatchOpponents = match.opponents
@@ -147,37 +155,18 @@ class MatchService(
     private fun cancelExistingMatchIfPresent(userId: String) {
         val existingMatch = matchRepository.findByUserId(userId) ?: return
 
-//        logger.info(
-//            "User {} has active match {} (claim: '{}') - cancelling to join queue",
-//            userId, existingMatch.matchId, existingMatch.claim.title
-//        )
         matchNotificationService.notifyMatchCancelled(existingMatch, userId, "rejoin")
         matchRepository.delete(existingMatch.matchId)
-
-        addOpponentsBackToQueue(existingMatch, userId)
     }
 
-    private fun addOpponentsBackToQueue(match: Match, excludeUserId: String) {
+    private fun reQueueOpponents(match: Match, excludeUserId: String) {
         val opponents = match.opponents.filter { it.userId != excludeUserId }
-
-        if (opponents.isEmpty()) {
-//            logger.debug("No opponents to re-queue for match {}", match.matchId)
-            return
-        }
-
-//        logger.info(
-//            "Re-queuing {} opponent(s) from match {} (excludes user {})",
-//            opponents.size, match.matchId, excludeUserId
-//        )
 
         opponents.forEach { opponent ->
             val user = userRepository.getById(opponent.userId)
             val matchRequest = buildMatchRequest(user)
             matchQueueRepository.save(matchRequest)
-//            logger.info(
-//                "  -> Re-queued opponent {} ({}) with {} claims",
-//                opponent.userId, opponent.username, matchRequest.claimIdToStance.size
-//            )
+            logger.info("Re-queued opponent {} from cancelled match {}", opponent.userId, match.matchId)
         }
     }
 

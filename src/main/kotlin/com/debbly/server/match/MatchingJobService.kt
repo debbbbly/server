@@ -31,21 +31,39 @@ class MatchingJobService(
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    companion object {
+        private const val QUEUE_TIMEOUT_SECONDS = 15 * 60L // 15 minutes
+    }
+
     fun runMatching() {
         cleanupExpiredMatches()
 
-        val waitingUsers = matchQueueRepository.findAll().sortedBy { it.joinedAt }
+        val allUsers = matchQueueRepository.findAll()
+        val now = Instant.now(clock)
+        val queueTimeoutThreshold = now.minusSeconds(QUEUE_TIMEOUT_SECONDS)
+
+        // Filter out users who have been in queue for more than 15 minutes
+        val (expiredUsers, waitingUsers) = allUsers.partition { it.joinedAt.isBefore(queueTimeoutThreshold) }
+
+//        if (expiredUsers.isNotEmpty()) {
+//            logger.info("Dropping {} users from queue who exceeded 15-minute timeout", expiredUsers.size)
+//            expiredUsers.forEach { user ->
+//                logger.info("  -> Dropping user {} (in queue since {})", user.userId, user.joinedAt)
+//            }
+//        }
+
+        val sortedWaitingUsers = waitingUsers.sortedBy { it.joinedAt }
         val matchedUsers = mutableSetOf<String>()
 
 //        logger.info("=== MATCHING CYCLE START ===")
-//        logger.info("Queue size: {}", waitingUsers.size)
+//        logger.info("Queue size: {}", sortedWaitingUsers.size)
 
-        if (waitingUsers.isEmpty()) {
+        if (sortedWaitingUsers.isEmpty()) {
 //            logger.info("=== MATCHING CYCLE END (empty queue) ===")
             return
         }
 
-        waitingUsers.forEach { user ->
+        sortedWaitingUsers.forEach { user ->
             logger.info(
                 "Queue entry: userId={}, claims={}, skipped={}, joinedAt={}, ignores={}",
                 user.userId, user.claimIdToStance.size, user.skipClaimIds.size, user.joinedAt, user.ignores
@@ -55,12 +73,12 @@ class MatchingJobService(
         }
 
 //        logger.debug("Phase 1: Matching users by common claims with opposite stances")
-        for (i in 0 until waitingUsers.size) {
-            val userA = waitingUsers[i]
+        for (i in 0 until sortedWaitingUsers.size) {
+            val userA = sortedWaitingUsers[i]
             if (userA.userId in matchedUsers) continue
 
-            for (j in i + 1 until waitingUsers.size) {
-                val userB = waitingUsers[j]
+            for (j in i + 1 until sortedWaitingUsers.size) {
+                val userB = sortedWaitingUsers[j]
                 if (userB.userId in matchedUsers) continue
 
                 val matchingClaimIds = findMatchingClaimsWithOppositeStances(userA, userB)
@@ -82,14 +100,14 @@ class MatchingJobService(
             }
         }
 
-        val remainingUsers = waitingUsers.filter { it.userId !in matchedUsers }
+        val remainingUsers = sortedWaitingUsers.filter { it.userId !in matchedUsers }
 //        logger.debug("Phase 1 complete: {} users matched, {} remaining", matchedUsers.size, remainingUsers.size)
         if (remainingUsers.size >= 2) {
 //            logger.debug("Phase 2: Matching users by individual stances with assignment")
             matchWithUserStances(remainingUsers, matchedUsers)
         }
 
-        val stillRemainingUsers = waitingUsers.filter { it.userId !in matchedUsers }
+        val stillRemainingUsers = sortedWaitingUsers.filter { it.userId !in matchedUsers }
 //        logger.debug(
 //            "Phase 2 complete: {} users matched total, {} remaining",
 //            matchedUsers.size,
@@ -100,7 +118,7 @@ class MatchingJobService(
             matchWithTopClaims(stillRemainingUsers, matchedUsers)
         }
 
-        val finalRemainingUsers = waitingUsers.filter { it.userId !in matchedUsers }
+        val finalRemainingUsers = sortedWaitingUsers.filter { it.userId !in matchedUsers }
 
 //        logger.info("=== MATCHING CYCLE COMPLETE ===")
 //        logger.info("Total users matched: {}", matchedUsers.size)
@@ -144,34 +162,30 @@ class MatchingJobService(
             logger.info("Found {} expired matches to clean up", expiredMatches.size)
 
             expiredMatches.forEach { match ->
-                matchNotificationService.notifyMatchTimeout(match)
 
-                try {
-                    match.opponents.forEach { opponent ->
-//                        val user = userRepository.getById(opponent.userId)
-//                        val claimIdToStance = userClaimRepository.findByUserId(user.userId)
-//                            .filter { it.claim.category.active }
-//                            .associate { it.claim.claimId to it.stance }
-//
-//                        if (claimIdToStance.isNotEmpty()) {
-//                            val matchRequest = MatchRequest(
-//                                userId = user.userId,
-//                                claimIdToStance = claimIdToStance,
-//                                skipClaimIds = emptySet(),
-//                                joinedAt = Instant.now(clock),
-//                                ignores = opponent.ignores + 1
-//                            )
-//                            matchQueueRepository.save(matchRequest)
-//                            logger.info("Re-queued user {} from expired match {}", opponent.userId, match.matchId)
-//                        } else {
-//                            logger.warn("Cannot re-queue user {} from expired match - no matchable claims", opponent.userId)
-//                        }
+                // Re-queue only users who accepted the match
+                match.opponents
+                    .filter { it.status == MatchOpponentStatus.ACCEPTED }
+                    .forEach { opponent ->
+                        val user = userRepository.getById(opponent.userId)
+                        val claimIdToStance = userClaimRepository.findByUserId(user.userId)
+                            .filter { it.claim.category.active }
+                            .associate { it.claim.claimId to it.stance }
+
+                            val matchRequest = MatchRequest(
+                                userId = user.userId,
+                                claimIdToStance = claimIdToStance,
+                                skipClaimIds = emptySet(),
+                                joinedAt = Instant.now(clock),
+                                ignores = 0
+                            )
+                            matchQueueRepository.save(matchRequest)
+                            logger.info("Re-queued user {} who accepted expired match {}", opponent.userId, match.matchId)
                     }
-                } catch (e: Exception) {
-                    logger.error("Error cleaning up expired match ${match.matchId}", e)
-                }
 
                 matchRepository.delete(match.matchId)
+
+                matchNotificationService.notifyMatchTimeout(match)
             }
         }
     }

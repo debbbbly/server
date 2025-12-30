@@ -104,9 +104,10 @@ class AuthService(
             } else {
                 SupabaseAuthResponse(error = "Token refresh failed")
             }
+
         } catch (e: RestClientException) {
-            logger.error("Token refresh failed", e)
-            SupabaseAuthResponse(error = e.message ?: "Token refresh failed")
+            val error = parseSupabaseError(e)
+            SupabaseAuthResponse(error = error?.error_code ?: "Token refresh failed")
         }
     }
 
@@ -125,8 +126,8 @@ class AuthService(
                 SupabaseAuthResponse(error = "Signout failed")
             }
         } catch (e: RestClientException) {
-            logger.error("Signout failed", e)
-            SupabaseAuthResponse(error = e.message ?: "Signout failed")
+            val error = parseSupabaseError(e)
+            SupabaseAuthResponse(error = error?.error_code ?: "Signout failed")
         }
     }
 
@@ -142,6 +143,10 @@ class AuthService(
             val entity = HttpEntity(request, headers)
             val response = restTemplate.postForEntity(url, entity, Map::class.java)
 
+            //pars error message: 429 Too Many Requests on POST request for "https://supabase-auth-nqm-dev.up.railway.app/recover": "{"code":429,"error_code":"over_email_send_rate_limit","msg":"For security purposes, you can only request this after 29 seconds."}"
+
+            // org.springframework.web.client.HttpClientErrorException$TooManyRequests: 429 Too Many Requests on POST request for "https://supabase-auth-nqm-dev.up.railway.app/recover": "{"code":429,"error_code":"over_email_send_rate_limit","msg":"email rate limit exceeded"}"
+
             if (response.statusCode.is2xxSuccessful) {
                 SupabaseAuthResponse(success = true)
             } else {
@@ -149,57 +154,58 @@ class AuthService(
             }
         } catch (e: RestClientException) {
             logger.error("Password reset failed", e)
-            SupabaseAuthResponse(error = e.message ?: "Password reset failed")
+            val error = parseSupabaseError(e)
+            SupabaseAuthResponse(error = error?.error_code ?: "Password reset failed")
         }
     }
 
-    fun confirmSignUp(token: String, type: String = "signup"): SupabaseAuthResponse {
-        val url = "${authConfig.url}/verify"
-        val headers = defaultHeaders()
+//    fun verifyToken(token: String, type: String): SupabaseAuthResponse {
+//        val url = "${authConfig.url}/verify"
+//        val headers = defaultHeaders()
+//
+//        val request = mapOf(
+//            "token" to token,
+//            "type" to type
+//        )
+//
+//        return try {
+//            val entity = HttpEntity(request, headers)
+//            val response = restTemplate.postForEntity(url, entity, Map::class.java)
+//
+//            if (response.statusCode.is2xxSuccessful) {
+//                parseAuthResponse(response.body as Map<String, Any>)
+//            } else {
+//                SupabaseAuthResponse(error = "Email confirmation failed")
+//            }
+//        } catch (e: RestClientException) {
+//            logger.error("Email confirmation failed", e)
+//            SupabaseAuthResponse(error = e.message ?: "Email confirmation failed")
+//        }
+//    }
 
-        val request = mapOf(
-            "token" to token,
-            "type" to type
-        )
-
-        return try {
-            val entity = HttpEntity(request, headers)
-            val response = restTemplate.postForEntity(url, entity, Map::class.java)
-
-            if (response.statusCode.is2xxSuccessful) {
-                parseAuthResponse(response.body as Map<String, Any>)
-            } else {
-                SupabaseAuthResponse(error = "Email confirmation failed")
-            }
-        } catch (e: RestClientException) {
-            logger.error("Email confirmation failed", e)
-            SupabaseAuthResponse(error = e.message ?: "Email confirmation failed")
-        }
-    }
-
-    fun resendConfirmation(email: String): SupabaseAuthResponse {
-        val url = "${authConfig.url}/resend"
-        val headers = defaultHeaders()
-
-        val request = mapOf(
-            "email" to email,
-            "type" to "signup"
-        )
-
-        return try {
-            val entity = HttpEntity(request, headers)
-            val response = restTemplate.postForEntity(url, entity, Map::class.java)
-
-            if (response.statusCode.is2xxSuccessful) {
-                SupabaseAuthResponse(success = true)
-            } else {
-                SupabaseAuthResponse(error = "Resend confirmation failed")
-            }
-        } catch (e: RestClientException) {
-            logger.error("Resend confirmation failed", e)
-            SupabaseAuthResponse(error = e.message ?: "Resend confirmation failed")
-        }
-    }
+//    fun resendConfirmation(email: String): SupabaseAuthResponse {
+//        val url = "${authConfig.url}/resend"
+//        val headers = defaultHeaders()
+//
+//        val request = mapOf(
+//            "email" to email,
+//            "type" to "signup"
+//        )
+//
+//        return try {
+//            val entity = HttpEntity(request, headers)
+//            val response = restTemplate.postForEntity(url, entity, Map::class.java)
+//
+//            if (response.statusCode.is2xxSuccessful) {
+//                SupabaseAuthResponse(success = true)
+//            } else {
+//                SupabaseAuthResponse(error = "Resend confirmation failed")
+//            }
+//        } catch (e: RestClientException) {
+//            logger.error("Resend confirmation failed", e)
+//            SupabaseAuthResponse(error = e.message ?: "Resend confirmation failed")
+//        }
+//    }
 
     fun validateToken(accessToken: String): SupabaseUser? {
         val url = "${authConfig.url}/user"
@@ -255,18 +261,14 @@ class AuthService(
             return false
         }
 
-        val url = "${authConfig.url}/user"
-        val headers = defaultHeaders()
-        headers.setBearerAuth(accessToken)
-
         val request = mapOf(
             "password" to newPassword
         )
 
         return try {
-            val entity = HttpEntity(request, headers)
+            val entity = HttpEntity(request, defaultHeaders(accessToken))
             val response = restTemplate.exchange(
-                url,
+                "${authConfig.url}/user",
                 org.springframework.http.HttpMethod.PUT,
                 entity,
                 Map::class.java
@@ -274,7 +276,7 @@ class AuthService(
 
             response.statusCode.is2xxSuccessful
         } catch (e: RestClientException) {
-            logger.error("Failed to update password", e)
+            val error = parseSupabaseError(e)
             false
         }
     }
@@ -284,8 +286,9 @@ class AuthService(
         this["Authorization"] = "Bearer ${authConfig.serviceRoleKey}"
     }
 
-    private fun defaultHeaders(): HttpHeaders = HttpHeaders().apply {
+    private fun defaultHeaders(accessToken: String? = null): HttpHeaders = HttpHeaders().apply {
         contentType = MediaType.APPLICATION_JSON
+        if (accessToken != null) setBearerAuth(accessToken)
     }
 
     private fun parseAuthResponse(responseBody: Map<String, Any>): SupabaseAuthResponse {
@@ -325,7 +328,7 @@ class AuthService(
     private fun parseUser(userData: Map<String, Any>): SupabaseUser {
         return SupabaseUser(
             id = userData["id"] as String,
-            email = userData["email"] as? String
+            email = userData["email"] as String
         )
     }
 
@@ -346,6 +349,14 @@ class AuthService(
 
         return null
     }
+
+    private fun parseSupabaseError(exception: RuntimeException): SupabaseErrorResponse? {
+        return try {
+            objectMapper.readValue(exception.message, SupabaseErrorResponse::class.java)
+        } catch (e: Exception) {
+            null
+        }
+    }
 }
 
 data class SupabaseAuthResponse(
@@ -362,12 +373,12 @@ data class SupabaseAuthResponse(
 
 data class SupabaseUser(
     val id: String,
-    val email: String?
+    val email: String
 )
 
 data class SupabaseUserResponse(
     val id: String,
-    val email: String? = null,
+    val email: String,
     val aud: String? = null,
     val role: String? = null,
 
@@ -402,5 +413,13 @@ data class SupabaseOAuthResponse(
     val authUrl: String? = null,
     val success: Boolean = false,
     val error: String? = null
+)
+
+data class SupabaseErrorResponse(
+    val code: Int? = null,
+    @com.fasterxml.jackson.annotation.JsonProperty("error_code")
+    val error_code: String? = null,
+    val msg: String? = null,
+    val message: String? = null
 )
 

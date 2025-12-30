@@ -22,36 +22,8 @@ class MatchDebugController(
         val allKeys = redisTemplate.keys("*match*")?.sorted() ?: emptyList()
 
         return mapOf(
-            "summary" to mapOf(
-                "totalMatches" to allMatches.size,
-                "totalQueueRequests" to allQueueRequests.size,
-                "totalMatchKeys" to allKeys.size
-            ),
-            "matches" to allMatches.map { match ->
-                mapOf(
-                    "matchId" to match.matchId,
-                    "status" to match.status,
-                    "updatedAt" to match.updatedAt,
-                    "ttl" to match.ttl,
-                    "claim" to match.claim.title,
-                    "opponents" to match.opponents.map {
-                        mapOf(
-                            "userId" to it.userId,
-                            "status" to it.status,
-                            "stance" to it.stance
-                        )
-                    }
-                )
-            },
-            "queue" to allQueueRequests.map { req ->
-                mapOf(
-                    "userId" to req.userId,
-                    "claimCount" to req.claimIdToStance.size,
-                    "skippedCount" to req.skipClaimIds.size,
-                    "joinedAt" to req.joinedAt
-                )
-            },
-            "redisKeys" to allKeys
+            "matches" to allMatches,
+            "queue" to allQueueRequests
         )
     }
 
