@@ -226,14 +226,16 @@ class LiveKitService(
         }
     }
 
-    fun getToken(userId: String?, stageId: String, isHost: Boolean): String {
+    fun getToken(userId: String?, stageId: String, isHost: Boolean, stance: String): String {
         val token = AccessToken(liveKitConfig.apiKey, liveKitConfig.apiSecret).apply {
             val tokenUserId = userId ?: "guest_${idService.getId()}"
 
             name = tokenUserId
             identity = tokenUserId
             ttl = settings.getDebateStageDuration().toLong() + TOKEN_TTL_EXTRA_SECONDS
-            metadata = null
+
+            val role = if (isHost) "HOST" else "VIEWER"
+            metadata = """{"role":"$role","stance":"$stance"}"""
 
             addGrants(
                 RoomJoin(true),
