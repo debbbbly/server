@@ -167,8 +167,14 @@ class StageService(
 
         val (isHost, livekitToken) = userId.let { tokenUserId ->
             val isHost = stage.hosts.any { it.userId == userId }
+            val userStance = stage.hosts.find { it.userId == userId }?.stance ?: ClaimStance.EITHER
 
-            isHost to liveKitService.getToken(userId = tokenUserId, stageId = stageId, isHost = isHost)
+            isHost to liveKitService.getToken(
+                userId = tokenUserId,
+                stageId = stageId,
+                isHost = isHost,
+                stance = userStance.name
+            )
         }
 
         return StageDetails(
@@ -468,11 +474,6 @@ class StageService(
 
     private fun closeStage(stage: StageModel) {
 
-        val roomClosed = liveKitService.endRoom(stage.stageId)
-        if (!roomClosed) {
-            logger.warn("Failed to end LiveKit room for stage ${stage.stageId}")
-        }
-
         val closedStage = stage.copy(
             status = StageStatus.CLOSED,
             closedAt = Instant.now(clock)
@@ -482,6 +483,11 @@ class StageService(
 
         // Broadcast debate ended event to stage channel
         broadcastDebateEnded(stage.stageId, closedStage, "timeout")
+
+        val roomClosed = liveKitService.endRoom(stage.stageId)
+        if (!roomClosed) {
+            logger.warn("Failed to end LiveKit room for stage ${stage.stageId}")
+        }
 
         logger.info("Successfully closed stage ${stage.stageId} due to timeout")
     }
