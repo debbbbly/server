@@ -1,6 +1,5 @@
 package com.debbly.server.auth
 
-import com.debbly.server.IdService
 import com.debbly.server.auth.AuthErrorCode.*
 import com.debbly.server.auth.service.AuthService
 import com.debbly.server.user.UserService
@@ -15,7 +14,6 @@ import org.springframework.http.HttpStatus.UNAUTHORIZED
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
-import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.web.bind.annotation.*
 
 @RestController
@@ -24,8 +22,6 @@ class AuthController(
     private val authService: AuthService,
     private val userCachedRepository: UserCachedRepository,
     private val userService: UserService,
-    private val idService: IdService,
-    private val jwtDecoder: JwtDecoder,
     private val env: org.springframework.core.env.Environment
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -65,8 +61,11 @@ class AuthController(
 
             val signUpResponse = authService.signUp(request.email, request.password)
 
-            val externalUserId = signUpResponse.user?.id ?: return ResponseEntity.badRequest()
-                .body(UnifiedAuthResponse(error = AUTH_GENERIC_ERROR))
+            val externalUserId = signUpResponse.user?.id ?: let {
+                logger.warn("Sign-up failed: missing user id, response={}", signUpResponse)
+                return ResponseEntity.badRequest()
+                    .body(UnifiedAuthResponse(error = AUTH_GENERIC_ERROR))
+            }
 
             // if user is missing by externalUserId - invalid credentials of existing user have been used
             authService.getUserById(externalUserId)
@@ -81,6 +80,7 @@ class AuthController(
             )
 
         } catch (e: Exception) {
+            logger.error("Sign-up failed.", e)
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(UnifiedAuthResponse(error = AUTH_GENERIC_ERROR))
         }
@@ -226,6 +226,7 @@ class AuthController(
             ResponseEntity.ok(CallbackResponse(true, user = callbackUser))
 
         } catch (e: Exception) {
+            logger.error("Sign-up failed.", e)
             ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(CallbackResponse(false, error = AUTH_GENERIC_ERROR))
         }
