@@ -2,12 +2,16 @@ package com.debbly.server.match
 
 import com.debbly.server.category.repository.CategoryCachedRepository
 import com.debbly.server.claim.model.ClaimStance
+import com.debbly.server.claim.model.opposite
 import com.debbly.server.claim.user.UserClaimService
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.match.MatchService.MatchingStatus.*
 import com.debbly.server.match.event.MatchAcceptedAllEvent
 import com.debbly.server.match.event.MatchAcceptedEvent
-import com.debbly.server.match.model.*
+import com.debbly.server.match.model.Match
+import com.debbly.server.match.model.MatchOpponentStatus
+import com.debbly.server.match.model.MatchRequest
+import com.debbly.server.match.model.MatchStatus
 import com.debbly.server.match.repository.MatchQueueRepository
 import com.debbly.server.match.repository.MatchRepository
 import com.debbly.server.user.model.UserModel
@@ -79,29 +83,27 @@ class MatchService(
     fun switch(match: Match, user: UserModel) {
         matchValidationService.validateMatchOperation(match, user.userId, "switch")
 
-        val userStance = match.opponents
+        val userWantedStance = match.opponents
             .firstOrNull() { it.userId == user.userId }
-            ?.stance
-
-        val withClaimIdToStance = userStance
-            ?.let { match.claim.claimId to it }
-            ?.also { (_, stance) ->
-                userClaimService.updateStance(
-                    userId = user.userId,
-                    claimId = match.claim.claimId,
-                    stance = stance
-                )
-            }
-            ?.let { listOf(it) }
-            .orEmpty()
+            ?.stance?.opposite()
 
         matchRepository.delete(match.matchId)
         matchNotificationService.notifyMatchCancelled(match, user.userId, "switch")
 
-        // Re-queue the user who switched with updated stance
-        matchQueueRepository.save(buildMatchRequest(user, withClaimIdToStance = withClaimIdToStance))
+        if (userWantedStance != null) {
+            userClaimService.updateStance(
+                userId = user.userId,
+                claimId = match.claim.claimId,
+                stance = userWantedStance
+            )
+        }
 
-        // Re-queue opponents
+        val matchRequest = if (userWantedStance != null)
+            buildMatchRequest(user, withClaimIdToStance = listOf(match.claim.claimId to userWantedStance))
+        else
+            buildMatchRequest(user)
+
+        matchQueueRepository.save(matchRequest)
         reQueueOpponents(match, user.userId)
     }
 

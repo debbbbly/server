@@ -33,6 +33,12 @@ enum class ClaimStance {
     AGAINST,
 }
 
+fun ClaimStance.opposite(): ClaimStance = when (this) {
+    ClaimStance.FOR -> ClaimStance.AGAINST
+    ClaimStance.AGAINST -> ClaimStance.FOR
+    ClaimStance.EITHER -> ClaimStance.EITHER
+}
+
 data class TagModel(
     val tagId: String,
     val title: String
