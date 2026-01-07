@@ -23,7 +23,6 @@ data class UserClaimEntity(
 
 @Embeddable
 data class UserClaimId(
-
     val claimId: String,
     val userId: String
 ) : Serializable

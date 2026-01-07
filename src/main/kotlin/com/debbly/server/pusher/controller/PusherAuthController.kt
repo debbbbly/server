@@ -3,6 +3,7 @@ package com.debbly.server.pusher.controller
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.auth.service.AuthService
 import com.debbly.server.pusher.model.PresenceUserInfo
+import com.debbly.server.user.repository.UserCachedRepository
 import com.pusher.rest.Pusher
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
@@ -16,7 +17,7 @@ import java.util.*
 @RequestMapping("/pusher")
 class PusherAuthController(
     private val pusher: Pusher,
-    private val authService: AuthService
+    private val authService: AuthService,
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -29,7 +30,7 @@ class PusherAuthController(
         try {
             val userInfo = externalUserId?.let { extUserId ->
                 try {
-                    authService.authenticate(extUserId).let { user ->
+                    authService.authenticateWithLastSeen(extUserId).let { user ->
                         PresenceUserInfo(
                             userId = user.userId,
                             username = user.username ?: "User ${user.userId.take(8)}",

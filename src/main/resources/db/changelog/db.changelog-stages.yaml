@@ -116,3 +116,13 @@ databaseChangeLog:
                   defaultValueBoolean: false
                   constraints:
                     nullable: false
+  - changeSet:
+      id: 8
+      author: claude
+      changes:
+        - createIndex:
+            indexName: idx_stages_opened_at
+            tableName: stages
+            columns:
+              - column:
+                  name: opened_at

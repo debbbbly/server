@@ -13,7 +13,6 @@ import com.debbly.server.claim.repository.ClaimProposalEntity
 import com.debbly.server.claim.repository.ClaimProposalJpaRepository
 import com.debbly.server.claim.tag.TagEntity
 import com.debbly.server.claim.tag.TagRepository
-
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -161,4 +160,6 @@ class ClaimService(
             )
         )
     }
+
+
 }

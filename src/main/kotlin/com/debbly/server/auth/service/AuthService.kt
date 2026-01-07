@@ -13,20 +13,32 @@ import org.springframework.stereotype.Service
 import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestClientException
 import org.springframework.web.client.RestTemplate
+import java.time.Clock
+import java.time.Instant.now
 
 @Service
 class AuthService(
     private val authConfig: AuthConfigProperties,
     private val restTemplate: RestTemplate,
     private val objectMapper: ObjectMapper,
-    private val userCachedRepository: UserCachedRepository
+    private val userCachedRepository: UserCachedRepository,
+    private val clock: Clock
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
     fun authenticate(externalUserId: String?) =
         externalUserId?.let {
-            userCachedRepository.findByExternalUserId(externalUserId) ?: throw UnauthorizedException()
+            userCachedRepository.findByExternalUserId(externalUserId)
         } ?: throw UnauthorizedException()
+
+    fun authenticateWithLastSeen(externalUserId: String?) =
+        authenticate(externalUserId).also {
+            try {
+                userCachedRepository.save(it.copy(lastSeen = now(clock)))
+            } catch (e: Exception) {
+                logger.warn("Failed to update last_seen for user ${it.userId}: ${e.message}")
+            }
+        }
 
     fun signIn(email: String, password: String): SupabaseAuthResponse {
         val url = "${authConfig.url}/token?grant_type=password"

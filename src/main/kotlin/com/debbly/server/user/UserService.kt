@@ -11,6 +11,8 @@ import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.cache.CacheManager
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
+import java.time.Clock
+import java.time.Instant.now
 
 @Service
 class UserService(
@@ -21,7 +23,8 @@ class UserService(
     private val s3Service: S3Service,
     private val cacheManager: CacheManager,
     private val authService: AuthService,
-    private val usernameService: UsernameService
+    private val usernameService: UsernameService,
+    private val clock: Clock
 ) {
 
     fun createUser(externalUserId: String, email: String): UserModel {
@@ -39,7 +42,8 @@ class UserService(
             email = email,
             username = username,
             usernameNormalized = username.lowercase(),
-            avatarUrl = avatarUrl
+            avatarUrl = avatarUrl,
+            createdAt = now(clock)
         )
 
         return userCachedRepository.save(newUser)
@@ -98,7 +102,7 @@ class UserService(
         if (!aiValidation.valid) {
             return UpdateAvatarResult(
                 success = false,
-                message =  aiValidation.reason,
+                message = aiValidation.reason,
                 avatarUrl = null
             )
         }

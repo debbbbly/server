@@ -2,6 +2,7 @@ package com.debbly.server.user.model
 
 import com.debbly.server.user.UserEntity
 import com.fasterxml.jackson.annotation.JsonTypeInfo
+import java.time.Instant
 import java.time.LocalDate
 
 @JsonTypeInfo(
@@ -20,6 +21,9 @@ data class UserModel(
     var rank: Int = 0,
     var deleted: Boolean = false,
     var bio: String? = null,
+    var createdAt: Instant,
+    var lastLogin: Instant? = null,
+    var lastSeen: Instant? = null,
 )
 
 fun UserEntity.toModel() = UserModel(
@@ -32,7 +36,10 @@ fun UserEntity.toModel() = UserModel(
     avatarUrl = this.avatarUrl,
     rank = this.rank,
     deleted = this.deleted,
-    bio = this.bio
+    bio = this.bio,
+    createdAt = this.createdAt,
+    lastLogin = this.lastLogin,
+    lastSeen = this.lastSeen
 )
 
 fun UserModel.toEntity() = UserEntity(
@@ -45,6 +52,9 @@ fun UserModel.toEntity() = UserEntity(
     avatarUrl = this.avatarUrl,
     rank = this.rank,
     deleted = this.deleted,
-    bio = this.bio
+    bio = this.bio,
+    createdAt = this.createdAt,
+    lastLogin = this.lastLogin,
+    lastSeen = this.lastSeen
 )
 

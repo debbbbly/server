@@ -410,3 +410,13 @@ databaseChangeLog:
         - dropColumn:
             tableName: claim_proposals
             columnName: resulting_claim_id
+  - changeSet:
+      id: 12
+      author: claude
+      changes:
+        - createIndex:
+            indexName: idx_claims_created_at
+            tableName: claims
+            columns:
+              - column:
+                  name: created_at

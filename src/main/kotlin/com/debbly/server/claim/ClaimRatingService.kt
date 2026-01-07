@@ -68,25 +68,17 @@ class ClaimRatingService(
      * Calculate normalization factors for all metrics across all claims.
      */
     private fun calculateNormalizationFactors(since: Instant): NormalizationFactors {
-        val debatesCountsRaw = stageJpaRepository.countRecentDebatesByClaimId(since)
-        val stancesCountsRaw = userClaimJpaRepository.countRecentStancesByClaimId(since)
-        val uniqueDebatersCountsRaw = stageJpaRepository.countUniqueDebatersByClaimId()
-
-        // Convert List<Array<Any>> to Map<String, Long>
-        val debatesCounts = debatesCountsRaw.associate { row: Array<Any> -> 
-            (row[0] as String) to (row[1] as Number).toLong() 
-        }
-        val stancesCounts = stancesCountsRaw.associate { row: Array<Any> -> 
-            (row[0] as String) to (row[1] as Number).toLong() 
-        }
-        val uniqueDebatersCounts = uniqueDebatersCountsRaw.associate { row: Array<Any> -> 
-            (row[0] as String) to (row[1] as Number).toLong() 
-        }
+        val debatesCounts = stageJpaRepository.countRecentDebatesByClaimId(since)
+            .associate { it.getClaimId() to it.getCount() }
+        val stancesCounts = userClaimJpaRepository.countRecentStancesByClaimId(since)
+            .associate { it.getClaimId() to it.getCount() }
+        val uniqueDebatersCounts = stageJpaRepository.countUniqueDebatersByClaimId()
+            .associate { it.getClaimId() to it.getCount() }
 
         val debatesMax = debatesCounts.values.maxOfOrNull { it }?.toDouble() ?: 1.0
         val stancesMax = stancesCounts.values.maxOfOrNull { it }?.toDouble() ?: 1.0
         val uniqueDebatersMax = uniqueDebatersCounts.values.maxOfOrNull { it }?.toDouble() ?: 1.0
-        
+
         return NormalizationFactors(
             stancesMax = stancesMax,
             debatesMax = debatesMax,

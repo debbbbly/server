@@ -198,3 +198,41 @@ databaseChangeLog:
             tableName: users
             columnNames: username_normalized
             constraintName: users_username_normalized_key
+
+  - changeSet:
+      id: 9
+      author: claude
+      changes:
+        - addColumn:
+            tableName: users
+            columns:
+              - column:
+                  name: created_at
+                  type: timestamp
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_login
+                  type: timestamp
+                  constraints:
+                    nullable: true
+              - column:
+                  name: last_seen
+                  type: timestamp
+                  constraints:
+                    nullable: true
+        - createIndex:
+            tableName: users
+            indexName: idx_users_last_login
+            columns:
+              - column:
+                  name: last_login
+                  descending: true
+        - createIndex:
+            tableName: users
+            indexName: idx_users_last_seen
+            columns:
+              - column:
+                  name: last_seen
+                  descending: true

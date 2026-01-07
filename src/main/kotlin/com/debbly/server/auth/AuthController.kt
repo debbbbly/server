@@ -8,6 +8,7 @@ import com.debbly.server.user.repository.UserCachedRepository
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.constraints.NotBlank
 import org.slf4j.LoggerFactory
+import org.springframework.core.env.Environment
 import org.springframework.http.HttpStatus
 import org.springframework.http.HttpStatus.BAD_REQUEST
 import org.springframework.http.HttpStatus.UNAUTHORIZED
@@ -15,6 +16,8 @@ import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.annotation.*
+import java.time.Clock
+import java.time.Instant.now
 
 @RestController
 @RequestMapping("/auth")
@@ -22,7 +25,8 @@ class AuthController(
     private val authService: AuthService,
     private val userCachedRepository: UserCachedRepository,
     private val userService: UserService,
-    private val env: org.springframework.core.env.Environment
+    private val env: Environment,
+    private val clock: Clock
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -46,7 +50,13 @@ class AuthController(
                 val userId = signInResponse.user.id
                 val userEmail = signInResponse.user.email ?: request.email
 
-                userCachedRepository.findById(userId) ?: userService.createUser(userId, userEmail)
+                val user = userCachedRepository.findById(userId) ?: userService.createUser(userId, userEmail)
+                userCachedRepository.save(
+                    user.copy(
+                        lastLogin = now(clock),
+                        lastSeen = now(clock)
+                    )
+                )
 
                 return ResponseEntity.ok(
                     UnifiedAuthResponse(
@@ -209,6 +219,12 @@ class AuthController(
 
             val user = userCachedRepository.findById(supabaseUser.id)
                 ?: userService.createUser(supabaseUser.id, supabaseUser.email)
+            userCachedRepository.save(
+                user.copy(
+                    lastLogin = now(clock),
+                    lastSeen = now(clock)
+                )
+            )
 
             setCookie(
                 request.accessToken,
@@ -255,21 +271,24 @@ class AuthController(
         return try {
             logger.info("Processing OAuth callback with tokens from Supabase (provider: ${request.provider ?: "unknown"})")
 
-            // 1. Validate the access token and get user info from Supabase
             val user = authService.validateToken(request.accessToken)
                 ?: return ResponseEntity.status(UNAUTHORIZED)
                     .body(CallbackResponse(false, error = AUTH_CALLBACK_INVALID_TOKEN))
 
-            logger.info("OAuth token validated for user: ${user.email} (provider: ${request.provider ?: "unknown"})")
-
-            // 2. Create/get user in your database
             val userModel = try {
-                userService.createUser(user.id, user.email ?: "")
+                userService.createUser(user.id, user.email)
             } catch (e: Exception) {
                 logger.error("Failed to create/get user", e)
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(CallbackResponse(false, error = AUTH_CALLBACK_USER_CREATION_FAILED))
             }
+
+            userCachedRepository.save(
+                userModel.copy(
+                    lastLogin = now(clock),
+                    lastSeen = now(clock)
+                )
+            )
 
             // 3. Set authentication cookies
             val secure = "dev" !in env.activeProfiles
