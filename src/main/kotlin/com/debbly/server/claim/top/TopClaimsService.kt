@@ -4,9 +4,11 @@ import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.model.toModel
 import com.debbly.server.claim.repository.ClaimJpaRepository
 import com.debbly.server.claim.user.repository.UserClaimJpaRepository
+import com.debbly.server.category.repository.CategoryCachedRepository
 import com.debbly.server.stage.repository.StageJpaRepository
 import com.debbly.server.user.repository.UserJpaRepository
 import org.slf4j.LoggerFactory
+import org.slf4j.LoggerFactory.getLogger
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
@@ -23,9 +25,10 @@ class TopClaimsService(
     private val userClaimJpaRepository: UserClaimJpaRepository,
     private val userJpaRepository: UserJpaRepository,
     private val topClaimRedisRepository: TopClaimRedisRepository,
+    private val categoryCachedRepository: CategoryCachedRepository,
     private val clock: Clock
 ) {
-    private val logger = LoggerFactory.getLogger(javaClass)
+    private val logger = getLogger(javaClass)
 
     fun getTopClaimsFromCache(): List<TopClaimResponse> {
         return topClaimRedisRepository.findAllByOrderByRankAsc().map { stats ->
@@ -48,19 +51,30 @@ class TopClaimsService(
     @Transactional(readOnly = true)
     fun calculateAndUpdateTopClaims() {
         val now = Instant.now(clock)
-        val last7Days = now.minus(Duration.ofDays(7))
+        val last14Days = now.minus(Duration.ofDays(14))
         val last48Hours = now.minus(Duration.ofHours(48))
-        val last30Minutes = now.minus(Duration.ofMinutes(30))
+        val last45Minutes = now.minus(Duration.ofMinutes(45))
         val last3Days = now.minus(Duration.ofDays(3))
 
-        val recentClaims = claimJpaRepository.findByCreatedAtAfter(last7Days)
-            .filter { it.category.active }
+        val activeCategoryIds = categoryCachedRepository.findAll()
+            .filter { it.active }
+            .map { it.categoryId }
+            .toSet()
+
+        val recentClaims = claimJpaRepository.findByCreatedAtAfter(last14Days)
+            .filter { it.categoryId in activeCategoryIds }
             .associate { it.claimId to it.toModel() }
+
+        val latestClaimsPerCategory = activeCategoryIds.flatMap { categoryId ->
+            claimJpaRepository.findByCategoryIdOrderByCreatedAtDesc(categoryId, 10)
+        }.associate { it.claimId to it.toModel() }
+
+        val allRecentClaims = (recentClaims + latestClaimsPerCategory)
 
         val claimIdsFromDebates = stageJpaRepository.findClaimIdsByOpenedAtAfter(last3Days).toSet()
 
         val activeUserIds48h = userJpaRepository.findUserIdsByLastSeenAfter(last48Hours)
-        val activeUserIds30min = userJpaRepository.findUserIdsByLastSeenAfter(last30Minutes)
+        val activeUserIds30min = userJpaRepository.findUserIdsByLastSeenAfter(last45Minutes)
 
         val claimIdsFromActiveUserStances = if (activeUserIds48h.isNotEmpty()) {
             userClaimJpaRepository.findClaimIdsByUserIds(activeUserIds48h).toSet()
@@ -68,7 +82,7 @@ class TopClaimsService(
             emptySet()
         }
 
-        val allRelevantClaimIds = (recentClaims.keys + claimIdsFromDebates + claimIdsFromActiveUserStances).distinct()
+        val allRelevantClaimIds = (allRecentClaims.keys + claimIdsFromDebates + claimIdsFromActiveUserStances).distinct()
 
         logger.info("Found ${allRelevantClaimIds.size} relevant claims to rank")
 
@@ -106,12 +120,12 @@ class TopClaimsService(
         }
 
         val allClaimsMap = claimJpaRepository.findByClaimIdInWithAllData(allRelevantClaimIds)
-            .filter { it.category.active }
+            .filter { it.categoryId in activeCategoryIds }
             .associate { it.claimId to it.toModel() }
 
         val scoredClaims = allRelevantClaimIds.mapNotNull { claimId ->
-            val claim = recentClaims[claimId] ?: allClaimsMap[claimId]
-            if (claim == null || !claim.category.active) {
+            val claim = allRecentClaims[claimId] ?: allClaimsMap[claimId]
+            if (claim == null || claim.categoryId !in activeCategoryIds) {
                 return@mapNotNull null
             }
 
@@ -151,12 +165,12 @@ class TopClaimsService(
         topClaimRedisRepository.deleteAll()
 
         topClaims.forEachIndexed { index, claimScore ->
-            val claim = recentClaims[claimScore.claimId] ?: allClaimsMap[claimScore.claimId]
+            val claim = allRecentClaims[claimScore.claimId] ?: allClaimsMap[claimScore.claimId]
             if (claim != null) {
                 topClaimRedisRepository.save(
                     TopClaimWithStats(
                         claimId = claimScore.claimId,
-                        categoryId = claim.category.categoryId,
+                        categoryId = claim.categoryId,
                         title = claim.title,
                         rank = index + 1,
                         score = claimScore.score,
@@ -168,8 +182,6 @@ class TopClaimsService(
                 )
             }
         }
-
-        logger.info("Top claims updated in Redis successfully")
     }
 
     private data class ClaimScore(

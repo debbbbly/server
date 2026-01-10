@@ -4,6 +4,7 @@ import com.debbly.server.IdService
 import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
+import com.debbly.server.category.repository.CategoryCachedRepository
 import com.debbly.server.match.event.MatchFoundEvent
 import com.debbly.server.match.model.*
 import com.debbly.server.match.repository.MatchQueueRepository
@@ -26,6 +27,7 @@ class MatchingJobService(
     private val claimRepository: ClaimCachedRepository,
     private val matchNotificationService: MatchNotificationService,
     private val settings: SettingsService,
+    private val categoryRepository: CategoryCachedRepository,
     private val clock: Clock,
     private val eventPublisher: ApplicationEventPublisher
 ) {
@@ -155,6 +157,11 @@ class MatchingJobService(
         val now = Instant.now(clock)
         val expirationThreshold = now.minusSeconds(settings.getMatchTtl() - 1)
 
+        val activeCategoryIds = categoryRepository.findAll()
+            .filter { it.active }
+            .map { it.categoryId }
+            .toSet()
+
         val expiredMatches = matchRepository.findAll()
             .filter { it.updatedAt.isBefore(expirationThreshold) && it.status == MatchStatus.PENDING }
 
@@ -169,7 +176,7 @@ class MatchingJobService(
                     .forEach { opponent ->
                         val user = userRepository.getById(opponent.userId)
                         val claimIdToStance = userClaimRepository.findByUserId(user.userId)
-                            .filter { it.claim.category.active }
+                            .filter { it.claim.categoryId in activeCategoryIds }
                             .associate { it.claim.claimId to it.stance }
 
                             val matchRequest = MatchRequest(
@@ -191,8 +198,13 @@ class MatchingJobService(
     }
 
     private fun matchWithTopClaims(remainingUsers: List<MatchRequest>, matchedUsers: MutableSet<String>) {
+        val activeCategoryIds = categoryRepository.findAll()
+            .filter { it.active }
+            .map { it.categoryId }
+            .toSet()
+
         val top10Claims = claimRepository.findAll()
-            .filter { it.category.active }
+            .filter { it.categoryId in activeCategoryIds }
             .sortedByDescending { it.scoreTotal ?: 0.0 }
             .take(10)
 

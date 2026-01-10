@@ -58,7 +58,7 @@ class UserClaimCachedRepository(
             claimId = this.claim.claimId
         ),
         claim = claim.toEntity(),
-        categoryId = this.claim.category.categoryId,
+        categoryId = this.claim.categoryId,
         stance = this.stance,
         priority = this.priority,
         updatedAt = this.updatedAt

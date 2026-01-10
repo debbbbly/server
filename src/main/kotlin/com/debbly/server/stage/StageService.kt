@@ -85,12 +85,7 @@ class StageService(
                     Claim(
                         claimId = it.claimId,
                         title = it.title,
-                        tags = it.tags.map { tag -> Claim.Tag(tagId = tag.tagId, title = tag.title) },
-                        category = Category(
-                            categoryId = it.category.categoryId,
-                            title = it.category.title,
-                            avatarUrl = it.category.avatarUrl
-                        )
+                        categoryId = it.categoryId
                     )
                 },
                 hosts = hosts,
@@ -129,12 +124,7 @@ class StageService(
                     Claim(
                         claimId = it.claimId,
                         title = it.title,
-                        tags = it.tags.map { tag -> Claim.Tag(tagId = tag.tagId, title = tag.title) },
-                        category = Category(
-                            categoryId = it.category.categoryId,
-                            title = it.category.title,
-                            avatarUrl = it.category.avatarUrl
-                        )
+                        categoryId = it.categoryId
                     )
                 },
                 hosts = hosts,
@@ -183,12 +173,7 @@ class StageService(
                 Claim(
                     claimId = it.claimId,
                     title = claim.title,
-                    tags = claim.tags.map { Claim.Tag(tagId = it.tagId, title = it.title) },
-                    category = Category(
-                        categoryId = claim.category.categoryId,
-                        title = claim.category.title,
-                        avatarUrl = claim.category.avatarUrl ?: ""
-                    )
+                    categoryId = claim.categoryId
                 )
             },
             isHost = isHost,
@@ -545,18 +530,6 @@ class StageService(
     data class Claim(
         val claimId: String,
         val title: String,
-        val tags: List<Tag>,
-        val category: Category
-    ) {
-        data class Tag(
-            val tagId: String,
-            val title: String
-        )
-    }
-
-    data class Category(
-        val categoryId: String,
-        val title: String,
-        val avatarUrl: String
+        val categoryId: String
     )
 }

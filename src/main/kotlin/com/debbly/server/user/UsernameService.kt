@@ -1,6 +1,6 @@
 package com.debbly.server.user
 
-import com.debbly.server.ai.OpenAIService
+import com.debbly.server.ai.OpenAiService
 import com.debbly.server.ai.UsernameValidationResult
 import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.stereotype.Service
@@ -9,7 +9,7 @@ import kotlin.random.Random
 @Service
 class UsernameService(
     private val userCachedRepository: UserCachedRepository,
-    private val openAIService: OpenAIService
+    private val openAIService: OpenAiService
 ) {
     private val adjectives = listOf(
         "Bright", "Calm", "Careful", "Clean", "Clear", "Considerate", "Consistent", "Crisp", "Curious",

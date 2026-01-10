@@ -1,10 +1,6 @@
 package com.debbly.server.claim.model
 
-import com.debbly.server.category.model.CategoryModel
-import com.debbly.server.category.model.toEntity
-import com.debbly.server.category.model.toModel
 import com.debbly.server.claim.repository.ClaimEntity
-import com.debbly.server.claim.tag.TagEntity
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import java.time.Instant
 
@@ -15,9 +11,8 @@ import java.time.Instant
 )
 data class ClaimModel(
     val claimId: String,
-    val category: CategoryModel,
+    val categoryId: String,
     val title: String,
-    val tags: List<TagModel>,
     val popularity: Int?,
     val createdAt: Instant,
     val scoreFreshness: Double? = null,
@@ -33,22 +28,23 @@ enum class ClaimStance {
     AGAINST,
 }
 
+enum class TopicStance {
+    FOR,
+    EITHER,
+    NEUTRAL,
+}
+
+
 fun ClaimStance.opposite(): ClaimStance = when (this) {
     ClaimStance.FOR -> ClaimStance.AGAINST
     ClaimStance.AGAINST -> ClaimStance.FOR
     ClaimStance.EITHER -> ClaimStance.EITHER
 }
 
-data class TagModel(
-    val tagId: String,
-    val title: String
-)
-
 fun ClaimEntity.toModel(): ClaimModel = ClaimModel(
     claimId = claimId,
-    category = category.toModel(),
+    categoryId = categoryId,
     title = title,
-    tags = tags.map { it.toModel() }.toList(),
     popularity = popularity,
     createdAt = createdAt,
     scoreFreshness = scoreFreshness,
@@ -60,9 +56,8 @@ fun ClaimEntity.toModel(): ClaimModel = ClaimModel(
 
 fun ClaimModel.toEntity(): ClaimEntity = ClaimEntity(
     claimId = claimId,
-    category = category.toEntity(),
+    categoryId = categoryId,
     title = title,
-    tags = tags.map { it.toEntity() }.toSet(),
     popularity = popularity,
     createdAt = createdAt,
     scoreFreshness = scoreFreshness,
@@ -70,16 +65,6 @@ fun ClaimModel.toEntity(): ClaimEntity = ClaimEntity(
     scoreDebatesRecent = scoreDebatesRecent,
     scoreBaseline = scoreBaseline,
     scoreTotal = scoreTotal
-)
-
-fun TagEntity.toModel(): TagModel = TagModel(
-    tagId = tagId,
-    title = title
-)
-
-fun TagModel.toEntity(): TagEntity = TagEntity(
-    tagId = tagId,
-    title = title
 )
 
 data class UserClaimModel(

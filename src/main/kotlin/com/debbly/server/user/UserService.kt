@@ -1,7 +1,7 @@
 package com.debbly.server.user
 
 import com.debbly.server.IdService
-import com.debbly.server.ai.OpenAIService
+import com.debbly.server.ai.OpenAiService
 import com.debbly.server.auth.service.AuthService
 import com.debbly.server.storage.S3Service
 import com.debbly.server.user.model.SocialUsernameModel
@@ -19,7 +19,7 @@ class UserService(
     private val userCachedRepository: UserCachedRepository,
     private val socialUsernameCachedRepository: SocialUsernameCachedRepository,
     private val idService: IdService,
-    private val openAIService: OpenAIService,
+    private val openAIService: OpenAiService,
     private val s3Service: S3Service,
     private val cacheManager: CacheManager,
     private val authService: AuthService,

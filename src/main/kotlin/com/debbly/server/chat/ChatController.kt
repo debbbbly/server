@@ -1,6 +1,6 @@
 package com.debbly.server.chat
 
-import com.debbly.server.ai.OpenAIService
+import com.debbly.server.ai.OpenAiService
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.auth.service.AuthService
 import com.debbly.server.pusher.model.ChannelHistoryResponse
@@ -21,7 +21,7 @@ class ChatController(
     private val pusherService: PusherService,
     private val chatService: ChatService,
     private val authService: AuthService,
-    private val openAIService: OpenAIService
+    private val openAIService: OpenAiService
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 

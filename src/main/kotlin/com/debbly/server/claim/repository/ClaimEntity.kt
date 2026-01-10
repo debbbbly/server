@@ -1,7 +1,5 @@
 package com.debbly.server.claim.repository
 
-import com.debbly.server.category.CategoryEntity
-import com.debbly.server.claim.tag.TagEntity
 import jakarta.persistence.*
 import java.time.Instant
 
@@ -9,13 +7,9 @@ import java.time.Instant
 data class ClaimEntity(
     @Id
     val claimId: String,
-    // TODO refactor to categoryId
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "category_id")
-    val category: CategoryEntity,
+    @Column(name = "category_id")
+    val categoryId: String,
     val title: String,
-    @ManyToMany(fetch = FetchType.EAGER)
-    val tags: Set<TagEntity>,
     val popularity: Int?,
     val createdAt: Instant,
     var scoreFreshness: Double? = null,
@@ -24,4 +18,3 @@ data class ClaimEntity(
     var scoreBaseline: Double? = null,
     var scoreTotal: Double? = null
 )
-

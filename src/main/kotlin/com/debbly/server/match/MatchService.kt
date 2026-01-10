@@ -184,7 +184,7 @@ class MatchService(
             .toSet()
 
         val userClaims = userClaimRepository.findByUserId(user.userId)
-            .filter { it.claim.category.categoryId in activeCategoryIds }
+            .filter { it.claim.categoryId in activeCategoryIds }
 
         return MatchRequest(
             userId = user.userId,

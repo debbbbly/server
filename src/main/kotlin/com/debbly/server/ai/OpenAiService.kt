@@ -1,6 +1,7 @@
 package com.debbly.server.ai
 
 import com.debbly.server.category.repository.CategoryCachedRepository
+import com.debbly.server.claim.model.TopicStance
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -15,7 +16,7 @@ import org.springframework.web.client.RestTemplate
 import java.util.*
 
 @Service
-class OpenAIService(
+class OpenAiService(
     private val chatClient: ChatClient,
     private val categoryRepository: CategoryCachedRepository,
     @Value("\${spring.ai.openai.api-key}") private val openaiApiKey: String
@@ -24,6 +25,7 @@ class OpenAIService(
     private val objectMapper = jacksonObjectMapper()
     private val restTemplate = RestTemplate()
     private val moderationUrl = "https://api.openai.com/v1/moderations"
+    private val embeddingUrl = "https://api.openai.com/v1/embeddings"
 
     companion object {
         private const val DEFAULT_MODERATION_EMOJI = "🚫"
@@ -51,7 +53,21 @@ class OpenAIService(
             You are a content moderator and classifier for an online debating platform 
             (like Twitch, but for debates). Users submit short claims that serve as the starting 
             point for debates. Your task is to evaluate each claim against the platform rules, 
-            normalize it, and enrich it with categories and tags.
+            normalize it, and enrich it with categories, topic (core proposition) and stance to the topic.
+
+            Instructions:
+            For the given user claim: "$title"
+
+            1. Check if the claim follows ALL platform rules.
+            2. If claim is valid: 
+                - Assign exactly ONE main category.
+                - Extract a single neutral topic.
+                - Determine the stance of the claim toward the extracted topic.
+            3. If claim is invalid:
+                - List each violated rule explicitly.
+                - Reasoning must be concise (1–2 sentences).
+                - Set "categoryId", "topic" and "stance" to null.
+            4. Respond ONLY with a single valid JSON object. No text outside JSON.
 
             Platform Rules:
             - The claim must be debatable: reasonable people could disagree about it.
@@ -83,7 +99,7 @@ class OpenAIService(
             - Normalize slang and contractions into standard English where possible.
             - Clarify vague claims into specific, debatable statements while keeping intent
             
-            Platform Claim Categories (categoryId / title):
+            Claim Categories (categoryId / title):
             - politics / Politics
             - technology / Technology & Science
             - society / Society, Identity & Culture
@@ -91,29 +107,24 @@ class OpenAIService(
             - entertainment / Sports, Entertainment & Lifestyle
             (Default: society if unsure)
             
-            Tag requirements:
-            - Assign 1–2 subject tags (entities, groups, or concrete topics: AI, Twich, Climate Change, US, Vaccines, etc.)
-            - Assign 1–2 domain tags (broader thematic areas: Technology, Law & Justice, Economics, Health, Education, etc.)
-            - Optionally assign 0–1 sensitivity tag if applicable (Conspiracy, Drugs, Sex, Violence, Religion, Controversial, etc.)
-            - Tags must be distinct from one another
-            - Tags must be in singular form unless the entity is universally known in plural (e.g. Human Rights)
-            - Always apply formatting rules:
-                - Use the standard abbreviation instead of the full phrase for widely recognized terms:
-                    -- Artificial Intelligence → AI
-                    -- United States → US
-                    -- Information Technology → IT
-                - Always prefer common abbreviation over a long form
-                - Do not create uncommon or ambiguous abbreviations
+            Claim Topic (also called the core proposition) Requirements:
+            - The claim topic must:
+                - Be phrased as a neutral, stance-free statement
+                - Represent what people are fundamentally debating
+                - Be reusable across opposing claims
+            - The topic MUST NOT:
+                - Express approval or disapproval
+            - Examples of acceptable topic forms:
+                - For “The government should ban plastic bags”: “The effect of banning plastic bags”
+                - For “AI will destroy jobs”: “Whether AI will destroy jobs”
+                - For “High taxes are unfair”: “The fairness of high taxes”
             
-            Instructions:
-            For the given user claim: "$title"
-
-            1. Check if the claim follows ALL platform rules.
-            2. If invalid, list each violated rule explicitly.
-            3. Assign exactly ONE main category.
-            4. Assign 2–5 tags (subject, domain, and sensitivity) applying Tag formatting rules.
-            5. Respond ONLY with a single valid JSON object. No text outside JSON.
-            6. Reasoning must be concise (1–2 sentences).
+            Stance Requirements:
+            - Allowed values:
+              - "FOR" → supports or affirms the topic
+              - "AGAINST" → opposes or rejects the topic
+              - "NEUTRAL" → descriptive, unclear, or balanced
+            - The stance must be inferred from the claim’s intent, not just wording.
 
             Output Format:
             {
@@ -122,7 +133,8 @@ class OpenAIService(
               "violations": ["string", "string"],
               "reasoning": "short explanation (1–2 sentences)",
               "categoryId": "string",
-              "tags": ["string", "string", "string", "string"]
+              "topic": "neutral topic extracted from the claim",
+              "stance": "FOR|AGAINST|NEUTRAL"
             }
             
             Examples:
@@ -130,11 +142,12 @@ class OpenAIService(
                 Response: 
                 {
                   "valid": true,
-                  "normalized": "The benefits of AI outweigh its risks to society.",
+                  "normalized": "The benefits of AI outweigh its risks to society",
                   "violations": [],
                   "reasoning": "The claim is clear, specific, and debatable without violating any platform rules",
                   "categoryId": "technology",
-                  "tags": ["AI", "Technology", "Society"]
+                  "topic": "The overall impact of AI on society",
+                  "stance": "FOR"
                 }
                 
                 Claim: "Governments should prioritize climate change mitigation over economic growth"
@@ -145,18 +158,20 @@ class OpenAIService(
                   "violations": [],
                   "reasoning": "The claim is specific and debatable, addressing a significant policy issue.",
                   "categoryId": "economy",
-                  "tags": ["Government", "Climate Change", "Environment", "Economy"]
+                  "topic": "The prioritization of climate change mitigation versus economic growth in government policy",
+                  "stance": "FOR"
                 }
                 
-                Claim: "The United States has a moral obligation to intervene in international conflicts"
+                Claim: "Anyone who disagrees with climate science is an idiot"
                 Response: 
                 {
-                  "valid": true,
-                  "normalized": "The U.S. has a moral obligation to intervene in international conflicts.",
-                  "violations": [],
-                  "reasoning": "The claim is debatable and pertains to international relations without violating platform rules",
-                  "categoryId": "politics",
-                  "tags": ["US", "Politics", "War"]
+                  "valid": false,
+                  "normalized": null,
+                  "violations": ["Personal attacks against individuals or groups"],
+                  "reasoning": "The claim contains an insulting personal attack rather than a debatable position",
+                  "categoryId": null,
+                  "topic": null,
+                  "stance": null
                 }
             """.trimIndent()
 
@@ -166,27 +181,12 @@ class OpenAIService(
                 .call()
                 .content() ?: ""
 
-            parseValidationResponse(response)
+            objectMapper.readValue<ClaimValidationResult>(response)
+
         } catch (e: Exception) {
             logger.error("Error validating claim: ${e.message}", e)
             ClaimValidationResult(
                 valid = false,
-            )
-        }
-    }
-
-    private fun parseValidationResponse(response: String): ClaimValidationResult {
-        return try {
-            objectMapper.readValue<ClaimValidationResult>(response)
-        } catch (e: Exception) {
-            logger.error("Error parsing validation response: ${e.message}. Response: $response", e)
-            // Fallback parsing
-            val valid = response.contains("\"valid\": true") || response.contains("\"valid\":true")
-            ClaimValidationResult(
-                valid = valid,
-                normalized = null,
-                categoryId = "social-issues-culture",
-                reasoning = "Parse error",
             )
         }
     }
@@ -380,7 +380,53 @@ class OpenAIService(
             )
         }
     }
+
+    fun generateEmbedding(text: String): List<Double>? {
+        return try {
+            val headers = HttpHeaders()
+            headers.contentType = MediaType.APPLICATION_JSON
+            headers.setBearerAuth(openaiApiKey)
+
+            val requestBody = mapOf(
+                "model" to "text-embedding-3-small",
+                "input" to text
+            )
+
+            val request = HttpEntity(requestBody, headers)
+            val response = restTemplate.postForObject(
+                embeddingUrl,
+                request,
+                EmbeddingResponse::class.java
+            )
+
+            response?.data?.firstOrNull()?.embedding
+        } catch (e: Exception) {
+            logger.error("Error generating embedding: ${e.message}", e)
+            null
+        }
+    }
 }
+
+// OpenAI Embeddings API response structures
+data class EmbeddingResponse(
+    val `object`: String,
+    val data: List<EmbeddingData>,
+    val model: String,
+    val usage: EmbeddingUsage
+)
+
+data class EmbeddingData(
+    val `object`: String,
+    val embedding: List<Double>,
+    val index: Int
+)
+
+data class EmbeddingUsage(
+    @JsonProperty("prompt_tokens")
+    val promptTokens: Int,
+    @JsonProperty("total_tokens")
+    val totalTokens: Int
+)
 
 data class ClaimValidationResult(
     val valid: Boolean,
@@ -388,7 +434,8 @@ data class ClaimValidationResult(
     val violations: List<String> = emptyList(),
     val reasoning: String? = null,
     val categoryId: String? = null,
-    val tags: List<String> = emptyList(),
+    val topic: String? = null,
+    val stance: TopicStance? = null,
 )
 
 data class UsernameValidationResult(

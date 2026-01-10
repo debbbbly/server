@@ -3,7 +3,7 @@ name: debbly
 services:
 
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg17
     container_name: debbly-postgres
     restart: unless-stopped
     env_file:

@@ -1,0 +1,56 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1
+      author: claude
+      changes:
+        - sql:
+            sql: CREATE EXTENSION IF NOT EXISTS vector
+      comment: "Enable pgvector extension"
+
+  - changeSet:
+      id: 2
+      author: claude
+      changes:
+        - createTable:
+            tableName: claim_embeddings
+            columns:
+              - column:
+                  name: claim_id
+                  type: varchar(16)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: title
+                  type: varchar(512)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: category_id
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: embedding
+                  type: vector(1536)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+      comment: "Create claim_embeddings table with pgvector type"
+
+  - changeSet:
+      id: 3
+      author: claude
+      changes:
+        - sql:
+            sql: CREATE INDEX idx_claim_embeddings_embedding ON claim_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)
+      comment: "Create IVFFlat index for fast similarity search using cosine distance"

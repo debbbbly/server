@@ -18,12 +18,13 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 10
-      minimum-idle: 3
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
+
+    pgvector:
+      url: ${PGVECTOR_DB_URL:${DB_URL}}
+      username: ${PGVECTOR_DB_USERNAME:${DB_USERNAME}}
+      password: ${PGVECTOR_DB_PASSWORD:${DB_PASSWORD}}
+      driver-class-name: org.postgresql.Driver
+
   jpa:
     hibernate:
       ddl-auto: none
@@ -35,6 +36,9 @@ spring:
   liquibase:
     change-log: classpath:/db/changelog/db.changelog-master.yaml
     default-schema: ${DB_SCHEMA}
+    pgvector:
+      change-log: classpath:/db/pgvector/changelog/db.changelog-master.yaml
+      default-schema: ${PGVECTOR_DB_SCHEMA:${DB_SCHEMA}}
   data:
     redis:
       url: ${REDIS_URL:redis://${REDIS_HOST:localhost}:${REDIS_PORT:6379}}
