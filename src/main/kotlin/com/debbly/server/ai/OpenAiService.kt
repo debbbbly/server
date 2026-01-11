@@ -48,7 +48,7 @@ class OpenAiService(
         )
     }
 
-    fun validateClaim(title: String): ClaimValidationResult {
+    fun moderateClaim(title: String): ClaimModerationResult {
         val prompt = """
             You are a content moderator and classifier for an online debating platform 
             (like Twitch, but for debates). Users submit short claims that serve as the starting 
@@ -59,9 +59,9 @@ class OpenAiService(
             For the given user claim: "$title"
 
             1. Check if the claim follows ALL platform rules.
-            2. If claim is valid: 
+            2. If claim is valid:
                 - Assign exactly ONE main category.
-                - Extract a single neutral topic.
+                - Extract a single neutral topic (if you cannot extract a topic, the claim is invalid).
                 - Determine the stance of the claim toward the extracted topic.
             3. If claim is invalid:
                 - List each violated rule explicitly.
@@ -73,8 +73,10 @@ class OpenAiService(
             - The claim must be debatable: reasonable people could disagree about it.
             - The claim must be clear and specific enough to spark discussion.
               (If broad but still conveys a clear controversial stance, accept it.)
+            - The claim MUST have an extractable neutral topic. If you cannot identify a clear topic
+              that this claim is about, mark the claim as invalid.
             - The claim must not contain personal attacks against private individuals.
-              (Criticism of public figures’ actions, policies, or ideas is acceptable.)
+              (Criticism of public figures' actions, policies, or ideas is acceptable.)
             - The claim must not contain hate speech.
               (If it targets an immutable identity with exclusion or inferiority → invalid.
                If it critiques behavior, policy, status, or law - valid, even if offensive.)
@@ -108,16 +110,46 @@ class OpenAiService(
             (Default: society if unsure)
             
             Claim Topic (also called the core proposition) Requirements:
+            
             - The claim topic must:
                 - Be phrased as a neutral, stance-free statement
-                - Represent what people are fundamentally debating
+                - Represent what people would recognize as the main debate topic
+                  if they saw this claim in a comment section or feed
                 - Be reusable across opposing claims
+                - Be broad enough to group future related claims added separately
+
+            - Topic selection rules:
+                - If the claim references a named real-world event, scandal, incident, or widely reported issue, extract the topic as THAT controversy itself, not the specific argument angle used in the claim.
+                - Do NOT frame the topic around media framing, consequences, legality, or blame if those are reactions to the same underlying controversy.
+                - Prefer controversy-centered or action-centered topics over opinion- or angle-centered topics.
+                - Only use angle-specific topics if NO clear underlying event, action, or controversy can be identified.
+
             - The topic MUST NOT:
                 - Express approval or disapproval
-            - Examples of acceptable topic forms:
-                - For “The government should ban plastic bags”: “The effect of banning plastic bags”
-                - For “AI will destroy jobs”: “Whether AI will destroy jobs”
-                - For “High taxes are unfair”: “The fairness of high taxes”
+                - Be limited to the author’s specific criticism or defense
+                
+            Claim Topic Examples:
+
+            1. Claims :
+                - “The ICE agent's use of deadly force was unjustified”
+                - “The ICE officer was justified in using lethal force in Minneapolis”
+                - “The fatal ICE shooting was an abuse of power”
+            Topic :
+                - “The justification of ICE officers’ use of lethal force”
+            
+            2. Claims:
+                - “Seizing oil tankers will escalate geopolitical tensions”
+                - “The U.S. was justified in seizing an oil tanker”
+                - “The seizure of a Russian-flagged oil tanker violated international law”
+            Topic:
+                - “The legality and geopolitical consequences of oil tanker seizures”
+                
+            3. Claims:
+                - “The Minnesota welfare fraud story is exaggerated to attack immigrants”
+                - “State leaders completely dropped the ball on welfare fraud in Minnesota”
+                - “Minnesota’s welfare fraud proves the system is being abused”
+            Topic:
+                - “The Minnesota welfare fraud scandal”
             
             Stance Requirements:
             - Allowed values:
@@ -132,9 +164,9 @@ class OpenAiService(
               "normalized": "cleaned-up version (empty string if invalid)",
               "violations": ["string", "string"],
               "reasoning": "short explanation (1–2 sentences)",
-              "categoryId": "string",
-              "topic": "neutral topic extracted from the claim",
-              "stance": "FOR|AGAINST|NEUTRAL"
+              "categoryId": "string (required when valid=true, null when valid=false)",
+              "topic": "neutral topic extracted from the claim (required when valid=true, null when valid=false)",
+              "stance": "FOR|AGAINST|NEUTRAL (required when valid=true, null when valid=false)"
             }
             
             Examples:
@@ -181,13 +213,11 @@ class OpenAiService(
                 .call()
                 .content() ?: ""
 
-            objectMapper.readValue<ClaimValidationResult>(response)
+            objectMapper.readValue<ClaimModerationResult>(response)
 
         } catch (e: Exception) {
             logger.error("Error validating claim: ${e.message}", e)
-            ClaimValidationResult(
-                valid = false,
-            )
+            throw e
         }
     }
 
@@ -428,7 +458,7 @@ data class EmbeddingUsage(
     val totalTokens: Int
 )
 
-data class ClaimValidationResult(
+data class ClaimModerationResult(
     val valid: Boolean,
     val normalized: String? = null,
     val violations: List<String> = emptyList(),

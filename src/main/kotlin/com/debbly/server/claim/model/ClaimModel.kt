@@ -19,7 +19,9 @@ data class ClaimModel(
     val scoreStancesRecent: Double? = null,
     val scoreDebatesRecent: Double? = null,
     val scoreBaseline: Double? = null,
-    val scoreTotal: Double? = null
+    val scoreTotal: Double? = null,
+    val topicId: String? = null,
+    val topicStance: TopicStance? = null
 )
 
 enum class ClaimStance {
@@ -30,10 +32,9 @@ enum class ClaimStance {
 
 enum class TopicStance {
     FOR,
-    EITHER,
     NEUTRAL,
+    AGAINST,
 }
-
 
 fun ClaimStance.opposite(): ClaimStance = when (this) {
     ClaimStance.FOR -> ClaimStance.AGAINST
@@ -51,7 +52,9 @@ fun ClaimEntity.toModel(): ClaimModel = ClaimModel(
     scoreStancesRecent = scoreStancesRecent,
     scoreDebatesRecent = scoreDebatesRecent,
     scoreBaseline = scoreBaseline,
-    scoreTotal = scoreTotal
+    scoreTotal = scoreTotal,
+    topicId = topicId,
+    topicStance = topicStance
 )
 
 fun ClaimModel.toEntity(): ClaimEntity = ClaimEntity(
@@ -64,7 +67,9 @@ fun ClaimModel.toEntity(): ClaimEntity = ClaimEntity(
     scoreStancesRecent = scoreStancesRecent,
     scoreDebatesRecent = scoreDebatesRecent,
     scoreBaseline = scoreBaseline,
-    scoreTotal = scoreTotal
+    scoreTotal = scoreTotal,
+    topicId = topicId,
+    topicStance = topicStance
 )
 
 data class UserClaimModel(

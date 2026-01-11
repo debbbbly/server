@@ -1,0 +1,158 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1
+      author: claude
+      changes:
+        - createTable:
+            tableName: topics
+            columns:
+              - column:
+                  name: topic_id
+                  type: varchar(16)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: category_id
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: title
+                  type: varchar(512)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseColumnNames: category_id
+            baseTableName: topics
+            constraintName: fk_topics_category_id
+            referencedColumnNames: category_id
+            referencedTableName: categories
+        - createIndex:
+            indexName: idx_topics_category_id
+            tableName: topics
+            columns:
+              - column:
+                  name: category_id
+      comment: "Create topics table for storing debate topics with category"
+
+  - changeSet:
+      id: 2
+      author: claude
+      changes:
+        - createTable:
+            tableName: topic_similarities
+            columns:
+              - column:
+                  name: topic_id_1
+                  type: varchar(16)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: topic_id_2
+                  type: varchar(16)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: similarity
+                  type: double
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseColumnNames: topic_id_1
+            baseTableName: topic_similarities
+            constraintName: fk_topic_similarities_topic_id_1
+            referencedColumnNames: topic_id
+            referencedTableName: topics
+        - addForeignKeyConstraint:
+            baseColumnNames: topic_id_2
+            baseTableName: topic_similarities
+            constraintName: fk_topic_similarities_topic_id_2
+            referencedColumnNames: topic_id
+            referencedTableName: topics
+      comment: "Create topic_similarities table for storing topic similarity relationships"
+
+  - changeSet:
+      id: 3
+      author: claude
+      changes:
+        - createIndex:
+            indexName: idx_topic_similarities_topic_id_1
+            tableName: topic_similarities
+            columns:
+              - column:
+                  name: topic_id_1
+        - createIndex:
+            indexName: idx_topic_similarities_similarity
+            tableName: topic_similarities
+            columns:
+              - column:
+                  name: similarity
+                  descending: true
+      comment: "Create indexes for efficient similarity queries"
+
+  - changeSet:
+      id: 4
+      author: claude
+      changes:
+        - addColumn:
+            tableName: claims
+            columns:
+              - column:
+                  name: topic_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: topic_stance
+                  type: varchar(16)
+                  constraints:
+                    nullable: true
+        - addForeignKeyConstraint:
+            baseColumnNames: topic_id
+            baseTableName: claims
+            constraintName: fk_claims_topic_id
+            referencedColumnNames: topic_id
+            referencedTableName: topics
+      comment: "Add topic_id and topic_stance to claims table"
+
+  - changeSet:
+      id: 5
+      author: claude
+      changes:
+        - createIndex:
+            indexName: idx_claims_topic_id
+            tableName: claims
+            columns:
+              - column:
+                  name: topic_id
+      comment: "Create index on claims.topic_id for efficient topic-based queries"
+
+  - changeSet:
+      id: 6
+      author: claude
+      changes:
+        - createIndex:
+            indexName: idx_claims_category_id
+            tableName: claims
+            columns:
+              - column:
+                  name: category_id
+      comment: "Create index on claims.category_id for efficient category filtering (previously missing)"

@@ -7,3 +7,5 @@ databaseChangeLog:
       file: db/changelog/db.changelog-stages.yaml
   - include:
       file: db/changelog/db.changelog-settings.yaml
+  - include:
+      file: db/changelog/db.changelog-topics.yaml

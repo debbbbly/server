@@ -40,11 +40,6 @@ databaseChangeLog:
                   type: timestamp
                   constraints:
                     nullable: false
-              - column:
-                  name: updated_at
-                  type: timestamp
-                  constraints:
-                    nullable: false
       comment: "Create claim_embeddings table with pgvector type"
 
   - changeSet:
@@ -54,3 +49,46 @@ databaseChangeLog:
         - sql:
             sql: CREATE INDEX idx_claim_embeddings_embedding ON claim_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)
       comment: "Create IVFFlat index for fast similarity search using cosine distance"
+
+  - changeSet:
+      id: 4
+      author: claude
+      changes:
+        - createTable:
+            tableName: topic_embeddings
+            columns:
+              - column:
+                  name: topic_id
+                  type: varchar(16)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: category_id
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: title
+                  type: varchar(512)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: embedding
+                  type: vector(1536)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+      comment: "Create topic_embeddings table with pgvector type and category"
+
+  - changeSet:
+      id: 5
+      author: claude
+      changes:
+        - sql:
+            sql: CREATE INDEX idx_topic_embeddings_embedding ON topic_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)
+      comment: "Create IVFFlat index for fast topic similarity search using cosine distance"

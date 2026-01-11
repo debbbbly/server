@@ -1,5 +1,6 @@
 package com.debbly.server.claim.repository
 
+import com.debbly.server.claim.model.TopicStance
 import jakarta.persistence.*
 import java.time.Instant
 
@@ -16,5 +17,10 @@ data class ClaimEntity(
     var scoreStancesRecent: Double? = null,
     var scoreDebatesRecent: Double? = null,
     var scoreBaseline: Double? = null,
-    var scoreTotal: Double? = null
+    var scoreTotal: Double? = null,
+    @Column(name = "topic_id")
+    val topicId: String? = null,
+    @Enumerated(EnumType.STRING)
+    @Column(name = "topic_stance")
+    val topicStance: TopicStance? = null
 )

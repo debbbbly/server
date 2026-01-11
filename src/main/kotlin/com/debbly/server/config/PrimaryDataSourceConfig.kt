@@ -26,6 +26,7 @@ import javax.sql.DataSource
         "com.debbly.server.claim.repository",
         "com.debbly.server.claim.user.repository",
         "com.debbly.server.claim.top",
+        "com.debbly.server.claim.topic.repository",
         "com.debbly.server.category.repository",
         "com.debbly.server.stage.repository",
         "com.debbly.server.backstage.repository",

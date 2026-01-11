@@ -4,19 +4,20 @@ import com.debbly.server.IdService
 import com.debbly.server.ai.OpenAiService
 import com.debbly.server.category.repository.CategoryCachedRepository
 import com.debbly.server.claim.exception.ClaimValidationException
+import com.debbly.server.claim.exception.DuplicateClaimException
 import com.debbly.server.claim.model.ClaimModel
 import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.model.UserClaimModel
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
-import com.debbly.server.embedding.repository.ClaimEmbeddingEntity
-import com.debbly.server.embedding.repository.ClaimEmbeddingRepository
+import com.debbly.server.embedding.claim.ClaimEmbeddingEntity
+import com.debbly.server.embedding.claim.ClaimEmbeddingRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.Instant
-import kotlin.jvm.optionals.getOrNull
+import java.time.Instant.now
 
 @Service
 class ClaimService(
@@ -26,6 +27,7 @@ class ClaimService(
     private val userClaimCachedRepository: UserClaimCachedRepository,
     private val claimSimilarityService: ClaimSimilarityService,
     private val embeddingRepository: ClaimEmbeddingRepository,
+    private val topicService: com.debbly.server.claim.topic.TopicService,
     private val idService: IdService,
     private val clock: Clock
 ) {
@@ -47,10 +49,10 @@ class ClaimService(
 
 
     @Transactional
-    fun propose(title: String, userId: String, stance: ClaimStance? = null): ClaimModel {
+    fun create(title: String, userId: String, stance: ClaimStance? = null): ClaimModel {
         logger.info("Processing claim proposal: '$title' by user: $userId")
 
-        val validationResult = openAIService.validateClaim(title)
+        val validationResult = openAIService.moderateClaim(title)
 
         if (!validationResult.valid) {
             logger.warn("Claim rejected for user $userId: ${validationResult.violations}")
@@ -59,24 +61,40 @@ class ClaimService(
 
         // logger.info("Claim validation passed with category: ${validationResult.categoryId}")
 
-        // Check for duplicate claims using the normalized title
         val normalizedTitle = validationResult.normalized ?: title
         val duplicate = claimSimilarityService.findDuplicate(normalizedTitle)
         if (duplicate != null) {
             logger.warn("Duplicate claim detected for user $userId: existing claim ${duplicate.claimId}")
-            throw com.debbly.server.claim.exception.DuplicateClaimException(duplicate)
+            throw DuplicateClaimException(duplicate)
         }
 
-        val categoryId = validationResult.categoryId ?: "social-issues-culture"
+        // Topic is required for all valid claims
+        if (validationResult.topic.isNullOrBlank()) {
+            throw ClaimValidationException(
+                listOf("Topic extraction failed"),
+                "AI failed to extract a topic from the claim. This should not happen for valid claims."
+            )
+        }
+
+        val suggestedCategoryId = validationResult.categoryId ?: "society"
+        categoryCachedRepository.findById(suggestedCategoryId)
+            ?: throw IllegalArgumentException("Category not found: $suggestedCategoryId")
+
+        val topic = topicService.findOrCreateTopic(validationResult.topic, suggestedCategoryId)
+        logger.info("Claim associated with topic ${topic.topicId}: '${topic.title}' (category: ${topic.categoryId})")
+
+        val categoryId = topic.categoryId
         categoryCachedRepository.findById(categoryId)
-            ?: throw IllegalArgumentException("Category not found: $categoryId")
+            ?: throw IllegalArgumentException("Topic's category not found: $categoryId")
 
         val claim = ClaimModel(
             claimId = idService.getId(),
             categoryId = categoryId,
             title = validationResult.normalized ?: title,
             popularity = 0,
-            createdAt = Instant.now(clock)
+            createdAt = now(clock),
+            topicId = topic.topicId,
+            topicStance = validationResult.stance
         )
         claimCachedRepository.save(claim)
 
@@ -88,8 +106,7 @@ class ClaimService(
                     title = claim.title,
                     categoryId = claim.categoryId,
                     embedding = embedding.map { it.toFloat() }.toFloatArray(),
-                    createdAt = claim.createdAt,
-                    updatedAt = claim.createdAt
+                    createdAt = claim.createdAt
                 )
                 embeddingRepository.save(embeddingEntity)
                 logger.info("Embedding generated and saved to pgvector DB for claim ${claim.claimId}")
@@ -107,7 +124,7 @@ class ClaimService(
                     userId = userId,
                     stance = it,
                     priority = null, // TODO set highest
-                    updatedAt = Instant.now(clock)
+                    updatedAt = now(clock)
                 )
             )
         }

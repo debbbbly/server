@@ -1,9 +1,11 @@
-package com.debbly.server.embedding.repository
+package com.debbly.server.embedding.claim
 
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.stereotype.Repository
+import java.sql.Timestamp
+import java.time.Instant
 
 @Repository
 class ClaimEmbeddingRepository(
@@ -13,13 +15,12 @@ class ClaimEmbeddingRepository(
     fun save(entity: ClaimEmbeddingEntity) {
         val vectorLiteral = entity.embedding.toVectorLiteral()
         val sql = """
-            INSERT INTO claim_embeddings (claim_id, title, category_id, embedding, created_at, updated_at)
-            VALUES (?, ?, ?, CAST(? AS vector), ?, ?)
+            INSERT INTO claim_embeddings (claim_id, title, category_id, embedding, created_at)
+            VALUES (?, ?, ?, CAST(? AS vector), ?)
             ON CONFLICT (claim_id) DO UPDATE
             SET title = EXCLUDED.title,
                 category_id = EXCLUDED.category_id,
-                embedding = EXCLUDED.embedding,
-                updated_at = EXCLUDED.updated_at
+                embedding = EXCLUDED.embedding
         """.trimIndent()
 
         jdbcTemplate.update(
@@ -28,8 +29,7 @@ class ClaimEmbeddingRepository(
             entity.title,
             entity.categoryId,
             vectorLiteral,
-            entity.createdAt.toSqlTimestamp(),
-            entity.updatedAt.toSqlTimestamp()
+            entity.createdAt.toSqlTimestamp()
         )
     }
 
@@ -92,6 +92,6 @@ private fun FloatArray.toVectorLiteral(): String {
     return joinToString(prefix = "[", postfix = "]")
 }
 
-private fun java.time.Instant.toSqlTimestamp(): java.sql.Timestamp {
-    return java.sql.Timestamp.from(this)
+private fun Instant.toSqlTimestamp(): Timestamp {
+    return Timestamp.from(this)
 }

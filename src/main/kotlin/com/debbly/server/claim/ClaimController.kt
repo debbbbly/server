@@ -9,8 +9,10 @@ import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.top.TopClaimsService
 import com.debbly.server.claim.user.UserClaimService
 import jakarta.validation.constraints.Size
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.server.ResponseStatusException
 
 @RestController
 @RequestMapping("/claims")
@@ -77,9 +79,16 @@ class ClaimController(
         @RequestBody request: CreateClaimRequest,
         @ExternalUserId externalUserId: String?
     ): ResponseEntity<ClaimModel> {
-        val claim = authService.authenticate(externalUserId).let { user ->
-            claimService.propose(request.title, user.userId, request.stance)
+        val user = authService.authenticate(externalUserId)
+
+        if (!ClaimRateLimiter.tryConsume(user.userId)) {
+            throw ResponseStatusException(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "Rate limit exceeded. You can create up to 10 claims per day."
+            )
         }
+
+        val claim = claimService.create(request.title, user.userId, request.stance)
 
         return ResponseEntity.ok(claim)
     }

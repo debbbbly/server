@@ -1,7 +1,7 @@
 package com.debbly.server.claim
 
 import com.debbly.server.ai.OpenAiService
-import com.debbly.server.embedding.repository.ClaimEmbeddingRepository
+import com.debbly.server.embedding.claim.ClaimEmbeddingRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
