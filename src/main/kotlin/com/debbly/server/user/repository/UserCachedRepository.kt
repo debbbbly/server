@@ -42,4 +42,13 @@ class UserCachedRepository(
             .map { it.toModel() }
     }
 
+    @CacheEvict(value = ["usersByExternalId"], key = "#externalId")
+    fun evictByExternalUserId(externalId: String) {
+        // Cache eviction only
+    }
+
+    fun findByExternalUserIdUncached(externalId: String): UserModel? {
+        return userJpaRepository.findByExternalUserId(externalId).getOrNull()?.toModel()
+    }
+
 }

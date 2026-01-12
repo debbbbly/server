@@ -2,7 +2,9 @@ package com.debbly.server.match
 
 import com.debbly.server.IdService
 import com.debbly.server.claim.model.ClaimStance
+import com.debbly.server.claim.model.TopicStance
 import com.debbly.server.claim.repository.ClaimCachedRepository
+import com.debbly.server.claim.topic.repository.TopicSimilarityRepository
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.category.repository.CategoryCachedRepository
 import com.debbly.server.match.event.MatchFoundEvent
@@ -29,7 +31,8 @@ class MatchingJobService(
     private val settings: SettingsService,
     private val categoryRepository: CategoryCachedRepository,
     private val clock: Clock,
-    private val eventPublisher: ApplicationEventPublisher
+    private val eventPublisher: ApplicationEventPublisher,
+    private val topicSimilarityRepository: TopicSimilarityRepository
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -102,13 +105,15 @@ class MatchingJobService(
             }
         }
 
+        // Phase 2: Similar topic matching (NEW)
         val remainingUsers = sortedWaitingUsers.filter { it.userId !in matchedUsers }
 //        logger.debug("Phase 1 complete: {} users matched, {} remaining", matchedUsers.size, remainingUsers.size)
         if (remainingUsers.size >= 2) {
-//            logger.debug("Phase 2: Matching users by individual stances with assignment")
-            matchWithUserStances(remainingUsers, matchedUsers)
+//            logger.debug("Phase 2: Matching users by similar topics with opposite stances")
+            matchWithSimilarTopics(remainingUsers, matchedUsers)
         }
 
+        // Phase 3: Individual stances with assignment (was Phase 2)
         val stillRemainingUsers = sortedWaitingUsers.filter { it.userId !in matchedUsers }
 //        logger.debug(
 //            "Phase 2 complete: {} users matched total, {} remaining",
@@ -116,8 +121,15 @@ class MatchingJobService(
 //            stillRemainingUsers.size
 //        )
         if (stillRemainingUsers.size >= 2) {
-//            logger.debug("Phase 3: Matching users by top claims with random stances")
-            matchWithTopClaims(stillRemainingUsers, matchedUsers)
+//            logger.debug("Phase 3: Matching users by individual stances with assignment")
+            matchWithUserStances(stillRemainingUsers, matchedUsers)
+        }
+
+        // Phase 4: Top claims fallback (was Phase 3)
+        val finallyRemainingUsers = sortedWaitingUsers.filter { it.userId !in matchedUsers }
+        if (finallyRemainingUsers.size >= 2) {
+//            logger.debug("Phase 4: Matching users by top claims with random stances")
+            matchWithTopClaims(finallyRemainingUsers, matchedUsers)
         }
 
         val finalRemainingUsers = sortedWaitingUsers.filter { it.userId !in matchedUsers }
@@ -257,6 +269,113 @@ class MatchingJobService(
                 break
             }
         }
+    }
+
+    private fun matchWithSimilarTopics(remainingUsers: List<MatchRequest>, matchedUsers: MutableSet<String>) {
+        val SIMILARITY_THRESHOLD = 0.65
+
+        val availableUsers = remainingUsers.filter { it.userId !in matchedUsers }.toMutableList()
+
+        // Pre-fetch all claims for all users to avoid N+1 queries
+        val userClaims = availableUsers.associate { user ->
+            user.userId to user.claimIdToStance.keys
+                .map { claimId -> claimRepository.getById(claimId) }
+                .filter { it.topicId != null } // Only claims with topics
+        }
+
+        while (availableUsers.size >= 2) {
+            val userA = availableUsers.removeFirstOrNull() ?: break
+            val userB = availableUsers.firstOrNull() ?: break
+
+            val claimsA = userClaims[userA.userId] ?: emptyList()
+            val claimsB = userClaims[userB.userId] ?: emptyList()
+
+            if (claimsA.isEmpty() || claimsB.isEmpty()) {
+                continue // Skip if either user has no claims with topics
+            }
+
+            // Find best matching claim pair based on topic similarity
+            var bestMatch: Triple<String, String, Double>? = null // (claimIdA, claimIdB, similarity)
+
+            for (claimA in claimsA) {
+                if (claimA.claimId in userA.skipClaimIds) continue
+                if (claimA.topicStance == TopicStance.NEUTRAL) continue
+
+                // Get similar topics for claimA's topic
+                val similarTopics = topicSimilarityRepository.findSimilarTopics(claimA.topicId!!)
+                    .filter { it.similarity >= SIMILARITY_THRESHOLD }
+                    .associate { it.topicId2 to it.similarity }
+
+                for (claimB in claimsB) {
+                    if (claimB.claimId in userB.skipClaimIds) continue
+                    if (claimB.topicStance == TopicStance.NEUTRAL) continue
+
+                    // Check if topics are similar
+                    val similarity = similarTopics[claimB.topicId] ?: continue
+
+                    // Calculate effective topic stances
+                    val topicStanceA = inferTopicStance(
+                        userA.claimIdToStance[claimA.claimId],
+                        claimA.topicStance
+                    ) ?: continue
+
+                    val topicStanceB = inferTopicStance(
+                        userB.claimIdToStance[claimB.claimId],
+                        claimB.topicStance
+                    ) ?: continue
+
+                    // Check if topic stances are opposite
+                    if (areOppositeTopicStances(topicStanceA, topicStanceB)) {
+                        if (bestMatch == null || similarity > bestMatch.third) {
+                            bestMatch = Triple(claimA.claimId, claimB.claimId, similarity)
+                        }
+                    }
+                }
+            }
+
+            if (bestMatch != null) {
+                // Match found - select one of the claims
+                // Prioritize userA's claim (could also use selectClaimWithPriority)
+                val selectedClaimId = bestMatch.first
+
+                matchedUsers.add(userA.userId)
+                matchedUsers.add(userB.userId)
+                availableUsers.remove(userB)
+
+                createAndStoreMatch(userA, userB, selectedClaimId, MatchReason.SIMILAR_TOPIC)
+
+                logger.info(
+                    "Topic-similarity matched users {} and {} on claim {} (similarity: {})",
+                    userA.userId, userB.userId, selectedClaimId, String.format("%.2f", bestMatch.third)
+                )
+            } else {
+                // No match found, skip userA and try next pair
+                continue
+            }
+        }
+    }
+
+    private fun inferTopicStance(claimStance: ClaimStance?, topicStance: TopicStance?): ClaimStance? {
+        if (claimStance == null || topicStance == null) return null
+        if (topicStance == TopicStance.NEUTRAL) return null
+
+        return when {
+            claimStance == ClaimStance.EITHER -> ClaimStance.EITHER
+
+            topicStance == TopicStance.FOR && claimStance == ClaimStance.FOR -> ClaimStance.FOR
+            topicStance == TopicStance.FOR && claimStance == ClaimStance.AGAINST -> ClaimStance.AGAINST
+
+            topicStance == TopicStance.AGAINST && claimStance == ClaimStance.FOR -> ClaimStance.AGAINST
+            topicStance == TopicStance.AGAINST && claimStance == ClaimStance.AGAINST -> ClaimStance.FOR
+
+            else -> null
+        }
+    }
+
+    private fun areOppositeTopicStances(stanceA: ClaimStance, stanceB: ClaimStance): Boolean {
+        if (stanceA == ClaimStance.EITHER || stanceB == ClaimStance.EITHER) return true
+        return (stanceA == ClaimStance.FOR && stanceB == ClaimStance.AGAINST) ||
+               (stanceA == ClaimStance.AGAINST && stanceB == ClaimStance.FOR)
     }
 
     private fun selectClaimWithPriority(availableClaims: List<String>, userClaimOrder: List<String>): String {

@@ -1,6 +1,7 @@
 package com.debbly.server.infra.error
 
 import com.debbly.server.claim.exception.ClaimValidationException
+import com.debbly.server.claim.exception.DuplicateClaimException
 import org.springframework.http.HttpStatus
 import org.springframework.http.HttpStatus.*
 import org.springframework.http.ResponseEntity
@@ -27,6 +28,12 @@ class GlobalExceptionHandler {
     fun handleClaimValidationException(ex: ClaimValidationException): ResponseEntity<ErrorResponse> {
         val errorResponse = ErrorResponse(ex.message ?: "Unknown")
         return ResponseEntity.status(BAD_REQUEST).body(errorResponse)
+    }
+
+    @ExceptionHandler(DuplicateClaimException::class)
+    fun handleDuplicateClaimException(ex: DuplicateClaimException): ResponseEntity<ErrorResponse> {
+        val errorResponse = ErrorResponse(ex.message ?: "Duplicate claim")
+        return ResponseEntity.status(CONFLICT).body(errorResponse)
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException::class)

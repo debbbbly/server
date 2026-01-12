@@ -37,5 +37,6 @@ enum class MatchOpponentStatus {
 enum class MatchReason {
     COMMON_STANCE_OPPOSITE,   // Users had common claims with opposing stances
     USER_STANCE_ASSIGNED,     // One user had stance, other was assigned opposing stance
-    TOP_CLAIM_RANDOM          // Both users assigned random stances on top-scored claim
+    TOP_CLAIM_RANDOM,         // Both users assigned random stances on top-scored claim
+    SIMILAR_TOPIC             // Matched through similar topics with opposite stances
 }
