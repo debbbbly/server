@@ -9,9 +9,8 @@ import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.livekit.LiveKitService
 import com.debbly.server.livekit.S3LiveKitProperties
 import com.debbly.server.match.model.Match
-import com.debbly.server.pusher.model.PusherEventName
-import com.debbly.server.pusher.model.PusherEventName.*
-import com.debbly.server.pusher.model.PusherMessage
+import com.debbly.server.match.repository.MatchRepository
+import com.debbly.server.pusher.model.PusherEventName.STAGE_EVENT
 import com.debbly.server.pusher.model.PusherMessage.Companion.message
 import com.debbly.server.pusher.model.PusherMessageType.STAGE_CLOSED
 import com.debbly.server.pusher.service.PusherService
@@ -28,7 +27,7 @@ import com.debbly.server.stage.repository.StageCachedRepository
 import com.debbly.server.stage.repository.entities.StageStatus
 import com.debbly.server.user.SocialType
 import com.debbly.server.user.repository.UserCachedRepository
-import com.debbly.server.match.repository.MatchRepository
+import livekit.LivekitModels
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
@@ -424,10 +423,31 @@ class StageService(
         val allHostUserIds = stage.hosts.map { it.userId }
         val liveKitParticipants = liveKitService.getParticipants(stageId)
 
+        removeDuplicateParticipants(stageId, liveKitParticipants)
+
         if (liveKitParticipants.map { it.identity }.toSet()
                 .containsAll(allHostUserIds) && stage.status == StageStatus.PENDING
         ) {
             eventPublisher.publishEvent(AllHostsJoinedEvent(stageId))
+        }
+    }
+
+    private fun removeDuplicateParticipants(stageId: String, participants: List<LivekitModels.ParticipantInfo>) {
+        val participantsByIdentity = participants.groupBy { it.identity }
+
+        participantsByIdentity.forEach { (identity, participantList) ->
+            if (participantList.size > 1) {
+                logger.warn("Found ${participantList.size} duplicate participants for identity $identity in stage $stageId")
+
+                val duplicatesToRemove = participantList.sortedBy { it.joinedAt }.dropLast(1)
+                duplicatesToRemove.forEach { duplicate ->
+                    try {
+                        liveKitService.removeParticipant(stageId, duplicate.sid)
+                    } catch (e: Exception) {
+                        logger.error("Failed to remove duplicate participant ${duplicate.sid}", e)
+                    }
+                }
+            }
         }
     }
 
