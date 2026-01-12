@@ -34,6 +34,8 @@ import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import java.time.Clock
 import java.time.Instant
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @Service
 class StageService(
@@ -57,6 +59,11 @@ class StageService(
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
+
+    // Scheduler with virtual threads for delayed stage closure checks
+    private val stageClosureScheduler = Executors.newScheduledThreadPool(1) { runnable ->
+        Thread.ofVirtual().name("stage-closure-check").unstarted(runnable)
+    }
 
     fun getUserHostedStages(userId: String): List<StageHistoryDetails> {
         val stages = stageRepository.findTop10ByHostUserId(userId)
@@ -327,44 +334,87 @@ class StageService(
 
         val stage = stageRepository.getById(stageId)
         val allHostUserIds = stage.hosts.map { it.userId }
-        logger.info("📋 Stage hosts: $allHostUserIds")
+        // logger.info("📋 Stage hosts: $allHostUserIds")
 
         val liveKitParticipants = liveKitService.getParticipants(stageId)
-        logger.info("🔗 LiveKit participants: ${liveKitParticipants.map { it.identity }}")
+        // logger.info("🔗 LiveKit participants: ${liveKitParticipants.map { it.identity }}")
 
         // Check if any hosts are still connected
         val connectedHosts = liveKitParticipants
             .map { it.identity }
             .filter { it in allHostUserIds }
 
-        logger.info("🏠 Connected hosts: $connectedHosts")
+        // logger.info("🏠 Connected hosts: $connectedHosts")
 
         if (connectedHosts.isEmpty() && stage.status != StageStatus.CLOSED) {
-            logger.info("🚨 No hosts remaining! Stopping egress and closing stage $stageId")
-            // Stop egress recording before closing stage
-            stopEgressIfActive(stageId)
-
-            val closedStage = stage.copy(
-                status = StageStatus.CLOSED,
-                closedAt = Instant.now(clock)
+            // All hosts left - close immediately
+            // logger.info("🚨 All hosts left immediately! Closing stage $stageId")
+            closeStageAfterAllHostsLeft(stage)
+        } else if (!connectedHosts.contains(userId)) {
+            // User left but others remain - schedule a check in 5 seconds
+            // This gives a grace period for temporary disconnections (network hiccups, page reloads)
+            logger.info("⏳ User $userId left but ${connectedHosts.size} host(s) remain. Scheduling check in 5 seconds...")
+            stageClosureScheduler.schedule(
+                { checkIfUserStillAbsentAndClose(stageId, userId) },
+                5,
+                TimeUnit.SECONDS
             )
-            stageRepository.save(closedStage)
-            liveStageRedisRepository.deleteById(stage.stageId)
-
-            // Delete the related match (has the same ID as stage)
-            matchRepository.delete(stageId)
-            logger.info("Deleted match for stage $stageId")
-
-            // End the LiveKit room
-            liveKitService.endRoom(stage.stageId)
-
-            // Broadcast debate ended event
-            broadcastDebateEnded(stageId, closedStage, "all_hosts_left")
-
-            logger.info("Successfully closed stage ${stage.stageId} - all hosts left")
-        } else {
-            logger.info("⏳ ${connectedHosts.size} hosts still connected, keeping stage open")
         }
+    }
+
+    private fun checkIfUserStillAbsentAndClose(stageId: String, leftUserId: String) {
+        try {
+            // logger.info("⏰ Running scheduled check for stage $stageId after user $leftUserId left")
+
+            val stage = stageRepository.findById(stageId)
+            if (stage == null) {
+                logger.info("Stage $stageId no longer exists, skipping check")
+                return
+            }
+
+            if (stage.status == StageStatus.CLOSED) {
+                logger.info("Stage $stageId already closed, skipping check")
+                return
+            }
+
+            val liveKitParticipants = liveKitService.getParticipants(stageId)
+            val participantIds = liveKitParticipants.map { it.identity }
+            logger.info("🔗 LiveKit participants after grace period: $participantIds")
+
+            // Check if the user who left is still absent
+            if (!participantIds.contains(leftUserId)) {
+                logger.info("🚨 User $leftUserId still absent after grace period! Closing stage $stageId")
+                closeStageAfterAllHostsLeft(stage)
+            } else {
+                logger.info("✅ User $leftUserId rejoined stage $stageId. Not closing.")
+            }
+        } catch (e: Exception) {
+            logger.error("Error checking stage $stageId for closure", e)
+        }
+    }
+
+    private fun closeStageAfterAllHostsLeft(stage: StageModel) {
+        // Stop egress recording before closing stage
+        stopEgressIfActive(stage.stageId)
+
+        val closedStage = stage.copy(
+            status = StageStatus.CLOSED,
+            closedAt = Instant.now(clock)
+        )
+        stageRepository.save(closedStage)
+        liveStageRedisRepository.deleteById(stage.stageId)
+
+        // Delete the related match (has the same ID as stage)
+        matchRepository.delete(stage.stageId)
+        logger.info("Deleted match for stage ${stage.stageId}")
+
+        // End the LiveKit room
+        liveKitService.endRoom(stage.stageId)
+
+        // Broadcast debate ended event
+        broadcastDebateEnded(stage.stageId, closedStage, "all_hosts_left")
+
+        logger.info("Successfully closed stage ${stage.stageId} - all hosts left")
     }
 
     fun onUserJoined(userId: String, stageId: String) {

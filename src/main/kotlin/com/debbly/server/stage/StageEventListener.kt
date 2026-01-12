@@ -3,6 +3,7 @@ package com.debbly.server.stage
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.livekit.LiveKitService
 import com.debbly.server.livekit.S3LiveKitProperties
+import com.debbly.server.match.repository.MatchRepository
 import com.debbly.server.pusher.model.PusherEventName.STAGE_EVENT
 import com.debbly.server.pusher.model.PusherMessage.Companion.message
 import com.debbly.server.pusher.model.PusherMessageType.STAGE_OPEN
@@ -36,7 +37,8 @@ class StageEventListener(
     private val settingsService: SettingsService,
     private val s3Config: S3LiveKitProperties,
     private val clock: Clock,
-    private val pusherService: PusherService
+    private val pusherService: PusherService,
+    private val matchRepository: MatchRepository
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -49,6 +51,10 @@ class StageEventListener(
         try {
             val stage = stageRepository.getById(event.stageId)
             logger.info("All hosts joined stage: '${event.stageId}'. Opening stage.")
+
+            // Delete the match now that stage is opening (stageId = matchId)
+            matchRepository.delete(event.stageId)
+            // logger.info("Deleted match ${event.stageId} as all hosts joined stage")
 
             val openedAt = Instant.now(clock)
             val updatedStage = stage.copy(
