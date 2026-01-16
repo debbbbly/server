@@ -372,12 +372,19 @@ class OpenAiService(
                 ModerationResponse::class.java
             )
 
-            val result = response?.results?.firstOrNull()
-            if (result?.flagged == true) {
-                val replacement = result.categories
-                    .filter { it.value } // Only flagged categories
-                    .flatMap { (category, _) ->
-                        val score = result.categoryScores?.get(category) ?: 0.0
+            val result = response?.results?.firstOrNull() ?: return ChatModerationResult(
+                message = processedMessage,
+                wasModerated = false
+            )
+
+            val flaggedCategories = result.categories
+                .filter { it.value }
+                .map { (category, _) -> category to (result.categoryScores?.get(category) ?: 0.0) }
+                .toMap()
+
+            if (result.flagged && flaggedCategories.any { it.value > 0.65 }) {
+                val replacement = flaggedCategories // Only flagged categories
+                    .flatMap { (category, score) ->
                         val emoji = EMOJI_BY_CATEGORY[category] ?: DEFAULT_MODERATION_EMOJI
 
                         val count = when {
@@ -483,7 +490,6 @@ data class BioValidationResult(
     val reason: String
 )
 
-// OpenAI Moderation API response structures
 data class ModerationResponse(
     val id: String,
     val model: String,

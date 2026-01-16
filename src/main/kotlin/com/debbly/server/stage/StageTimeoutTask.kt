@@ -17,7 +17,7 @@ class StageTimeoutTask(
     fun checkExpiredStages() {
         try {
             logger.debug("Checking for expired stages...")
-            stageService.closeExpiredStages()
+            stageService.closeStagesByTimeout()
         } catch (e: Exception) {
             logger.error("Error during scheduled stage timeout check", e)
         }

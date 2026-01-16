@@ -59,12 +59,12 @@ services:
 
   # Egress - Records and exports debate sessions to S3 storage
   # Needs both Redis (for queue management) and LiveKit (for room access)
+  # Uses host network to share localhost with LiveKit for WebRTC connectivity
   egress:
     image: livekit/egress:latest
     container_name: debbly-egress
     restart: always
-    ports:
-      - "9094:9094"  # Egress service API
+    network_mode: host
     volumes:
       - ./egress.yaml:/egress.yaml
     env_file:
@@ -74,8 +74,6 @@ services:
     depends_on:
       - redis
       - livekit
-    networks:
-      - debbly-network
 
 volumes:
   redis_data:

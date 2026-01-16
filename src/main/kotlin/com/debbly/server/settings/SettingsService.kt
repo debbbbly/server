@@ -14,7 +14,7 @@ class SettingsService(
 ) {
     companion object {
         const val HLS_PARALLEL_LIMIT_DEFAULT = 2;
-        const val HLS_SEGMENT_DURATION_DEFAULT = 4;
+        const val HLS_SEGMENT_DURATION_DEFAULT = 5;
         const val DEBATE_STAGE_DURATION_DEFAULT = 5 * 60L;
         const val DEBATE_STAGE_RECORDED_THRESHOLD_DEFAULT = 4 * 60L;
         const val CLEANUP_OLD_EGRESSES_DEFAULT = false;
@@ -45,12 +45,12 @@ class SettingsService(
         return 20;
     }
 
-    fun getDebateStageDuration(): Long {
+    fun getStageDuration(): Long {
         val value = cache.get(DEBATE_STAGE_DURATION)
         return value.toLongOrNull() ?: DEBATE_STAGE_DURATION_DEFAULT
     }
 
-    fun getDebateStageRecordedThreshold(): Long {
+    fun getStageRecordedThreshold(): Long {
         val value = cache.get(DEBATE_STAGE_RECORDED_THRESHOLD)
         return value.toLongOrNull() ?: DEBATE_STAGE_RECORDED_THRESHOLD_DEFAULT
     }

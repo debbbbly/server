@@ -9,7 +9,6 @@ import com.debbly.server.pusher.model.PusherMessage.Companion.message
 import com.debbly.server.pusher.model.PusherMessageType.STAGE_OPEN
 import com.debbly.server.pusher.service.PusherService
 import com.debbly.server.settings.SettingsService
-import com.debbly.server.settings.UserSettingsName
 import com.debbly.server.settings.repository.UserSettingsCachedRepository
 import com.debbly.server.stage.event.AllHostsJoinedEvent
 import com.debbly.server.stage.model.LiveStageEntity
@@ -101,7 +100,7 @@ class StageEventListener(
 
         val egressId = if (shouldStartEgress) {
             val egressInfo = try {
-                liveKitService.startRoomCompositeEgress(stage.stageId)
+                liveKitService.startCompositeEgress(stage.stageId)
             } catch (e: Exception) {
                 logger.error("Failed to start egress for stage ${stage.stageId}", e)
                 null
@@ -149,7 +148,8 @@ class StageEventListener(
     }
 
     private fun buildHlsUrl(stageId: String): String {
-        return "${s3Config.endpoint}/${s3Config.bucket.egress}/$stageId/playlist.m3u8"
+        // Store base path - actual playlist name will be determined by stage status
+        return "${s3Config.endpoint}/${s3Config.bucket.egress}/$stageId"
     }
 
     private fun shouldStartEgressForStage(stage: StageModel): Boolean {

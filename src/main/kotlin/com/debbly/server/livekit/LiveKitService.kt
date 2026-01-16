@@ -17,7 +17,8 @@ class LiveKitService(
     private val idService: IdService,
     private val livekitRoomService: RoomServiceClient,
     private val livekitEgressService: EgressServiceClient,
-    private val settings: SettingsService
+    private val settings: SettingsService,
+    private val clock: java.time.Clock
 ) {
     companion object {
         private const val TOKEN_TTL_EXTRA_SECONDS: Long = 60;
@@ -25,7 +26,7 @@ class LiveKitService(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    fun createRoom(stageId: String, maxParticipants: Int = 10, emptyTimeoutSeconds: Int = 10): LivekitModels.Room? {
+    fun createRoom(stageId: String, emptyTimeoutSeconds: Int = 30, maxParticipants: Int = 30): LivekitModels.Room? {
         val call = livekitRoomService.createRoom(stageId, emptyTimeoutSeconds, maxParticipants)
         val response = call.execute()
 
@@ -70,7 +71,7 @@ class LiveKitService(
         return emptyList()
     }
 
-    fun startRoomCompositeEgress(
+    fun startCompositeEgress(
         stageId: String,
     ): LivekitEgress.EgressInfo? {
         logger.info("Starting HLS egress for stage $stageId with S3 config: endpoint=${s3Config.endpoint}, bucket=${s3Config.bucket.egress}, region=${s3Config.region}")
@@ -97,7 +98,7 @@ class LiveKitService(
             stageId,
             segmentOutput,
             "grid",
-            LivekitEgress.EncodingOptionsPreset.H264_720P_30
+            LivekitEgress.EncodingOptionsPreset.H264_1080P_30
         )
         val response = call.execute()
 
@@ -133,8 +134,8 @@ class LiveKitService(
         try {
             val imageOutput = LivekitEgress.ImageOutput.newBuilder()
                 .setCaptureInterval(60)
-                .setWidth(1280)
-                .setHeight(720)
+                .setWidth(1920)
+                .setHeight(1080)
                 .setFilenamePrefix("$stageId/thumbnails/")
                 .setFilenameSuffix(IMAGE_SUFFIX_INDEX)
                 .setDisableManifest(true)
@@ -172,29 +173,23 @@ class LiveKitService(
 
         if (response.isSuccessful) {
             val egressInfo = response.body()
-            logger.info("✅ Successfully stopped egress: $egressId")
-            logger.info("   Final Status: ${egressInfo?.status}")
-            logger.info("   StartedAt: ${egressInfo?.startedAt}")
-            logger.info("   EndedAt: ${egressInfo?.endedAt}")
-            logger.info("   FileResults: ${egressInfo?.fileResultsList}")
+            logger.info("Successfully stopped egress: $egressId")
             egressInfo?.fileResultsList?.forEach { fileResult ->
-                logger.info("   📁 File: ${fileResult.filename} - Size: ${fileResult.size} bytes")
+                logger.info("File: ${fileResult.filename} - Size: ${fileResult.size} bytes")
             }
 
             val startedAt = egressInfo?.startedAt?.takeIf { it > 0 }
-            val endedAt = egressInfo?.endedAt?.takeIf { it > 0 }
+            // endedAt is often 0 because egress is still finishing - use current time instead
+            val endedAt = egressInfo?.endedAt?.takeIf { it > 0 } ?: (clock.millis() / 1000)
 
-            if (startedAt != null && endedAt != null) {
+            if (startedAt != null) {
                 val durationSeconds = endedAt - startedAt
-                logger.info("   Duration: ${durationSeconds}s (${durationSeconds / 60}m ${durationSeconds % 60}s)")
+                logger.info("Duration: ${durationSeconds}s (${durationSeconds / 60}m ${durationSeconds % 60}s)")
             }
 
             return StopEgressResult(success = true, startedAt = startedAt, endedAt = endedAt)
         } else {
-            logger.error("❌ Failed to stop egress $egressId:")
-            logger.error("   HTTP Status: ${response.code()}")
-            logger.error("   Error Message: ${response.message()}")
-            logger.error("   Response Body: ${response.errorBody()?.string()}")
+            logger.error("Failed to stop egress $egressId: ${response.code()} ${response.message()}")
             return StopEgressResult(success = false, startedAt = null, endedAt = null)
         }
     }
@@ -226,22 +221,21 @@ class LiveKitService(
         }
     }
 
-    fun getToken(userId: String?, stageId: String, isHost: Boolean, stance: String): String {
+    fun getToken(userId: String?, stageId: String, canPublish: Boolean, metadata: String): String {
         val token = AccessToken(liveKitConfig.apiKey, liveKitConfig.apiSecret).apply {
             val tokenUserId = userId ?: "guest_${idService.getId()}"
 
             name = tokenUserId
             identity = tokenUserId
-            ttl = settings.getDebateStageDuration().toLong() + TOKEN_TTL_EXTRA_SECONDS
+            ttl = settings.getStageDuration().toLong() + TOKEN_TTL_EXTRA_SECONDS
 
-            val role = if (isHost) "HOST" else "VIEWER"
-            metadata = """{"role":"$role","stance":"$stance"}"""
+            this.metadata = metadata
 
             addGrants(
                 RoomJoin(true),
                 RoomName(stageId),
-                CanPublish(isHost),
-                CanPublishData(isHost),
+                CanPublish(canPublish),
+                CanPublishData(canPublish),
             )
         }
 

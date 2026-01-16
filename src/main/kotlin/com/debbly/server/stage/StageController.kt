@@ -38,13 +38,13 @@ class StageController(
         return ResponseEntity.ok(stageDetails)
     }
 
-    //TODO backdoor for testing purposes
-    @PostMapping
-    fun createStage( @RequestBody request: CreateStageRequest): ResponseEntity<StageModel> {
-        val stage = stageService.createStage(claimId = request.claimId, hosts = request.hosts)
-
-        return ResponseEntity.ok(stage)
-    }
+//    //TODO backdoor for testing purposes
+//    @PostMapping
+//    fun createStage( @RequestBody request: CreateStageRequest): ResponseEntity<StageModel> {
+//        val stage = stageService.createStage(claimId = request.claimId, hosts = request.hosts)
+//
+//        return ResponseEntity.ok(stage)
+//    }
 
     data class CreateStageRequest(
         val claimId: String,
@@ -78,7 +78,7 @@ class StageController(
         }
 
         userCachedRepository.findByExternalUserId(externalUserId)?.let { user ->
-            stageService.live(
+            stageService.openStage(
                 stageId = stageId,
                 userId = user.userId
             )

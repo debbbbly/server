@@ -16,7 +16,6 @@ import com.debbly.server.pusher.model.PusherMessageType.STAGE_CLOSED
 import com.debbly.server.pusher.service.PusherService
 import com.debbly.server.settings.SettingsService
 import com.debbly.server.settings.repository.UserSettingsCachedRepository
-import com.debbly.server.stage.config.StageProperties
 import com.debbly.server.stage.event.AllHostsJoinedEvent
 import com.debbly.server.stage.model.LiveStageEntity
 import com.debbly.server.stage.model.LiveStageHost
@@ -46,7 +45,6 @@ class StageService(
     private val claimRepository: ClaimJpaRepository,
     private val userClaimCachedRepository: UserClaimCachedRepository,
     private val liveKitService: LiveKitService,
-    private val stageProperties: StageProperties,
     private val userSettingsRepository: UserSettingsCachedRepository,
     private val settingsService: SettingsService,
     private val s3Config: S3LiveKitProperties,
@@ -98,7 +96,7 @@ class StageService(
                 status = stage.status,
                 openedAt = stage.openedAt,
                 closedAt = stage.closedAt,
-                hlsUrl = stage.hlsUrl
+                hlsUrl = getHlsUrlForStageStatus(stage.hlsUrl, stage.status)
             )
         }
     }
@@ -137,7 +135,7 @@ class StageService(
                 status = stage.status,
                 openedAt = stage.openedAt,
                 closedAt = stage.closedAt,
-                hlsUrl = stage.hlsUrl
+                hlsUrl = getHlsUrlForStageStatus(stage.hlsUrl, stage.status)
             )
         }
     }
@@ -164,12 +162,14 @@ class StageService(
         val (isHost, livekitToken) = userId.let { tokenUserId ->
             val isHost = stage.hosts.any { it.userId == userId }
             val userStance = stage.hosts.find { it.userId == userId }?.stance ?: ClaimStance.EITHER
+            val role = if (isHost) "HOST" else "VIEWER"
+            val metadata = """{"role":"$role","stance":"${userStance.name}"}"""
 
             isHost to liveKitService.getToken(
                 userId = tokenUserId,
                 stageId = stageId,
-                isHost = isHost,
-                stance = userStance.name
+                canPublish = isHost,
+                metadata = metadata
             )
         }
 
@@ -189,30 +189,42 @@ class StageService(
             createdAt = stage.createdAt,
             openedAt = stage.openedAt,
             closedAt = stage.closedAt,
-            limitMinutes = settingsService.getDebateStageDuration() / 60,
-            hlsUrl = stage.hlsUrl
+            limitMinutes = settingsService.getStageDuration() / 60,
+            hlsUrl = getHlsUrlForStageStatus(stage.hlsUrl, stage.status)
         )
     }
 
-    fun createStage(claimId: String?, hosts: List<StageModel.StageHostModel>): StageModel {
-        val stageId = idService.getId()
-        val claim = claimId?.let { claimCachedRepository.getById(it) }
-        val stage = StageModel(
-            stageId = stageId,
-            type = if (hosts.size == 1) StageType.SOLO else StageType.ONE_ON_ONE,
-            claimId = claim?.claimId,
-            title = claim?.title,
-            hosts = hosts,
-            createdAt = Instant.now(clock),
-            status = StageStatus.PENDING,
-            openedAt = null,
-            closedAt = null
-        )
+    private fun getHlsUrlForStageStatus(baseUrl: String?, status: StageStatus): String? {
+        if (baseUrl == null) return null
 
-        stageRepository.save(stage)
+        val playlistName = if (status == StageStatus.CLOSED) {
+            "playlist.m3u8"
+        } else {
+            "playlist-live.m3u8"
+        }
 
-        return stage
+        return "$baseUrl/$playlistName"
     }
+
+//    fun createStage(claimId: String?, hosts: List<StageModel.StageHostModel>): StageModel {
+//        val stageId = idService.getId()
+//        val claim = claimId?.let { claimCachedRepository.getById(it) }
+//        val stage = StageModel(
+//            stageId = stageId,
+//            type = if (hosts.size == 1) StageType.SOLO else StageType.ONE_ON_ONE,
+//            claimId = claim?.claimId,
+//            title = claim?.title,
+//            hosts = hosts,
+//            createdAt = Instant.now(clock),
+//            status = StageStatus.PENDING,
+//            openedAt = null,
+//            closedAt = null
+//        )
+//
+//        stageRepository.save(stage)
+//
+//        return stage
+//    }
 
     fun createStage(match: Match): StageModel {
         val stageId = match.matchId
@@ -245,7 +257,7 @@ class StageService(
         }
     }
 
-    fun live(stageId: String, userId: String): StageModel {
+    fun openStage(stageId: String, userId: String): StageModel {
         val stage = if (stageId == userId) {
             stageRepository.save(
                 StageModel(
@@ -311,29 +323,31 @@ class StageService(
         liveStageRedisRepository.save(liveStage)
     }
 
-    fun leaveStage(stageId: String, userId: String) {
-        stageRepository.getById(stageId)?.let { stage ->
-            if (stage.hosts.none { it.userId == userId }) {
-                throw UnauthorizedException("User is not a host of this stage")
-            }
-            val closedStage = stage.copy(
-                status = StageStatus.CLOSED,
-                closedAt = Instant.now(clock)
-            )
-            stageRepository.save(closedStage)
-            liveStageRedisRepository.deleteById(stageId)
-
-            // Broadcast debate ended event
-            broadcastDebateEnded(stageId, closedStage, "host_left")
-        }
-    }
+//    fun leaveStage(stageId: String, userId: String) {
+//        stageRepository.getById(stageId)?.let { stage ->
+//            if (stage.hosts.none { it.userId == userId }) {
+//                throw UnauthorizedException("User is not a host of this stage")
+//            }
+//            val closedStage = stage.copy(
+//                status = StageStatus.CLOSED,
+//                closedAt = Instant.now(clock)
+//            )
+//            stageRepository.save(closedStage)
+//            liveStageRedisRepository.deleteById(stageId)
+//
+//            // Broadcast debate ended event
+//            broadcastDebateEnded(stageId, closedStage, "host_left")
+//        }
+//    }
 
     fun onUserLeft(userId: String, stageId: String) {
         logger.info("👋 User: '$userId' left from stage: '$stageId'.")
 
         val stage = stageRepository.getById(stageId)
         val allHostUserIds = stage.hosts.map { it.userId }
-        // logger.info("📋 Stage hosts: $allHostUserIds")
+
+        if (userId !in allHostUserIds)
+            return
 
         val liveKitParticipants = liveKitService.getParticipants(stageId)
         // logger.info("🔗 LiveKit participants: ${liveKitParticipants.map { it.identity }}")
@@ -346,22 +360,20 @@ class StageService(
         // logger.info("🏠 Connected hosts: $connectedHosts")
 
         if (connectedHosts.isEmpty() && stage.status != StageStatus.CLOSED) {
-            // All hosts left - close immediately
-            // logger.info("🚨 All hosts left immediately! Closing stage $stageId")
             closeStageAfterAllHostsLeft(stage)
         } else if (!connectedHosts.contains(userId)) {
             // User left but others remain - schedule a check in 5 seconds
             // This gives a grace period for temporary disconnections (network hiccups, page reloads)
             logger.info("⏳ User $userId left but ${connectedHosts.size} host(s) remain. Scheduling check in 5 seconds...")
             stageClosureScheduler.schedule(
-                { checkIfUserStillAbsentAndClose(stageId, userId) },
+                { checkIfHostStillAbsent(stageId, userId) },
                 5,
                 TimeUnit.SECONDS
             )
         }
     }
 
-    private fun checkIfUserStillAbsentAndClose(stageId: String, leftUserId: String) {
+    private fun checkIfHostStillAbsent(stageId: String, leftHostUserId: String) {
         try {
             // logger.info("⏰ Running scheduled check for stage $stageId after user $leftUserId left")
 
@@ -381,11 +393,11 @@ class StageService(
             logger.info("🔗 LiveKit participants after grace period: $participantIds")
 
             // Check if the user who left is still absent
-            if (!participantIds.contains(leftUserId)) {
-                logger.info("🚨 User $leftUserId still absent after grace period! Closing stage $stageId")
+            if (!participantIds.contains(leftHostUserId)) {
+                logger.info("🚨 User $leftHostUserId still absent after grace period! Closing stage $stageId")
                 closeStageAfterAllHostsLeft(stage)
             } else {
-                logger.info("✅ User $leftUserId rejoined stage $stageId. Not closing.")
+                logger.info("✅ User $leftHostUserId rejoined stage $stageId. Not closing.")
             }
         } catch (e: Exception) {
             logger.error("Error checking stage $stageId for closure", e)
@@ -393,27 +405,7 @@ class StageService(
     }
 
     private fun closeStageAfterAllHostsLeft(stage: StageModel) {
-        // Stop egress recording before closing stage
-        stopEgressIfActive(stage.stageId)
-
-        val closedStage = stage.copy(
-            status = StageStatus.CLOSED,
-            closedAt = Instant.now(clock)
-        )
-        stageRepository.save(closedStage)
-        liveStageRedisRepository.deleteById(stage.stageId)
-
-        // Delete the related match (has the same ID as stage)
-        matchRepository.delete(stage.stageId)
-        logger.info("Deleted match for stage ${stage.stageId}")
-
-        // End the LiveKit room
-        liveKitService.endRoom(stage.stageId)
-
-        // Broadcast debate ended event
-        broadcastDebateEnded(stage.stageId, closedStage, "all_hosts_left")
-
-        logger.info("Successfully closed stage ${stage.stageId} - all hosts left")
+        closeStage(stage, "all_hosts_left")
     }
 
     fun onUserJoined(userId: String, stageId: String) {
@@ -451,72 +443,79 @@ class StageService(
         }
     }
 
-    private fun stopEgressIfActive(stageId: String) {
+    private fun stopEgressIfActive(stageId: String): LiveKitService.StopEgressResult? {
         logger.info("🔍 Checking for active egress recording for stage $stageId")
         try {
             val liveStageOptional = liveStageRedisRepository.findById(stageId)
-            if (liveStageOptional.isPresent) {
-                val liveStage = liveStageOptional.get()
-                val egressId = liveStage.egressId
-
-                logger.info("📺 Found live stage with egressId: $egressId")
-
-                if (egressId != null) {
-                    logger.info("🛑 Stopping egress recording for stage $stageId, egressId: $egressId")
-                    val result = liveKitService.stopEgress(egressId)
-
-                    if (result.success) {
-                        logger.info("✅ Successfully stopped egress recording for stage $stageId")
-
-                        // Check if egress lasted more than 5 minutes (300 seconds)
-                        if (result.startedAt != null && result.endedAt != null) {
-                            val durationSeconds = result.endedAt - result.startedAt
-                            if (durationSeconds > settingsService.getDebateStageRecordedThreshold()) {
-                                val stage = stageRepository.getById(stageId)
-                                val updatedStage = stage.copy(recorded = true)
-                                stageRepository.save(updatedStage)
-                                logger.info("✅ Marked stage $stageId as recorded (duration: ${durationSeconds}s)")
-                            } else {
-                                logger.info("⏱️ Stage $stageId not marked as recorded (duration: ${durationSeconds}s < 300s)")
-                            }
-                        }
-                    } else {
-                        logger.warn("❌ Failed to stop egress recording for stage $stageId, egressId: $egressId")
-                    }
-                } else {
-                    logger.info("💡 No active egress recording found for stage $stageId (egressId is null)")
-                }
-            } else {
+            if (!liveStageOptional.isPresent) {
                 logger.info("🔍 No live stage found in Redis for stage $stageId")
+                return null
             }
+
+            val liveStage = liveStageOptional.get()
+            val egressId = liveStage.egressId
+
+            if (egressId == null) {
+                logger.info("💡 No active egress recording found for stage $stageId (egressId is null)")
+                return null
+            }
+
+            val activeEgresses = liveKitService.listActiveEgresses(stageId)
+            val isEgressActive = activeEgresses.any { it.egressId == egressId }
+
+            if (!isEgressActive) {
+                return null
+            }
+
+            logger.info("🛑 Stopping egress recording for stage $stageId, egressId: $egressId")
+            val result = liveKitService.stopEgress(egressId)
+
+            if (result.success) {
+                logger.info("✅ Successfully stopped egress recording for stage $stageId")
+            } else {
+                logger.warn("❌ Failed to stop egress recording for stage $stageId, egressId: $egressId")
+            }
+
+            return result
         } catch (e: Exception) {
             logger.error("💥 Error stopping egress for stage $stageId", e)
+            return null
         }
+    }
+
+    private fun isStageRecorded(egressResult: LiveKitService.StopEgressResult?): Boolean {
+        if (egressResult == null)
+            return false
+
+        val startedAt = egressResult.startedAt ?: return false
+        val endedAt = egressResult.endedAt ?: return false
+
+        val durationSeconds = endedAt - startedAt
+        return durationSeconds > settingsService.getStageRecordedThreshold()
     }
 
     /**
      * Check for stages that have exceeded their time limit and close them
      * Uses Redis LiveStage cache for better performance
      */
-    fun closeExpiredStages() {
+    fun closeStagesByTimeout() {
         val now = Instant.now(clock)
-        val timeLimitSeconds = settingsService.getDebateStageDuration()
-        val cutoffTime = now.minusSeconds(timeLimitSeconds.toLong())
+        val timeLimitSeconds = settingsService.getStageDuration()
+        val cutoffTime = now.minusSeconds(timeLimitSeconds)
 
-        // Find live stages (Redis) that have exceeded the time limit
         val expiredLiveStages = liveStageRedisRepository.findAll()
             .filter { liveStage -> liveStage.openedAt.isBefore(cutoffTime) }
 
-//        logger.info("Found ${expiredLiveStages.size} expired live stages to close")
+        if (expiredLiveStages.isNotEmpty()) {
+            logger.info("Found ${expiredLiveStages.size} live stages to close.")
+        }
 
         expiredLiveStages.forEach { liveStage ->
             try {
-                stopEgressIfActive(liveStage.stageId)
-
                 val stage = stageRepository.findById(liveStage.stageId)
                 if (stage != null) {
                     logger.info("Closing stage ${stage.stageId} due to time limit (${timeLimitSeconds / 60} minutes)")
-                    closeStage(stage)
+                    closeStage(stage, "timeout")
                 } else {
                     logger.warn("Stage ${liveStage.stageId} found in Redis but not in database, cleaning up Redis")
                     liveStageRedisRepository.deleteById(liveStage.stageId)
@@ -527,40 +526,37 @@ class StageService(
         }
     }
 
-    private fun closeStage(stage: StageModel) {
+    private fun closeStage(stage: StageModel, reason: String) {
+        val egressResult = stopEgressIfActive(stage.stageId)
+        val recorded = isStageRecorded(egressResult)
 
         val closedStage = stage.copy(
             status = StageStatus.CLOSED,
-            closedAt = Instant.now(clock)
+            closedAt = Instant.now(clock),
+            recorded = recorded
         )
         stageRepository.save(closedStage)
         liveStageRedisRepository.deleteById(stage.stageId)
 
-        // Broadcast debate ended event to stage channel
-        broadcastDebateEnded(stage.stageId, closedStage, "timeout")
+        liveKitService.endRoom(stage.stageId)
+        notifyStageClosed(stage.stageId, reason)
 
-        val roomClosed = liveKitService.endRoom(stage.stageId)
-        if (!roomClosed) {
-            logger.warn("Failed to end LiveKit room for stage ${stage.stageId}")
-        }
-
-        logger.info("Successfully closed stage ${stage.stageId} due to timeout")
+        logger.info("Closed stage ${stage.stageId}, reason: $reason, recorded: $recorded")
     }
 
-    private fun broadcastDebateEnded(stageId: String, stage: StageModel, reason: String) {
+    private fun notifyStageClosed(stageId: String, reason: String) {
         try {
             val data = mapOf(
                 "data" to mapOf(
                     "stageId" to stageId,
-//                    "closedAt" to stage.closedAt,
                     "reason" to reason
                 )
             )
             val message = message(STAGE_CLOSED, data)
             pusherService.sendChannelMessage(stageId, STAGE_EVENT, message)
-            logger.info("Broadcast debate ended for stage $stageId, reason: $reason")
+            logger.info("Broadcast stage closed for stage $stageId, reason: $reason")
         } catch (e: Exception) {
-            logger.error("Failed to broadcast debate ended for stage $stageId", e)
+            logger.error("Failed to broadcast stage closed for stage $stageId", e)
         }
     }
 

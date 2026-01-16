@@ -84,7 +84,7 @@ class TopClaimsService(
 
         val allRelevantClaimIds = (allRecentClaims.keys + claimIdsFromDebates + claimIdsFromActiveUserStances).distinct()
 
-        logger.info("Found ${allRelevantClaimIds.size} relevant claims to rank")
+        // logger.info("Found ${allRelevantClaimIds.size} relevant claims to rank")
 
         if (allRelevantClaimIds.isEmpty()) {
             logger.warn("No relevant claims found, top claims will not be updated")
@@ -160,7 +160,7 @@ class TopClaimsService(
             .sortedByDescending { it.score }
             .take(50)
 
-        logger.info("Top claims calculated: ${topClaims.size} claims")
+        // logger.info("Top claims calculated: ${topClaims.size} claims")
 
         topClaimRedisRepository.deleteAll()
 
