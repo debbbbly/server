@@ -178,12 +178,12 @@ class LiveKitService(
                 logger.info("File: ${fileResult.filename} - Size: ${fileResult.size} bytes")
             }
 
-            val startedAt = egressInfo?.startedAt?.takeIf { it > 0 }
-            // endedAt is often 0 because egress is still finishing - use current time instead
-            val endedAt = egressInfo?.endedAt?.takeIf { it > 0 } ?: (clock.millis() / 1000)
+            // LiveKit timestamps are in nanoseconds, convert to milliseconds
+            val startedAt = egressInfo?.startedAt?.takeIf { it > 0 }?.let { it / 1_000_000 }
+            val endedAt = egressInfo?.endedAt?.takeIf { it > 0 }?.let { it / 1_000_000 } ?: clock.millis()
 
             if (startedAt != null) {
-                val durationSeconds = endedAt - startedAt
+                val durationSeconds = (endedAt - startedAt) / 1000
                 logger.info("Duration: ${durationSeconds}s (${durationSeconds / 60}m ${durationSeconds % 60}s)")
             }
 
@@ -194,32 +194,49 @@ class LiveKitService(
         }
     }
 
-    fun listActiveEgresses(roomName: String? = null): List<LivekitEgress.EgressInfo> {
-        val allEgresses = listAllEgresses(roomName)
-        return allEgresses.filter {
-            it.status == LivekitEgress.EgressStatus.EGRESS_ACTIVE ||
-                    it.status == LivekitEgress.EgressStatus.EGRESS_STARTING
-        }
+    data class EgressDetails(
+        val egressId: String,
+        val status: LivekitEgress.EgressStatus,
+        val startedAtMillis: Long,
+        val endedAtMillis: Long?,
+        val roomName: String?,
+        val isRoomComposite: Boolean
+    ) {
+        val isActive: Boolean
+            get() = status == LivekitEgress.EgressStatus.EGRESS_ACTIVE ||
+                    status == LivekitEgress.EgressStatus.EGRESS_STARTING
+    }
+
+    fun listActiveEgresses(roomName: String? = null): List<EgressDetails> {
+        return listAllEgresses(roomName).filter { it.isActive }
     }
 
     fun countActiveRoomCompositeEgresses(): Int {
-        val activeEgresses = listActiveEgresses()
-        return activeEgresses.count { it.hasRoomComposite() }
+        return listActiveEgresses().count { it.isRoomComposite }
     }
 
-    fun listAllEgresses(roomName: String? = null): List<LivekitEgress.EgressInfo> {
+    fun listAllEgresses(roomName: String? = null): List<EgressDetails> {
         val call = livekitEgressService.listEgress(roomName, null)
         val response = call.execute()
 
         if (response.isSuccessful) {
             val egressInfoList = response.body() ?: emptyList()
             logger.debug("Found ${egressInfoList.size} total egresses${roomName?.let { " for room $it" } ?: ""}")
-            return egressInfoList
+            return egressInfoList.map { it.toEgressDetails() }
         } else {
             logger.error("Failed to list egresses: ${response.code()} ${response.message()}")
             return emptyList()
         }
     }
+
+    private fun LivekitEgress.EgressInfo.toEgressDetails() = EgressDetails(
+        egressId = egressId,
+        status = status,
+        startedAtMillis = startedAt / 1_000_000,
+        endedAtMillis = endedAt.takeIf { it > 0 }?.let { it / 1_000_000 },
+        roomName = roomName,
+        isRoomComposite = hasRoomComposite()
+    )
 
     fun getToken(userId: String?, stageId: String, canPublish: Boolean, metadata: String): String {
         val token = AccessToken(liveKitConfig.apiKey, liveKitConfig.apiSecret).apply {

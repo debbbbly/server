@@ -35,13 +35,13 @@ class CleanupStageEgressTask(
 
             val activeEgresses = liveKitService.listActiveEgresses()
             val oldEgresses = activeEgresses.filter { egress ->
-                val startedAt = Instant.ofEpochSecond(egress.startedAt / 1_000_000_000)
+                val startedAt = Instant.ofEpochMilli(egress.startedAtMillis)
                 startedAt.isBefore(cutoffTime)
             }
 
             oldEgresses.forEach { egress ->
                 try {
-                    val startedAt = Instant.ofEpochSecond(egress.startedAt / 1_000_000_000)
+                    val startedAt = Instant.ofEpochMilli(egress.startedAtMillis)
                     val ageMinutes = (now.epochSecond - startedAt.epochSecond) / 60
 
                     logger.info("Stopping old egress ${egress.egressId} (age: $ageMinutes minutes, room: ${egress.roomName})")

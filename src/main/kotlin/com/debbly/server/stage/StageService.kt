@@ -460,15 +460,23 @@ class StageService(
                 return null
             }
 
-            val activeEgresses = liveKitService.listActiveEgresses(stageId)
-            val isEgressActive = activeEgresses.any { it.egressId == egressId }
+            val egress = liveKitService.listAllEgresses(stageId)
+                .firstOrNull { it.egressId == egressId }
 
-            if (!isEgressActive) {
+            if (egress == null) {
                 return null
             }
 
+            if (!egress.isActive) {
+                return LiveKitService.StopEgressResult(
+                    success = true,
+                    startedAt = egress.startedAtMillis,
+                    endedAt = egress.endedAtMillis ?: clock.millis(),
+                )
+            }
+
             logger.info("🛑 Stopping egress recording for stage $stageId, egressId: $egressId")
-            val result = liveKitService.stopEgress(egressId)
+            val result = liveKitService.stopEgress(egress.egressId)
 
             if (result.success) {
                 logger.info("✅ Successfully stopped egress recording for stage $stageId")
@@ -490,7 +498,7 @@ class StageService(
         val startedAt = egressResult.startedAt ?: return false
         val endedAt = egressResult.endedAt ?: return false
 
-        val durationSeconds = endedAt - startedAt
+        val durationSeconds = (endedAt - startedAt) / 1000
         return durationSeconds > settingsService.getStageRecordedThreshold()
     }
 
