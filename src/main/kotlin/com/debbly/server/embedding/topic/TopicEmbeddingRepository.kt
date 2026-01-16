@@ -96,6 +96,57 @@ class TopicEmbeddingRepository(
         return jdbcTemplate.queryForObject(sql, Boolean::class.java, topicId) ?: false
     }
 
+    /**
+     * Get topic embedding by topic ID
+     */
+    fun findByTopicId(topicId: String): TopicEmbeddingEntity? {
+        val sql = """
+            SELECT topic_id, category_id, title, embedding::text, created_at
+            FROM topic_embeddings
+            WHERE topic_id = ?
+        """.trimIndent()
+
+        val results = jdbcTemplate.query(sql, topicEmbeddingRowMapper, topicId)
+        return results.firstOrNull()
+    }
+
+    /**
+     * Calculate cosine similarity between two topic embeddings
+     */
+    fun calculateSimilarity(topicId1: String, topicId2: String): Double? {
+        val sql = """
+            SELECT 1 - (t1.embedding <=> t2.embedding) as similarity
+            FROM topic_embeddings t1, topic_embeddings t2
+            WHERE t1.topic_id = ? AND t2.topic_id = ?
+        """.trimIndent()
+
+        return try {
+            jdbcTemplate.queryForObject(sql, Double::class.java, topicId1, topicId2)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private val topicEmbeddingRowMapper = RowMapper { rs, _ ->
+        val embeddingStr = rs.getString("embedding")
+        val embedding = parseVectorString(embeddingStr)
+        TopicEmbeddingEntity(
+            topicId = rs.getString("topic_id"),
+            categoryId = rs.getString("category_id"),
+            title = rs.getString("title"),
+            embedding = embedding,
+            createdAt = rs.getTimestamp("created_at").toInstant()
+        )
+    }
+
+    private fun parseVectorString(vectorStr: String): FloatArray {
+        return vectorStr
+            .trim('[', ']')
+            .split(",")
+            .map { it.trim().toFloat() }
+            .toFloatArray()
+    }
+
     private val similarTopicRowMapper = RowMapper { rs, _ ->
         SimilarTopicProjection(
             topicId = rs.getString("topic_id"),

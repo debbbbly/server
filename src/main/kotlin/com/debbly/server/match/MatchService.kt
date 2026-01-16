@@ -42,15 +42,8 @@ class MatchService(
         val matchRequest = buildMatchRequest(user)
         matchQueueRepository.save(matchRequest)
 
-//        logger.info(
-//            "User {} ({}) joined queue with {} claims, {} skipped",
-//            user.userId, user.username, matchRequest.claimIdToStance.size, matchRequest.skipClaimIds.size
-//        )
-//        logger.debug("  -> Claims: {}", matchRequest.claimIdToStance)
-//        logger.debug("  -> Skipped: {}", matchRequest.skipClaimIds)
-
         val queueSize = matchQueueRepository.count()
-        logger.info("Queue size after join: {}", queueSize)
+        logger.debug("Queue size after join: {}", queueSize)
     }
 
     fun leave(user: UserModel) {
@@ -58,11 +51,8 @@ class MatchService(
         matchQueueRepository.remove(userId = user.userId)
 
         if (existingRequest != null) {
-//            logger.info("User {} ({}) left matchmaking queue", user.userId, user.username)
             val queueSize = matchQueueRepository.count()
-            logger.info("Queue size after leave: {}", queueSize)
-        } else {
-//            logger.warn("User {} ({}) attempted to leave queue but was not in queue", user.userId, user.username)
+            logger.debug("Queue size after leave: {}", queueSize)
         }
     }
 
@@ -111,7 +101,6 @@ class MatchService(
         matchValidationService.validateMatchOperation(match, user.userId, "accept")
 
         if (matchValidationService.userAlreadyAccepted(match, user.userId)) {
-//            logger.warn("User {} already accepted match {}", user.userId, match.matchId)
             return
         }
 
@@ -126,7 +115,7 @@ class MatchService(
                 claimId = match.claim.claimId,
                 stance = stance
             )
-            logger.info("Updated stance for user {} on claim {} to {}", user.userId, match.claim.claimId, stance)
+            logger.debug("Updated stance for user {} on claim {} to {}", user.userId, match.claim.claimId, stance)
         }
 
         val updatedMatchOpponents = match.opponents
@@ -146,10 +135,6 @@ class MatchService(
         )
 
         matchRepository.save(updatedMatch)
-//        logger.debug(
-//            "User {} accepted match {} for claim '{}'",
-//            user.userId, match.matchId, match.claim.title
-//        )
 
         publishMatchAcceptedEvent(updatedMatch, updatedMatchStatus, user.userId)
     }
@@ -168,7 +153,7 @@ class MatchService(
             val user = userRepository.getById(opponent.userId)
             val matchRequest = buildMatchRequest(user)
             matchQueueRepository.save(matchRequest)
-            logger.info("Re-queued opponent {} from cancelled match {}", opponent.userId, match.matchId)
+            logger.debug("Re-queued opponent {} from cancelled match {}", opponent.userId, match.matchId)
         }
     }
 

@@ -45,15 +45,14 @@ class StageEventListener(
     @EventListener
     @Async("stageEventExecutor")
     fun handleAllHostsJoined(event: AllHostsJoinedEvent) {
-        logger.info("AllHostsJoinedEvent for stage: ${event.stageId}")
+        logger.debug("Handling AllHostsJoinedEvent for stage ${event.stageId}")
 
         try {
             val stage = stageRepository.getById(event.stageId)
-            logger.info("All hosts joined stage: '${event.stageId}'. Opening stage.")
+            logger.info("Opening stage ${event.stageId}")
 
             // Delete the match now that stage is opening (stageId = matchId)
             matchRepository.delete(event.stageId)
-            // logger.info("Deleted match ${event.stageId} as all hosts joined stage")
 
             val openedAt = Instant.now(clock)
             val updatedStage = stage.copy(
@@ -107,14 +106,10 @@ class StageEventListener(
             }
 
             if (egressInfo?.egressId != null) {
-                logger.info("Started egress recording for stage ${stage.stageId}, egressId: ${egressInfo.egressId}")
-
                 val hlsUrl = buildHlsUrl(stage.stageId)
-
                 val updatedStage = stage.copy(hlsUrl = hlsUrl)
                 stageRepository.save(updatedStage)
-
-                logger.info("Updated stage ${stage.stageId} with HLS URL: $hlsUrl")
+                logger.debug("Started egress for stage ${stage.stageId}, egressId: ${egressInfo.egressId}")
                 egressInfo.egressId
             } else {
                 logger.warn("Failed to start egress recording for stage ${stage.stageId}")
@@ -157,17 +152,9 @@ class StageEventListener(
         val currentActiveEgressCount = liveKitService.countActiveRoomCompositeEgresses()
 
         if (currentActiveEgressCount >= maxEgressCount) {
-            logger.warn("Max egress limit reached ($currentActiveEgressCount/$maxEgressCount). Cannot start egress for stage ${stage.stageId}")
+            logger.warn("Max egress limit reached ($currentActiveEgressCount/$maxEgressCount), cannot start egress for stage ${stage.stageId}")
             return false
         }
-
-//        val hasUserRequiringEgress = stage.hosts.any { host ->
-//            val setting = userSettingsRepository.findByUserIdAndName(
-//                host.userId,
-//                UserSettingsName.ALWAYS_EGRESS
-//            )
-//            setting?.value == "true"
-//        }
 
         return true
     }
@@ -179,7 +166,7 @@ class StageEventListener(
             )
             val message = message(STAGE_OPEN, data)
             pusherService.sendChannelMessage(stageId, STAGE_EVENT, message)
-            logger.info("Broadcast debate started for stage $stageId")
+            logger.debug("Broadcast debate started notification for stage $stageId")
         } catch (e: Exception) {
             logger.error("Failed to broadcast debate started for stage $stageId", e)
         }

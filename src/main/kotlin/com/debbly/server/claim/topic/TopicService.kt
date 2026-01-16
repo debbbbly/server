@@ -163,4 +163,66 @@ class TopicService(
     fun findSimilarTopics(topicId: String): List<TopicSimilarityEntity> {
         return topicSimilarityRepository.findSimilarTopics(topicId)
     }
+
+    /**
+     * Calculate similarity between two topics and store it in the database
+     * @return The calculated similarity value, or null if topics don't exist
+     */
+    @Transactional
+    fun calculateAndStoreSimilarity(topicId1: String, topicId2: String): TopicSimilarityResult? {
+        if (topicId1 == topicId2) {
+            return TopicSimilarityResult(topicId1, topicId2, 1.0, stored = false, reason = "Same topic IDs")
+        }
+
+        // Verify both topics exist
+        val topic1 = topicRepository.findById(topicId1).orElse(null)
+            ?: return null
+        val topic2 = topicRepository.findById(topicId2).orElse(null)
+            ?: return null
+
+        // Calculate similarity using pgvector
+        val similarity = topicEmbeddingRepository.calculateSimilarity(topicId1, topicId2)
+            ?: return TopicSimilarityResult(topicId1, topicId2, null, stored = false, reason = "Embeddings not found")
+
+        val now = Instant.now(clock)
+        var stored = false
+        var reason = "Similarity below threshold ($SIMILARITY_STORE_THRESHOLD)"
+
+        if (similarity >= SIMILARITY_STORE_THRESHOLD) {
+            // Store bidirectional relationships
+            if (!topicSimilarityRepository.existsByTopicId1AndTopicId2(topicId1, topicId2)) {
+                topicSimilarityRepository.save(
+                    TopicSimilarityEntity(
+                        topicId1 = topicId1,
+                        topicId2 = topicId2,
+                        similarity = similarity,
+                        createdAt = now
+                    )
+                )
+                stored = true
+            }
+            if (!topicSimilarityRepository.existsByTopicId1AndTopicId2(topicId2, topicId1)) {
+                topicSimilarityRepository.save(
+                    TopicSimilarityEntity(
+                        topicId1 = topicId2,
+                        topicId2 = topicId1,
+                        similarity = similarity,
+                        createdAt = now
+                    )
+                )
+            }
+            reason = if (stored) "Stored successfully" else "Already exists"
+        }
+
+        logger.info("Calculated similarity between topics $topicId1 and $topicId2: $similarity (stored: $stored)")
+        return TopicSimilarityResult(topicId1, topicId2, similarity, stored, reason)
+    }
 }
+
+data class TopicSimilarityResult(
+    val topicId1: String,
+    val topicId2: String,
+    val similarity: Double?,
+    val stored: Boolean,
+    val reason: String
+)

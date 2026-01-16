@@ -76,6 +76,6 @@ class SettingsService(
 
     fun invalidateCache() {
         cache.invalidateAll()
-        logger.info("Invalidated settings cache")
+        logger.debug("Invalidated settings cache")
     }
 }

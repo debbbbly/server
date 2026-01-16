@@ -341,7 +341,7 @@ class StageService(
 //    }
 
     fun onUserLeft(userId: String, stageId: String) {
-        logger.info("👋 User: '$userId' left from stage: '$stageId'.")
+        logger.debug("User $userId left from stage $stageId")
 
         val stage = stageRepository.getById(stageId)
         val allHostUserIds = stage.hosts.map { it.userId }
@@ -350,21 +350,18 @@ class StageService(
             return
 
         val liveKitParticipants = liveKitService.getParticipants(stageId)
-        // logger.info("🔗 LiveKit participants: ${liveKitParticipants.map { it.identity }}")
 
         // Check if any hosts are still connected
         val connectedHosts = liveKitParticipants
             .map { it.identity }
             .filter { it in allHostUserIds }
 
-        // logger.info("🏠 Connected hosts: $connectedHosts")
-
         if (connectedHosts.isEmpty() && stage.status != StageStatus.CLOSED) {
             closeStageAfterAllHostsLeft(stage)
         } else if (!connectedHosts.contains(userId)) {
             // User left but others remain - schedule a check in 5 seconds
             // This gives a grace period for temporary disconnections (network hiccups, page reloads)
-            logger.info("⏳ User $userId left but ${connectedHosts.size} host(s) remain. Scheduling check in 5 seconds...")
+            logger.debug("User $userId left but ${connectedHosts.size} host(s) remain. Scheduling check in 5 seconds")
             stageClosureScheduler.schedule(
                 { checkIfHostStillAbsent(stageId, userId) },
                 5,
@@ -375,29 +372,27 @@ class StageService(
 
     private fun checkIfHostStillAbsent(stageId: String, leftHostUserId: String) {
         try {
-            // logger.info("⏰ Running scheduled check for stage $stageId after user $leftUserId left")
-
             val stage = stageRepository.findById(stageId)
             if (stage == null) {
-                logger.info("Stage $stageId no longer exists, skipping check")
+                logger.debug("Stage $stageId no longer exists, skipping check")
                 return
             }
 
             if (stage.status == StageStatus.CLOSED) {
-                logger.info("Stage $stageId already closed, skipping check")
+                logger.debug("Stage $stageId already closed, skipping check")
                 return
             }
 
             val liveKitParticipants = liveKitService.getParticipants(stageId)
             val participantIds = liveKitParticipants.map { it.identity }
-            logger.info("🔗 LiveKit participants after grace period: $participantIds")
+            logger.debug("LiveKit participants after grace period: $participantIds")
 
             // Check if the user who left is still absent
             if (!participantIds.contains(leftHostUserId)) {
-                logger.info("🚨 User $leftHostUserId still absent after grace period! Closing stage $stageId")
+                logger.info("User $leftHostUserId still absent after grace period, closing stage $stageId")
                 closeStageAfterAllHostsLeft(stage)
             } else {
-                logger.info("✅ User $leftHostUserId rejoined stage $stageId. Not closing.")
+                logger.debug("User $leftHostUserId rejoined stage $stageId, not closing")
             }
         } catch (e: Exception) {
             logger.error("Error checking stage $stageId for closure", e)
@@ -409,7 +404,7 @@ class StageService(
     }
 
     fun onUserJoined(userId: String, stageId: String) {
-        logger.info("User: '$userId' joined stage: '$stageId'.")
+        logger.debug("User $userId joined stage $stageId")
 
         val stage = stageRepository.getById(stageId)
         val allHostUserIds = stage.hosts.map { it.userId }
@@ -444,11 +439,11 @@ class StageService(
     }
 
     private fun stopEgressIfActive(stageId: String): LiveKitService.StopEgressResult? {
-        logger.info("🔍 Checking for active egress recording for stage $stageId")
+        logger.debug("Checking for active egress recording for stage $stageId")
         try {
             val liveStageOptional = liveStageRedisRepository.findById(stageId)
             if (!liveStageOptional.isPresent) {
-                logger.info("🔍 No live stage found in Redis for stage $stageId")
+                logger.debug("No live stage found in Redis for stage $stageId")
                 return null
             }
 
@@ -456,7 +451,7 @@ class StageService(
             val egressId = liveStage.egressId
 
             if (egressId == null) {
-                logger.info("💡 No active egress recording found for stage $stageId (egressId is null)")
+                logger.debug("No active egress recording found for stage $stageId")
                 return null
             }
 
@@ -475,18 +470,16 @@ class StageService(
                 )
             }
 
-            logger.info("🛑 Stopping egress recording for stage $stageId, egressId: $egressId")
+            logger.debug("Stopping egress recording for stage $stageId, egressId: $egressId")
             val result = liveKitService.stopEgress(egress.egressId)
 
-            if (result.success) {
-                logger.info("✅ Successfully stopped egress recording for stage $stageId")
-            } else {
-                logger.warn("❌ Failed to stop egress recording for stage $stageId, egressId: $egressId")
+            if (!result.success) {
+                logger.warn("Failed to stop egress recording for stage $stageId, egressId: $egressId")
             }
 
             return result
         } catch (e: Exception) {
-            logger.error("💥 Error stopping egress for stage $stageId", e)
+            logger.error("Error stopping egress for stage $stageId", e)
             return null
         }
     }
@@ -515,7 +508,7 @@ class StageService(
             .filter { liveStage -> liveStage.openedAt.isBefore(cutoffTime) }
 
         if (expiredLiveStages.isNotEmpty()) {
-            logger.info("Found ${expiredLiveStages.size} live stages to close.")
+            logger.debug("Found ${expiredLiveStages.size} live stages to close due to timeout")
         }
 
         expiredLiveStages.forEach { liveStage ->
@@ -562,7 +555,7 @@ class StageService(
             )
             val message = message(STAGE_CLOSED, data)
             pusherService.sendChannelMessage(stageId, STAGE_EVENT, message)
-            logger.info("Broadcast stage closed for stage $stageId, reason: $reason")
+            logger.debug("Broadcast stage closed notification for stage $stageId")
         } catch (e: Exception) {
             logger.error("Failed to broadcast stage closed for stage $stageId", e)
         }

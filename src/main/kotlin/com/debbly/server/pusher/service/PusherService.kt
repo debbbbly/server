@@ -16,12 +16,6 @@ class PusherService(
         const val STAGE_CHANNEL_PREFIX = "public-stage-"
         const val GLOBAL_CHANNEL = "public-global"
         const val USER_CHANNEL_PREFIX = "private-user-"
-
-//        const val EVENT_CHAT_MESSAGE = "chat-message"
-//        const val EVENT_SYSTEM = "system"
-//        const val EVENT_NOTIFICATION = "notification"
-//        const val EVENT_PRESENCE_UPDATE = "presence-update"
-
         const val GLOBAL_CHANNEL_ID = "global"
     }
 
@@ -33,21 +27,6 @@ class PusherService(
         }
         triggerEvent(channel, eventName, message)
     }
-
-    /**
-     * Send a system message to a stage channel
-     */
-//    fun sendStageSystemMessage(stageId: String, message: PusherMessage) {
-//        val channelName = "$STAGE_CHANNEL_PREFIX$stageId"
-//        triggerEvent(channelName, EVENT_SYSTEM, message)
-//    }
-
-    /**
-     * Send a system message to the global site channel
-     */
-//    fun sendSiteSystemMessage(message: PusherMessage) {
-//        triggerEvent(GLOBAL_CHANNEL, EVENT_SYSTEM, message)
-//    }
 
     fun sendUserNotification(userId: String, eventName: PusherEventName, message: PusherMessage) {
         val channelName = "$USER_CHANNEL_PREFIX$userId"

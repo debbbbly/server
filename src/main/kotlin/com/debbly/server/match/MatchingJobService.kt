@@ -50,34 +50,15 @@ class MatchingJobService(
         // Filter out users who have been in queue for more than 15 minutes
         val (expiredUsers, waitingUsers) = allUsers.partition { it.joinedAt.isBefore(queueTimeoutThreshold) }
 
-//        if (expiredUsers.isNotEmpty()) {
-//            logger.info("Dropping {} users from queue who exceeded 15-minute timeout", expiredUsers.size)
-//            expiredUsers.forEach { user ->
-//                logger.info("  -> Dropping user {} (in queue since {})", user.userId, user.joinedAt)
-//            }
-//        }
-
         val sortedWaitingUsers = waitingUsers.sortedBy { it.joinedAt }
         val matchedUsers = mutableSetOf<String>()
 
-//        logger.info("=== MATCHING CYCLE START ===")
-//        logger.info("Queue size: {}", sortedWaitingUsers.size)
-
         if (sortedWaitingUsers.isEmpty()) {
-//            logger.info("=== MATCHING CYCLE END (empty queue) ===")
             return
         }
 
-        sortedWaitingUsers.forEach { user ->
-            logger.info(
-                "Queue entry: userId={}, claims={}, skipped={}, joinedAt={}, ignores={}",
-                user.userId, user.claimIdToStance.size, user.skipClaimIds.size, user.joinedAt, user.ignores
-            )
-            logger.debug("  -> Claims: {}", user.claimIdToStance)
-            logger.debug("  -> Skip list: {}", user.skipClaimIds)
-        }
+        logger.debug("Starting matching cycle with {} users in queue", sortedWaitingUsers.size)
 
-//        logger.debug("Phase 1: Matching users by common claims with opposite stances")
         for (i in 0 until sortedWaitingUsers.size) {
             val userA = sortedWaitingUsers[i]
             if (userA.userId in matchedUsers) continue
@@ -105,63 +86,33 @@ class MatchingJobService(
             }
         }
 
-        // Phase 2: Similar topic matching (NEW)
+        // Phase 2: Similar topic matching
         val remainingUsers = sortedWaitingUsers.filter { it.userId !in matchedUsers }
-//        logger.debug("Phase 1 complete: {} users matched, {} remaining", matchedUsers.size, remainingUsers.size)
         if (remainingUsers.size >= 2) {
-//            logger.debug("Phase 2: Matching users by similar topics with opposite stances")
             matchWithSimilarTopics(remainingUsers, matchedUsers)
         }
 
-        // Phase 3: Individual stances with assignment (was Phase 2)
+        // Phase 3: Individual stances with assignment
         val stillRemainingUsers = sortedWaitingUsers.filter { it.userId !in matchedUsers }
-//        logger.debug(
-//            "Phase 2 complete: {} users matched total, {} remaining",
-//            matchedUsers.size,
-//            stillRemainingUsers.size
-//        )
         if (stillRemainingUsers.size >= 2) {
-//            logger.debug("Phase 3: Matching users by individual stances with assignment")
             matchWithUserStances(stillRemainingUsers, matchedUsers)
         }
 
-        // Phase 4: Top claims fallback (was Phase 3)
+        // Phase 4: Top claims fallback
         val finallyRemainingUsers = sortedWaitingUsers.filter { it.userId !in matchedUsers }
         if (finallyRemainingUsers.size >= 2) {
-//            logger.debug("Phase 4: Matching users by top claims with random stances")
             matchWithTopClaims(finallyRemainingUsers, matchedUsers)
         }
 
         val finalRemainingUsers = sortedWaitingUsers.filter { it.userId !in matchedUsers }
 
-//        logger.info("=== MATCHING CYCLE COMPLETE ===")
-//        logger.info("Total users matched: {}", matchedUsers.size)
-//        logger.info("Users remaining in queue: {}", finalRemainingUsers.size)
-
-        if (finalRemainingUsers.isNotEmpty()) {
-//            logger.info("Re-queuing {} unmatched users:", finalRemainingUsers.size)
-            finalRemainingUsers.forEach { user ->
-//                logger.info("  -> User {}: {} claims, {} skipped", user.userId, user.claimIdToStance.size, user.skipClaimIds.size)
-            }
-        }
-
-//        logger.debug("Clearing queue and re-adding {} remaining users", finalRemainingUsers.size)
         matchQueueRepository.removeAll()
         if (finalRemainingUsers.isNotEmpty()) {
             finalRemainingUsers.forEach { matchQueueRepository.save(it) }
         }
 
-        val currentMatches = matchRepository.findAll()
-//        logger.info("Current active matches: {}", currentMatches.size)
-        currentMatches.forEach { match ->
-//            logger.debug(
-//                "  -> Match {}: {} vs {}, claim: {}, status: {}",
-//                match.matchId,
-//                match.opponents[0].userId,
-//                match.opponents[1].userId,
-//                match.claim.title,
-//                match.status
-//            )
+        if (matchedUsers.isNotEmpty()) {
+            logger.debug("Matching cycle complete: {} users matched, {} remaining in queue", matchedUsers.size, finalRemainingUsers.size)
         }
     }
 
@@ -178,10 +129,9 @@ class MatchingJobService(
             .filter { it.updatedAt.isBefore(expirationThreshold) && it.status == MatchStatus.PENDING }
 
         if (expiredMatches.isNotEmpty()) {
-            logger.info("Found {} expired matches to clean up", expiredMatches.size)
+            logger.debug("Cleaning up {} expired matches", expiredMatches.size)
 
             expiredMatches.forEach { match ->
-
                 // Re-queue only users who accepted the match
                 match.opponents
                     .filter { it.status == MatchOpponentStatus.ACCEPTED }
@@ -191,19 +141,17 @@ class MatchingJobService(
                             .filter { it.claim.categoryId in activeCategoryIds }
                             .associate { it.claim.claimId to it.stance }
 
-                            val matchRequest = MatchRequest(
-                                userId = user.userId,
-                                claimIdToStance = claimIdToStance,
-                                skipClaimIds = emptySet(),
-                                joinedAt = Instant.now(clock),
-                                ignores = 0
-                            )
-                            matchQueueRepository.save(matchRequest)
-                            logger.info("Re-queued user {} who accepted expired match {}", opponent.userId, match.matchId)
+                        val matchRequest = MatchRequest(
+                            userId = user.userId,
+                            claimIdToStance = claimIdToStance,
+                            skipClaimIds = emptySet(),
+                            joinedAt = Instant.now(clock),
+                            ignores = 0
+                        )
+                        matchQueueRepository.save(matchRequest)
                     }
 
                 matchRepository.delete(match.matchId)
-
                 matchNotificationService.notifyMatchTimeout(match)
             }
         }
@@ -344,9 +292,9 @@ class MatchingJobService(
 
                 createAndStoreMatch(userA, userB, selectedClaimId, MatchReason.SIMILAR_TOPIC)
 
-                logger.info(
-                    "Topic-similarity matched users {} and {} on claim {} (similarity: {})",
-                    userA.userId, userB.userId, selectedClaimId, String.format("%.2f", bestMatch.third)
+                logger.debug(
+                    "Topic-similarity matched users {} and {} on claim {}",
+                    userA.userId, userB.userId, selectedClaimId
                 )
             } else {
                 // No match found, skip userA and try next pair
@@ -482,11 +430,6 @@ class MatchingJobService(
         val stanceA = userA.claimIdToStance[claimId] ?: ClaimStance.EITHER
         val stanceB = userB.claimIdToStance[claimId] ?: ClaimStance.EITHER
 
-        logger.info(
-            "Creating match: reason={}, userA={} (stance={}), userB={} (stance={}), claim={} ('{}')",
-            reason, userA.userId, stanceA, userB.userId, stanceB, claimId, claim.title
-        )
-
         val (finalA, finalB) = when {
             stanceA != ClaimStance.EITHER && stanceB == ClaimStance.EITHER ->
                 stanceA to stanceA.opposite()
@@ -499,10 +442,6 @@ class MatchingJobService(
 
             else ->
                 stanceA to stanceB
-        }
-
-        if (finalA != stanceA || finalB != stanceB) {
-            logger.info("Stances adjusted: userA {} -> {}, userB {} -> {}", stanceA, finalA, stanceB, finalB)
         }
 
         val match = Match(
@@ -532,13 +471,7 @@ class MatchingJobService(
         )
 
         matchRepository.save(match)
-        logger.info(
-            "Match created and saved: matchId={}, {} ({}/{}) vs {} ({}/{}), ttl={}s",
-            matchId,
-            userAEntity.username, userA.userId, finalA,
-            userBEntity.username, userB.userId, finalB,
-            settings.getMatchTtl()
-        )
+        logger.info("Match created: {} vs {}, claim: '{}', reason: {}", userAEntity.username, userBEntity.username, claim.title, reason)
         eventPublisher.publishEvent(MatchFoundEvent(match))
     }
 

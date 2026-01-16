@@ -24,7 +24,7 @@ class MatchEventListener(
     @EventListener
     @Async("matchEventExecutor")
     fun handleMatchAccepted(event: MatchAcceptedEvent) {
-        logger.info("MatchAcceptedEvent for match: ${event.match.matchId}, accepted by: ${event.acceptedByUserId}")
+        logger.debug("Handling MatchAcceptedEvent for match ${event.match.matchId}")
 
         try {
             matchNotificationService.notifyOpponentAccepted(event.match, event.acceptedByUserId)
@@ -36,7 +36,7 @@ class MatchEventListener(
     @EventListener
     @Async("matchEventExecutor")
     fun handleMatchFound(event: MatchFoundEvent) {
-        logger.info("MatchFoundEvent for match: ${event.match.matchId}")
+        logger.debug("Handling MatchFoundEvent for match ${event.match.matchId}")
 
         try {
             val room = liveKitService.createRoom(event.match.matchId)
@@ -61,7 +61,7 @@ class MatchEventListener(
     @EventListener
     @Async("matchEventExecutor")
     fun handleMatchAcceptedAll(event: MatchAcceptedAllEvent) {
-        logger.info("MatchAcceptedAllEvent for match: ${event.match.matchId}")
+        logger.debug("Handling MatchAcceptedAllEvent for match ${event.match.matchId}")
 
         try {
             stageService.createStage(event.match)

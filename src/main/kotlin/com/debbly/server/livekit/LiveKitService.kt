@@ -49,11 +49,7 @@ class LiveKitService(
             if (response.isSuccessful) {
                 val listParticipantsResponse = response.body()
                 val participantsList = listParticipantsResponse ?: emptyList()
-                if (attempt > 0) {
-                    logger.info("Retrieved ${participantsList.size} participants for room: $stageId (after ${attempt + 1} attempts)")
-                } else {
-                    logger.info("Retrieved ${participantsList.size} participants for room: $stageId")
-                }
+                logger.debug("Retrieved ${participantsList.size} participants for room $stageId")
                 return participantsList
             } else if (response.code() == 404) {
                 if (attempt < 2) {
@@ -74,7 +70,7 @@ class LiveKitService(
     fun startCompositeEgress(
         stageId: String,
     ): LivekitEgress.EgressInfo? {
-        logger.info("Starting HLS egress for stage $stageId with S3 config: endpoint=${s3Config.endpoint}, bucket=${s3Config.bucket.egress}, region=${s3Config.region}")
+        logger.debug("Starting HLS egress for stage $stageId")
 
         val s3Upload = LivekitEgress.S3Upload.newBuilder()
             .setEndpoint(s3Config.endpoint)
@@ -104,19 +100,10 @@ class LiveKitService(
 
         if (response.isSuccessful) {
             val egressInfo = response.body()
-            logger.info("✅ Successfully started HLS egress for room $stageId:")
-            logger.info("   EgressId: ${egressInfo?.egressId}")
-            logger.info("   Status: ${egressInfo?.status}")
-            logger.info("   StartedAt: ${egressInfo?.startedAt}")
-            logger.info("   HLS Playlist: $stageId/playlist.m3u8")
-            logger.info("   Live Playlist: $stageId/playlist-live.m3u8")
-            logger.info("   Thumbnails: $stageId/*.jpg (every 30 seconds)")
+            logger.info("Started HLS egress for room $stageId, egressId: ${egressInfo?.egressId}")
             return egressInfo
         } else {
-            logger.error("❌ Failed to start HLS egress for room $stageId:")
-            logger.error("   HTTP Status: ${response.code()}")
-            logger.error("   Error Message: ${response.message()}")
-            logger.error("   Response Body: ${response.errorBody()?.string()}")
+            logger.error("Failed to start HLS egress for room $stageId: ${response.code()} ${response.message()}")
             return null
         }
     }
@@ -151,10 +138,9 @@ class LiveKitService(
             val imageResponse = imageCall.execute()
 
             if (imageResponse.isSuccessful) {
-                logger.info("✅ Successfully started thumbnail egress for room $stageId")
-                logger.info("   Thumbnail EgressId: ${imageResponse.body()?.egressId}")
+                logger.info("Started thumbnail egress for room $stageId, egressId: ${imageResponse.body()?.egressId}")
             } else {
-                logger.warn("❌ Failed to start thumbnail egress for room $stageId: ${imageResponse.message()}")
+                logger.warn("Failed to start thumbnail egress for room $stageId: ${imageResponse.message()}")
             }
         } catch (e: Exception) {
             logger.error("Error starting thumbnail egress for room $stageId", e)
@@ -173,19 +159,13 @@ class LiveKitService(
 
         if (response.isSuccessful) {
             val egressInfo = response.body()
-            logger.info("Successfully stopped egress: $egressId")
-            egressInfo?.fileResultsList?.forEach { fileResult ->
-                logger.info("File: ${fileResult.filename} - Size: ${fileResult.size} bytes")
-            }
 
             // LiveKit timestamps are in nanoseconds, convert to milliseconds
             val startedAt = egressInfo?.startedAt?.takeIf { it > 0 }?.let { it / 1_000_000 }
             val endedAt = egressInfo?.endedAt?.takeIf { it > 0 }?.let { it / 1_000_000 } ?: clock.millis()
 
-            if (startedAt != null) {
-                val durationSeconds = (endedAt - startedAt) / 1000
-                logger.info("Duration: ${durationSeconds}s (${durationSeconds / 60}m ${durationSeconds % 60}s)")
-            }
+            val durationSeconds = if (startedAt != null) (endedAt - startedAt) / 1000 else null
+            logger.info("Stopped egress $egressId, duration: ${durationSeconds?.let { "${it}s" } ?: "unknown"}")
 
             return StopEgressResult(success = true, startedAt = startedAt, endedAt = endedAt)
         } else {
@@ -267,7 +247,7 @@ class LiveKitService(
         val response = call.execute()
 
         if (response.isSuccessful) {
-            logger.info("Successfully ended room: $stageId")
+            logger.debug("Ended room $stageId")
             return true
         } else {
             logger.error("Failed to end room $stageId: ${response.code()} ${response.message()}")
@@ -283,7 +263,7 @@ class LiveKitService(
         val response = call.execute()
 
         if (response.isSuccessful) {
-            logger.info("Successfully removed participant $participantIdentity from room: $stageId")
+            logger.debug("Removed participant $participantIdentity from room $stageId")
             return true
         } else {
             logger.error("Failed to remove participant $participantIdentity from room $stageId: ${response.code()} ${response.message()}")
@@ -299,7 +279,7 @@ class LiveKitService(
         val response = call.execute()
 
         if (response.isSuccessful) {
-            logger.info("Successfully ${if (muted) "muted" else "unmuted"} participant $participantIdentity in room: $stageId")
+            logger.debug("${if (muted) "Muted" else "Unmuted"} participant $participantIdentity in room $stageId")
             return true
         } else {
             logger.error("Failed to ${if (muted) "mute" else "unmute"} participant $participantIdentity in room $stageId: ${response.code()} ${response.message()}")

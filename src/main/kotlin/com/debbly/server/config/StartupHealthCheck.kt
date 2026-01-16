@@ -26,35 +26,33 @@ class StartupHealthCheck(
     private fun checkRedis() {
         try {
             redisTemplate?.connectionFactory?.connection?.ping()
-            logger.info("✓ Redis connection successful")
+            logger.info("Redis connection: OK")
         } catch (e: Exception) {
-            logger.error("✗ Redis connection failed: ${e.message}")
+            logger.error("Redis connection: FAILED - ${e.message}")
         }
     }
 
     private fun checkLiveKit() {
         try {
-            // Simple lightweight call to verify LiveKit API is accessible
             liveKitService.listAllEgresses()
-            logger.info("✓ LiveKit connection successful")
+            logger.info("LiveKit connection: OK")
         } catch (e: Exception) {
-            logger.error("✗ LiveKit connection failed: ${e.message}")
+            logger.error("LiveKit connection: FAILED - ${e.message}")
         }
     }
 
     private fun checkSupabaseAuth() {
         try {
-            // Try to reach the auth health endpoint
             val healthUrl = "${authConfig.url}/health"
             val response = restTemplate.getForEntity(healthUrl, String::class.java)
 
             if (response.statusCode.is2xxSuccessful) {
-                logger.info("✓ Supabase Auth (GoTrue) connection successful")
+                logger.info("GoTrue Auth connection: OK")
             } else {
-                logger.warn("✗ Supabase Auth responded with status: ${response.statusCode}")
+                logger.warn("GoTrue Auth connection: responded with status ${response.statusCode}")
             }
         } catch (e: Exception) {
-            logger.error("✗ Supabase Auth connection failed: ${e.message}")
+            logger.error("GoTrue Auth connection: FAILED - ${e.message}")
         }
     }
 }
