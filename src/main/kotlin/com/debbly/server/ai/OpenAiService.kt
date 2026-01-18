@@ -109,54 +109,68 @@ class OpenAiService(
             - entertainment / Sports, Entertainment & Lifestyle
             (Default: society if unsure)
             
-            Claim Topic (also called the core proposition) Requirements:
-            
+            Claim Topic (core subject) Requirements:
+
             - The claim topic must:
-                - Be phrased as a neutral, stance-free statement
-                - Represent what people would recognize as the main debate topic
-                  if they saw this claim in a comment section or feed
-                - Be reusable across opposing claims
-                - Be broad enough to group future related claims added separately
+                - Be a neutral noun phrase (not a question, argument, or evaluation)
+                - Name the subject, event, policy, action, group, or phenomenon being debated
+                - Be reusable across opposing and future claims
+                - Remain stable even as arguments, judgments, or consequences change
+                - Be understandable without implying approval, disapproval, or analysis
 
             - Topic selection rules:
-                - If the claim references a named real-world event, scandal, incident, or widely reported issue, extract the topic as THAT controversy itself, not the specific argument angle used in the claim.
-                - Do NOT frame the topic around media framing, consequences, legality, or blame if those are reactions to the same underlying controversy.
-                - Prefer controversy-centered or action-centered topics over opinion- or angle-centered topics.
-                - Only use angle-specific topics if NO clear underlying event, action, or controversy can be identified.
+                - Prefer naming the highest-level, widely recognized controversy that the claim participates in, rather than a sub-issue or frame, when such a controversy clearly exists.
+                - Do NOT include evaluative dimensions such as: justification, legality, morality, consequences, effectiveness, impact
+                - Do NOT combine multiple debate axes into the topic
+                - If the claim references a named real-world controversy, extract the name of the controversy itself, not how it is judged
+                - Only use angle-specific topics if no clear underlying subject can be identified
+                - For widely recognized, long-running societal controversies (e.g. abortion, gun control, climate change, immigration), extract the canonical controversy itself as the topic, even if the claim focuses on a specific sub-issue (such as rights, bans, morality, healthcare, or law).
 
-            - The topic MUST NOT:
-                - Express approval or disapproval
-                - Be limited to the author’s specific criticism or defense
+            - Validation check (mandatory):
+                - The topic must read naturally in the sentence:
+                    "People are debating [TOPIC]"
+                - The topic must NOT read naturally in the sentence:
+                    "People are debating whether [TOPIC]"
                 
             Claim Topic Examples:
 
-            1. Claims :
+            1. Claims:
                 - “The ICE agent's use of deadly force was unjustified”
                 - “The ICE officer was justified in using lethal force in Minneapolis”
                 - “The fatal ICE shooting was an abuse of power”
-            Topic :
-                - “The justification of ICE officers’ use of lethal force”
-            
+            Topic:
+                - “ICE officers’ use of lethal force”
+
             2. Claims:
                 - “Seizing oil tankers will escalate geopolitical tensions”
                 - “The U.S. was justified in seizing an oil tanker”
                 - “The seizure of a Russian-flagged oil tanker violated international law”
             Topic:
-                - “The legality and geopolitical consequences of oil tanker seizures”
-                
+            - “Oil tanker seizures by states”
+
             3. Claims:
                 - “The Minnesota welfare fraud story is exaggerated to attack immigrants”
                 - “State leaders completely dropped the ball on welfare fraud in Minnesota”
                 - “Minnesota’s welfare fraud proves the system is being abused”
             Topic:
                 - “The Minnesota welfare fraud scandal”
+                
+            4. Claims:
+               - “Abortion should be legal”
+               - “Banning abortion doesn’t stop abortions”
+               - “Women shouldn’t be forced to carry a pregnancy they don’t want”
+            Topic:
+               - “Abortion”
             
             Stance Requirements:
-            - Allowed values:
-              - "FOR" → supports or affirms the topic
-              - "AGAINST" → opposes or rejects the topic
-              - "NEUTRAL" → descriptive, unclear, or balanced
-            - The stance must be inferred from the claim’s intent, not just wording.
+                - The stance represents how the claim positions itself relative to the topic’s commonly understood or status-quo interpretation.
+                - Allowed values:
+                    - "FOR" → affirms, supports, or legitimizes the subject of the topic
+                    - "AGAINST" → criticizes, condemns, or rejects the subject of the topic
+                    - "NEUTRAL" → descriptive, mixed, or unclear positioning
+
+                - The stance must be inferred from the claim’s intent, not just wording.
+                - The stance is NOT an evaluation of the topic itself, but of actions, policies, or interpretations related to it.
 
             Output Format:
             {
