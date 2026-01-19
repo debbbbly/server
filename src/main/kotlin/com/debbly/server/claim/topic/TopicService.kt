@@ -1,6 +1,5 @@
 package com.debbly.server.claim.topic
 
-import com.debbly.server.IdService
 import com.debbly.server.ai.OpenAiService
 import com.debbly.server.embedding.topic.TopicEmbeddingEntity
 import com.debbly.server.embedding.topic.TopicEmbeddingRepository
@@ -14,6 +13,7 @@ import com.debbly.server.embedding.topic.SimilarTopicProjection
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.text.Normalizer
 import java.time.Clock
 import java.time.Instant
 
@@ -23,14 +23,58 @@ class TopicService(
     private val topicEmbeddingRepository: TopicEmbeddingRepository,
     private val topicSimilarityRepository: TopicSimilarityRepository,
     private val openAiService: OpenAiService,
-    private val idService: IdService,
     private val clock: Clock
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
     companion object {
-        private const val TOPIC_MATCH_THRESHOLD = 0.90
-        private const val SIMILARITY_STORE_THRESHOLD = 0.65
+        private const val TOPIC_MATCH_THRESHOLD = 0.82
+        private const val SIMILARITY_STORE_THRESHOLD = 0.68
+        private const val MAX_SLUG_LENGTH = 50
+    }
+
+    /**
+     * Generate a URL-friendly slug from title.
+     * Example: "Gun Control Laws" -> "gun-control-laws"
+     */
+    private fun slugify(title: String): String {
+        return Normalizer.normalize(title, Normalizer.Form.NFD)
+            .replace(Regex("[\\p{InCombiningDiacriticalMarks}]"), "")
+            .lowercase()
+            .replace(Regex("[^a-z0-9\\s-]"), "")
+            .trim()
+            .replace(Regex("\\s+"), "-")
+            .replace(Regex("-+"), "-")
+            .take(MAX_SLUG_LENGTH)
+            .trimEnd('-')
+    }
+
+    /**
+     * Generate a unique topic ID from title, handling collisions.
+     */
+    private fun generateTopicId(title: String): String {
+        val baseSlug = slugify(title)
+        if (baseSlug.isEmpty()) {
+            return "topic-${System.currentTimeMillis()}"
+        }
+
+        // Check if base slug is available
+        if (!topicRepository.existsById(baseSlug)) {
+            return baseSlug
+        }
+
+        // Find unique slug by appending number
+        var counter = 2
+        while (counter < 100) {
+            val candidateSlug = "$baseSlug-$counter"
+            if (!topicRepository.existsById(candidateSlug)) {
+                return candidateSlug
+            }
+            counter++
+        }
+
+        // Fallback with timestamp
+        return "$baseSlug-${System.currentTimeMillis()}"
     }
 
     /**
@@ -43,24 +87,21 @@ class TopicService(
     fun findOrCreateTopic(title: String, categoryId: String): TopicModel {
         logger.info("Finding or creating topic: '$title' with suggested categoryId: $categoryId")
 
-        // Generate embedding for the topic text
         val embedding = openAiService.generateEmbedding(title)
             ?: throw IllegalStateException("Failed to generate embedding for topic: $title")
 
-        val embeddingVector = embedding.map { it.toFloat() }.toFloatArray()
-        val vectorLiteral = embeddingVector.joinToString(prefix = "[", postfix = "]")
+        val vectorLiteral = embedding.map { it.toFloat() }
+            .toFloatArray()
+            .joinToString(prefix = "[", postfix = "]")
 
-        // Find the most similar existing topic (search across all categories)
         val mostSimilar = topicEmbeddingRepository.findMostSimilarTopic(
             embedding = vectorLiteral,
             minSimilarity = TOPIC_MATCH_THRESHOLD
         )
 
-        // If we found a very similar topic (>= 0.90), use it
         if (mostSimilar != null) {
             logger.info("Found existing topic ${mostSimilar.topicId} with similarity ${mostSimilar.similarity}")
 
-            // Warn if categories differ
             if (mostSimilar.categoryId != categoryId) {
                 logger.warn(
                     "Category mismatch: existing topic ${mostSimilar.topicId} has category '${mostSimilar.categoryId}', " +
@@ -76,7 +117,7 @@ class TopicService(
         // Create new topic with provided categoryId
         val now = Instant.now(clock)
         val newTopic = TopicModel(
-            topicId = idService.getId(),
+            topicId = generateTopicId(title),
             categoryId = categoryId,
             title = title,
             createdAt = now,
@@ -91,7 +132,7 @@ class TopicService(
             topicId = newTopic.topicId,
             categoryId = categoryId,
             title = title,
-            embedding = embeddingVector,
+            embedding = embedding.map { it.toFloat() }.toFloatArray(),
             createdAt = now
         )
         topicEmbeddingRepository.save(topicEmbedding)

@@ -163,15 +163,15 @@ class OpenAiService(
                - “Abortion”
             
             Stance Requirements:
-                - The stance represents how the claim positions itself relative to the topic’s commonly understood or status-quo interpretation.
-                - Allowed values:
-                    - "FOR" → affirms, supports, or legitimizes the subject of the topic
-                    - "AGAINST" → criticizes, condemns, or rejects the subject of the topic
-                    - "NEUTRAL" → descriptive, mixed, or unclear positioning
 
-                - The stance must be inferred from the claim’s intent, not just wording.
-                - The stance is NOT an evaluation of the topic itself, but of actions, policies, or interpretations related to it.
-
+            - The stance represents how the claim positions itself relative to the dominant, commonly understood point of disagreement for the topic.
+            - For policy or culture-war topics, assume an implicit normative axis (e.g. permissive vs restrictive, expansion vs limitation, acceptance vs rejection).
+            - Allowed values:
+                - "FOR" → supports the more permissive, expansive, or progressive position
+                - "AGAINST" → supports the more restrictive, limiting, or conservative position
+                - "NEUTRAL" → descriptive, mixed, or unclear positioning
+            - The stance must be inferred from the claim’s intent, not general sentiment toward the topic.
+            
             Output Format:
             {
               "valid": true/false,

@@ -126,3 +126,21 @@ databaseChangeLog:
             columns:
               - column:
                   name: opened_at
+  - changeSet:
+      id: 9
+      author: claude
+      changes:
+        - addColumn:
+            tableName: stages
+            columns:
+              - column:
+                  name: topic_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: true
+        - addForeignKeyConstraint:
+            baseColumnNames: topic_id
+            baseTableName: stages
+            constraintName: fk_stages_topic_id
+            referencedColumnNames: topic_id
+            referencedTableName: topics

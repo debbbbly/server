@@ -27,4 +27,10 @@ interface ClaimJpaRepository : JpaRepository<ClaimEntity, String> {
         @Param("categoryId") categoryId: String,
         @Param("limit") limit: Int
     ): List<ClaimEntity>
+
+    @Query("SELECT c FROM claims c WHERE c.topicId IN :topicIds")
+    fun findByTopicIdIn(@Param("topicIds") topicIds: List<String>): List<ClaimEntity>
+
+    @Query("SELECT c FROM claims c WHERE c.topicId IS NOT NULL AND c.createdAt >= :since")
+    fun findByTopicIdNotNullAndCreatedAtAfter(@Param("since") since: Instant): List<ClaimEntity>
 }

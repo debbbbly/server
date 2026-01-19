@@ -13,8 +13,8 @@ class ClaimSimilarityService(
     private val logger = LoggerFactory.getLogger(javaClass)
 
     companion object {
-        private const val DEFAULT_SIMILARITY_THRESHOLD = 0.65 // Very similar claims
-        private const val DUPLICATE_THRESHOLD = 0.95 // Almost identical claims
+        private const val DEFAULT_SIMILARITY_THRESHOLD = 0.68
+        private const val DUPLICATE_THRESHOLD = 0.95
     }
 
     /**

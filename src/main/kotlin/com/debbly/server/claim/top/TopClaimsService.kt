@@ -171,6 +171,7 @@ class TopClaimsService(
                     TopClaimWithStats(
                         claimId = claimScore.claimId,
                         categoryId = claim.categoryId,
+                        topicId = claim.topicId,
                         title = claim.title,
                         rank = index + 1,
                         score = claimScore.score,
