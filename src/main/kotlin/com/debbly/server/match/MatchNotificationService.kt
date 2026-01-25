@@ -1,7 +1,12 @@
 package com.debbly.server.match
 
 import com.debbly.server.match.model.Match
-import com.debbly.server.pusher.model.PusherMessageType.*
+import com.debbly.server.pusher.model.PusherMessageType.MATCH_ACCEPTED
+import com.debbly.server.pusher.model.PusherMessageType.MATCH_ACCEPTED_ALL
+import com.debbly.server.pusher.model.PusherMessageType.MATCH_EXPIRED
+import com.debbly.server.pusher.model.PusherMessageType.MATCH_FAILED
+import com.debbly.server.pusher.model.PusherMessageType.MATCH_FOUND
+import com.debbly.server.pusher.model.PusherMessageType.MATCH_STILL_WAITING
 import com.debbly.server.pusher.model.PusherEventName.MATCH_EVENT
 import com.debbly.server.pusher.model.PusherMessage.Companion.message
 import com.debbly.server.pusher.model.toNotificationDto
@@ -61,5 +66,11 @@ class MatchNotificationService(
             "reason" to reason
         )
         pusherService.sendUserNotifications(userIds, MATCH_EVENT, message(MATCH_FAILED, data))
+    }
+
+    fun notifyStillWaiting(userIds: List<String>) {
+        if (userIds.isEmpty()) return
+        val data = mapOf("status" to "waiting")
+        pusherService.sendUserNotifications(userIds, MATCH_EVENT, message(MATCH_STILL_WAITING, data))
     }
 }

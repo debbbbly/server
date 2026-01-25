@@ -3,6 +3,7 @@ package com.debbly.server.claim.top
 data class TopClaimResponse(
     val claimId: String,
     val categoryId: String,
+    val topicId: String?,
     val title: String,
     val rank: Int,
     val recentDebates: Int,

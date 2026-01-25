@@ -31,6 +31,11 @@ class AuthService(
             userCachedRepository.findByExternalUserId(externalUserId)
         } ?: throw UnauthorizedException()
 
+    fun authenticateOptional(externalUserId: String?) =
+        externalUserId?.let {
+            userCachedRepository.findByExternalUserId(externalUserId)
+        }
+
     fun authenticateWithLastSeen(externalUserId: String?) =
         authenticate(externalUserId).also {
             try {

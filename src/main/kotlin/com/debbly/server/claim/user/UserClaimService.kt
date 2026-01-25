@@ -19,30 +19,6 @@ class UserClaimService(
     private val clock: Clock
 ) {
 
-    //    fun getUserClaimsWithUserData(userId: String, limit: Int): List<ClaimWithUserDataModel> {
-//        val activeCategoryIds = categoryRepository.findAll()
-//            .filter { it.active }
-//            .map { it.categoryId }
-//            .toSet()
-//
-//        return userClaimRepository.findByUserId(userId)
-//            .filter { it.claim.category.categoryId in activeCategoryIds }
-//            .map { userClaim ->
-//                ClaimWithUserDataModel(
-//                    claimId = userClaim.claim.claimId,
-//                    category = userClaim.claim.category,
-//                    title = userClaim.claim.title,
-//                    tags = userClaim.claim.tags,
-//                    popularity = userClaim.claim.popularity,
-//                    user = UserClaimDataModel(
-//                        userId = userClaim.userId,
-//                        stance = userClaim.stance,
-//                        priority = userClaim.priority,
-//                        updatedAt = userClaim.updatedAt
-//                    )
-//                )
-//            }
-//    }
     fun getClaims(userId: String) = userClaimRepository.findByUserId(userId)
 
     fun updateStance(userId: String, claimId: String, stance: ClaimStance?) {
@@ -68,26 +44,4 @@ class UserClaimService(
             }
         }
     }
-
-//    fun updatePriorities(userId: String, priorities: List<Pair<String, Int>>) {
-//        for ((claimId, priority) in priorities) {
-//            claimRepository.findById(claimId)?.let { claim ->
-//                userClaimRepository.save(
-//                    UserClaimModel(
-//                        claim = claim,
-//                        userId = userId,
-//                        stance = userClaimRepository.findByUserId(userId)
-//                            .find { it.claim.claimId == claimId }?.stance ?: ClaimStance.EITHER,
-//                        priority = priority,
-//                        updatedAt = Instant.now(clock)
-//                    )
-//                )
-//            }
-//        }
-//    }
-
-//    fun removeStance(userId: String, claimId: String) {
-//        userClaimRepository.deleteByUserIdAndClaimId(userId, claimId)
-//    }
-
 }

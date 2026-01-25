@@ -6,6 +6,8 @@ import java.time.Instant
 data class Match(
     val matchId: String,
     val claim: MatchClaim,
+    val topicId: String? = null,
+    val matchReason: MatchReason? = null,
     val status: MatchStatus,
     val opponents: List<MatchOpponent>,
     val ttl: Long,
@@ -35,8 +37,7 @@ enum class MatchOpponentStatus {
 }
 
 enum class MatchReason {
-    COMMON_STANCE_OPPOSITE,   // Users had common claims with opposing stances
-    USER_STANCE_ASSIGNED,     // One user had stance, other was assigned opposing stance
-    TOP_CLAIM_RANDOM,         // Both users assigned random stances on top-scored claim
-    SIMILAR_TOPIC             // Matched through similar topics with opposite stances
+    CLAIM_MATCH,              // Phase 1: Direct claim match with opposite stances
+    TOPIC_MATCH_EXISTING_STANCE, // Phase 2A: Topic match where both users have opposite stances on a claim
+    TOPIC_MATCH_DERIVED_STANCE   // Phase 2B: Topic match with stances derived from topic stance + claim's stanceToTopic
 }

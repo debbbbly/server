@@ -8,11 +8,15 @@ import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.top.TopClaimsService
 import com.debbly.server.claim.user.UserClaimService
+import com.debbly.server.stage.repository.StageJpaRepository
+import com.debbly.server.stage.repository.entities.StageStatus
+import com.debbly.server.user.repository.UserCachedRepository
 import jakarta.validation.constraints.Size
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import java.time.Instant
 
 @RestController
 @RequestMapping("/claims")
@@ -22,14 +26,17 @@ class ClaimController(
     private val topClaimsService: TopClaimsService,
     private val userClaimService: UserClaimService,
     private val authService: AuthService,
-    private val claimSimilarityService: ClaimSimilarityService
+    private val claimSimilarityService: ClaimSimilarityService,
+    private val stageJpaRepository: StageJpaRepository,
+    private val userCachedRepository: UserCachedRepository
 ) {
 
     @GetMapping("/top")
     fun getTopClaims(
         @ExternalUserId externalUserId: String?,
         @RequestParam(required = false, defaultValue = "100") limit: Int,
-        @RequestParam(required = false) categoryIds: List<String>?
+        @RequestParam(required = false) categoryIds: List<String>?,
+        @RequestParam(required = false) topicIds: List<String>?
     ): List<GetTopClaimsResponse> {
         val userId = externalUserId?.let { authService.authenticate(it).userId }
 
@@ -39,26 +46,19 @@ class ClaimController(
             ?: emptyMap()
 
         val topClaims = topClaimsService.getTopClaimsFromCache()
-            .let { claims ->
-                if (categoryIds.isNullOrEmpty()) {
-                    claims
-                } else {
-                    claims.filter { it.categoryId in categoryIds }
-                }
+            .filter { claim ->
+                val matchesCategory = categoryIds.isNullOrEmpty() || claim.categoryId in categoryIds
+                val matchesTopic = topicIds.isNullOrEmpty() || claim.topicId in topicIds
+                matchesCategory && matchesTopic
             }
             .take(limit)
-        val claimIds = topClaims.map { it.claimId }.toSet()
-        val claimsMap = claimCachedRepository.findAll()
-            .filter { it.claimId in claimIds }
-            .associateBy { it.claimId }
 
         return topClaims.mapNotNull { topClaim ->
-            val claim = claimsMap[topClaim.claimId] ?: return@mapNotNull null
             val userClaim = claimIdToUserClaim[topClaim.claimId]
 
             GetTopClaimsResponse(
                 claimId = topClaim.claimId,
-                categoryId = claim.categoryId,
+                categoryId = topClaim.categoryId,
                 title = topClaim.title,
                 rank = topClaim.rank,
                 recentDebates = topClaim.recentDebates,
@@ -114,6 +114,70 @@ class ClaimController(
         )
     }
 
+    @GetMapping("/{claimId}")
+    fun getClaimById(
+        @PathVariable claimId: String,
+        @ExternalUserId externalUserId: String?,
+        @RequestParam(defaultValue = "10") stageLimit: Int
+    ): ResponseEntity<ClaimDetailResponse> {
+        val claim = claimCachedRepository.findById(claimId)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Claim not found")
+
+        val userId = externalUserId?.let { authService.authenticate(it).userId }
+
+        // Try to get stats from top claims cache
+        val topClaimStats = topClaimsService.getTopClaimsFromCache()
+            .find { it.claimId == claimId }
+
+        val userClaim = userId?.let {
+            userClaimService.getClaims(it).find { uc -> uc.claim.claimId == claimId }
+        }
+
+        // Fetch stages for this claim
+        val stages = stageJpaRepository.findStagesByClaimId(
+            claimId = claimId,
+            statuses = listOf(StageStatus.OPEN, StageStatus.RECORDED)
+        ).take(stageLimit.coerceIn(1, 50))
+
+        val userIds = stages.flatMap { it.hosts.map { host -> host.id.userId } }.distinct()
+        val usersMap = userCachedRepository.findByIds(userIds)
+
+        val stageResponses = stages.map { stage ->
+            ClaimDetailResponse.StageResponse(
+                stageId = stage.stageId,
+                hosts = stage.hosts.map { host ->
+                    val user = usersMap[host.id.userId]
+                    ClaimDetailResponse.HostResponse(
+                        userId = host.id.userId,
+                        username = user?.username ?: "unknown",
+                        avatarUrl = user?.avatarUrl,
+                        stance = host.stance
+                    )
+                },
+                status = stage.status,
+                openedAt = stage.openedAt,
+                closedAt = stage.closedAt
+            )
+        }
+
+        return ResponseEntity.ok(
+            ClaimDetailResponse(
+                claimId = claim.claimId,
+                categoryId = claim.categoryId,
+                topicId = claim.topicId,
+                title = claim.title,
+                recentDebates = topClaimStats?.recentDebates ?: 0,
+                forCount = topClaimStats?.forCount ?: 0,
+                againstCount = topClaimStats?.againstCount ?: 0,
+                recentInterest = topClaimStats?.recentInterest ?: 0,
+                userClaim = userClaim?.let {
+                    ClaimDetailResponse.UserClaimResponse(stance = it.stance)
+                },
+                stages = stageResponses
+            )
+        )
+    }
+
     data class CreateClaimRequest(
         @field:Size(max = 125, message = "Claim must be at most 125 characters long")
         val title: String,
@@ -139,5 +203,37 @@ data class GetTopClaimsResponse(
 ) {
     data class UserClaimResponse(
         val stance: ClaimStance,
+    )
+}
+
+data class ClaimDetailResponse(
+    val claimId: String,
+    val categoryId: String,
+    val topicId: String,
+    val title: String,
+    val recentDebates: Int,
+    val forCount: Int,
+    val againstCount: Int,
+    val recentInterest: Int,
+    val userClaim: UserClaimResponse?,
+    val stages: List<StageResponse>
+) {
+    data class UserClaimResponse(
+        val stance: ClaimStance
+    )
+
+    data class StageResponse(
+        val stageId: String,
+        val hosts: List<HostResponse>,
+        val status: StageStatus,
+        val openedAt: Instant?,
+        val closedAt: Instant?
+    )
+
+    data class HostResponse(
+        val userId: String,
+        val username: String,
+        val avatarUrl: String?,
+        val stance: ClaimStance?
     )
 }

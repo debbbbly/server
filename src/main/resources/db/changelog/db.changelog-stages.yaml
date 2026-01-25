@@ -144,3 +144,19 @@ databaseChangeLog:
             constraintName: fk_stages_topic_id
             referencedColumnNames: topic_id
             referencedTableName: topics
+  - changeSet:
+      id: 10
+      author: claude
+      comment: index
+      changes:
+        - createIndex:
+            indexName: idx_stages_topic_id_status_opened_at
+            tableName: stages
+            columns:
+              - column:
+                  name: topic_id
+              - column:
+                  name: status
+              - column:
+                  name: opened_at
+                  descending: true

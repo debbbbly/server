@@ -5,9 +5,10 @@ import jakarta.persistence.*
 import java.time.Instant
 
 enum class StageStatus {
-    PENDING,
-    OPEN,
-    CLOSED
+    PENDING,  // Stage created but not opened yet
+    OPEN,     // Stage is currently live
+    CLOSED,   // Stage ended without recording
+    RECORDED  // Stage ended with recording available
 }
 
 @Entity(name = "stages")

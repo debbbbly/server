@@ -64,7 +64,7 @@ class StageService(
 
     fun getUserHostedStages(userId: String): List<StageHistoryDetails> {
         val stages = stageRepository.findTop10ByHostUserId(userId)
-        val claims = claimRepository.findByClaimIdInWithAllData(stages.mapNotNull { it.claimId })
+        val claims = claimRepository.findByClaimIds(stages.mapNotNull { it.claimId })
             .associateBy { it.claimId }
 
         return stages.map { stage ->
@@ -103,7 +103,7 @@ class StageService(
 
     fun getRecordedStages(): List<StageHistoryDetails> {
         val stages = stageRepository.findTop30RecordedStages()
-        val claims = claimRepository.findByClaimIdInWithAllData(stages.mapNotNull { it.claimId })
+        val claims = claimRepository.findByClaimIds(stages.mapNotNull { it.claimId })
             .associateBy { it.claimId }
 
         return stages.map { stage ->
@@ -197,10 +197,9 @@ class StageService(
     private fun getHlsUrlForStageStatus(baseUrl: String?, status: StageStatus): String? {
         if (baseUrl == null) return null
 
-        val playlistName = if (status == StageStatus.CLOSED) {
-            "playlist.m3u8"
-        } else {
-            "playlist-live.m3u8"
+        val playlistName = when (status) {
+            StageStatus.CLOSED, StageStatus.RECORDED -> "playlist.m3u8"
+            else -> "playlist-live.m3u8"
         }
 
         return "$baseUrl/$playlistName"
@@ -532,9 +531,10 @@ class StageService(
     private fun closeStage(stage: StageModel, reason: String) {
         val egressResult = stopEgressIfActive(stage.stageId)
         val recorded = isStageRecorded(egressResult)
+        val status = if (recorded) StageStatus.RECORDED else StageStatus.CLOSED
 
         val closedStage = stage.copy(
-            status = StageStatus.CLOSED,
+            status = status,
             closedAt = Instant.now(clock),
             recorded = recorded
         )
@@ -544,7 +544,7 @@ class StageService(
         liveKitService.endRoom(stage.stageId)
         notifyStageClosed(stage.stageId, reason)
 
-        logger.info("Closed stage ${stage.stageId}, reason: $reason, recorded: $recorded")
+        logger.info("Closed stage ${stage.stageId}, reason: $reason, recorded: $recorded, status: $status")
     }
 
     private fun notifyStageClosed(stageId: String, reason: String) {

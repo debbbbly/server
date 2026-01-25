@@ -1,21 +1,16 @@
 package com.debbly.server.match
 
-import com.debbly.server.category.repository.CategoryCachedRepository
 import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.model.opposite
 import com.debbly.server.claim.user.UserClaimService
-import com.debbly.server.claim.user.repository.UserClaimCachedRepository
+import com.debbly.server.claim.user.UserTopicStanceService
 import com.debbly.server.match.MatchService.MatchingStatus.*
 import com.debbly.server.match.event.MatchAcceptedAllEvent
 import com.debbly.server.match.event.MatchAcceptedEvent
-import com.debbly.server.match.model.Match
-import com.debbly.server.match.model.MatchOpponentStatus
-import com.debbly.server.match.model.MatchRequest
-import com.debbly.server.match.model.MatchStatus
+import com.debbly.server.match.model.*
 import com.debbly.server.match.repository.MatchQueueRepository
 import com.debbly.server.match.repository.MatchRepository
 import com.debbly.server.user.model.UserModel
-import com.debbly.server.user.repository.UserCachedRepository
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
@@ -24,12 +19,10 @@ import java.time.Instant
 
 @Service
 class MatchService(
-    private val userClaimRepository: UserClaimCachedRepository,
     private val matchQueueRepository: MatchQueueRepository,
     private val matchRepository: MatchRepository,
-    private val userRepository: UserCachedRepository,
-    private val categoryRepository: CategoryCachedRepository,
     private val userClaimService: UserClaimService,
+    private val userTopicStanceService: UserTopicStanceService,
     private val matchNotificationService: MatchNotificationService,
     private val clock: Clock,
     private val eventPublisher: ApplicationEventPublisher,
@@ -37,9 +30,36 @@ class MatchService(
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    fun join(user: UserModel) {
+    fun join(user: UserModel, request: JoinMatchRequest) {
         cancelExistingMatchIfPresent(user.userId)
-        val matchRequest = buildMatchRequest(user)
+
+        // Save stances to DB for each claim
+        request.claims?.forEach { claimWithStance ->
+            userClaimService.updateStance(
+                userId = user.userId,
+                claimId = claimWithStance.claimId,
+                stance = claimWithStance.stance,
+            )
+        }
+
+        // Save stances for topics
+        request.topics?.forEach { topicWithStance ->
+            userTopicStanceService.updateStance(
+                userId = user.userId,
+                topicId = topicWithStance.topicId,
+                stance = topicWithStance.stance,
+            )
+        }
+
+        val matchRequest = MatchRequest(
+            userId = user.userId,
+            claims = request.claims ?: emptyList(),
+            topics = request.topics ?: emptyList(),
+            skipUserIds = emptySet(),
+            skipClaimIds = emptySet(),
+            joinedAt = Instant.now(clock),
+            ignores = 0
+        )
         matchQueueRepository.save(matchRequest)
 
         val queueSize = matchQueueRepository.count()
@@ -56,44 +76,113 @@ class MatchService(
         }
     }
 
+    /**
+     * Skip behavior:
+     * - For claim match: Exclude opponent userId from future matches
+     * - For topic match: Exclude that claimId from future topic matches
+     */
     fun skip(match: Match, user: UserModel) {
         matchValidationService.validateMatchOperation(match, user.userId, "skip")
+
+        val existingRequest = matchQueueRepository.find(user.userId)
 
         matchRepository.delete(match.matchId)
         matchNotificationService.notifyMatchCancelled(match, user.userId, "skip")
 
-        // Re-queue the user who skipped with the claim on skip list
-        val matchRequest = buildMatchRequest(user, withSkipClaimIds = setOf(match.claim.claimId))
-        matchQueueRepository.save(matchRequest)
+        // Get opponent userId
+        val opponentUserId = match.opponents
+            .firstOrNull { it.userId != user.userId }
+            ?.userId
+
+        // Re-queue the user who skipped
+        val skipUserIds = if (match.matchReason == MatchReason.CLAIM_MATCH && opponentUserId != null) {
+            (existingRequest?.skipUserIds ?: emptySet()) + opponentUserId
+        } else {
+            existingRequest?.skipUserIds ?: emptySet()
+        }
+
+        val skipClaimIds = if (match.matchReason != MatchReason.CLAIM_MATCH) {
+            (existingRequest?.skipClaimIds ?: emptySet()) + match.claim.claimId
+        } else {
+            existingRequest?.skipClaimIds ?: emptySet()
+        }
+
+        if (existingRequest != null) {
+            val updatedRequest = existingRequest.copy(
+                skipUserIds = skipUserIds,
+                skipClaimIds = skipClaimIds,
+                joinedAt = Instant.now(clock)
+            )
+            matchQueueRepository.save(updatedRequest)
+        }
 
         // Re-queue opponents
         reQueueOpponents(match, user.userId)
     }
 
+    /**
+     * Switch behavior:
+     * Re-queue with opposite stance on same claim (+ topic if present)
+     */
     fun switch(match: Match, user: UserModel) {
         matchValidationService.validateMatchOperation(match, user.userId, "switch")
 
-        val userWantedStance = match.opponents
-            .firstOrNull() { it.userId == user.userId }
-            ?.stance?.opposite()
+        val existingRequest = matchQueueRepository.find(user.userId)
+
+        val userCurrentStance = match.opponents
+            .firstOrNull { it.userId == user.userId }
+            ?.stance
+        val userWantedStance = userCurrentStance?.opposite()
 
         matchRepository.delete(match.matchId)
         matchNotificationService.notifyMatchCancelled(match, user.userId, "switch")
 
+        // Update stance in DB
         if (userWantedStance != null) {
             userClaimService.updateStance(
                 userId = user.userId,
                 claimId = match.claim.claimId,
-                stance = userWantedStance
+                stance = userWantedStance,
             )
         }
 
-        val matchRequest = if (userWantedStance != null)
-            buildMatchRequest(user, withClaimIdToStance = listOf(match.claim.claimId to userWantedStance))
-        else
-            buildMatchRequest(user)
+        // Re-queue with updated stance
+        if (existingRequest != null) {
+            // Update the claim stance in the request
+            val updatedClaims = existingRequest.claims.map { claim ->
+                if (claim.claimId == match.claim.claimId && userWantedStance != null) {
+                    claim.copy(stance = userWantedStance)
+                } else {
+                    claim
+                }
+            }.let { claims ->
+                // If claim wasn't in the list, add it
+                if (userWantedStance != null && claims.none { it.claimId == match.claim.claimId }) {
+                    claims + ClaimWithStance(match.claim.claimId, userWantedStance)
+                } else {
+                    claims
+                }
+            }
 
-        matchQueueRepository.save(matchRequest)
+            val updatedRequest = existingRequest.copy(
+                claims = updatedClaims,
+                joinedAt = Instant.now(clock)
+            )
+            matchQueueRepository.save(updatedRequest)
+        } else if (userWantedStance != null) {
+            // Create new request with the switched stance
+            val matchRequest = MatchRequest(
+                userId = user.userId,
+                claims = listOf(ClaimWithStance(match.claim.claimId, userWantedStance)),
+                topics = emptyList(),
+                skipUserIds = emptySet(),
+                skipClaimIds = emptySet(),
+                joinedAt = Instant.now(clock),
+                ignores = 0
+            )
+            matchQueueRepository.save(matchRequest)
+        }
+
         reQueueOpponents(match, user.userId)
     }
 
@@ -113,7 +202,7 @@ class MatchService(
             userClaimService.updateStance(
                 userId = user.userId,
                 claimId = match.claim.claimId,
-                stance = stance
+                stance = stance,
             )
             logger.debug("Updated stance for user {} on claim {} to {}", user.userId, match.claim.claimId, stance)
         }
@@ -150,35 +239,27 @@ class MatchService(
         val opponents = match.opponents.filter { it.userId != excludeUserId }
 
         opponents.forEach { opponent ->
-            val user = userRepository.getById(opponent.userId)
-            val matchRequest = buildMatchRequest(user)
-            matchQueueRepository.save(matchRequest)
+            val existingRequest = matchQueueRepository.find(opponent.userId)
+            if (existingRequest != null) {
+                // Re-queue with existing request
+                val updatedRequest = existingRequest.copy(joinedAt = Instant.now(clock))
+                matchQueueRepository.save(updatedRequest)
+            } else {
+                // Create minimal request for opponent
+                val stance = opponent.stance ?: ClaimStance.EITHER
+                val matchRequest = MatchRequest(
+                    userId = opponent.userId,
+                    claims = listOf(ClaimWithStance(match.claim.claimId, stance)),
+                    topics = emptyList(),
+                    skipUserIds = emptySet(),
+                    skipClaimIds = emptySet(),
+                    joinedAt = Instant.now(clock),
+                    ignores = opponent.ignores
+                )
+                matchQueueRepository.save(matchRequest)
+            }
             logger.debug("Re-queued opponent {} from cancelled match {}", opponent.userId, match.matchId)
         }
-    }
-
-    private fun buildMatchRequest(
-        user: UserModel,
-        withSkipClaimIds: Collection<String>? = null,
-        withClaimIdToStance: Collection<Pair<String, ClaimStance>>? = null,
-        ignores: Int = 0
-    ): MatchRequest {
-        val activeCategoryIds = categoryRepository.findAll()
-            .filter { it.active }
-            .map { it.categoryId }
-            .toSet()
-
-        val userClaims = userClaimRepository.findByUserId(user.userId)
-            .filter { it.claim.categoryId in activeCategoryIds }
-
-        return MatchRequest(
-            userId = user.userId,
-            claimIdToStance = userClaims.associate { it.claim.claimId to it.stance }
-                .plus(withClaimIdToStance.orEmpty()),
-            skipClaimIds = withSkipClaimIds.orEmpty(),
-            joinedAt = Instant.now(clock),
-            ignores = ignores
-        )
     }
 
     private fun publishMatchAcceptedEvent(match: Match, matchStatus: MatchStatus, userId: String) {

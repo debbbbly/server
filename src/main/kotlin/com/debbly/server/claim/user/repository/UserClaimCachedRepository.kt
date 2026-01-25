@@ -42,7 +42,7 @@ class UserClaimCachedRepository(
         jpaRepository.deleteByIdUserIdAndIdClaimId(userId, claimId)
     }
 
-    private fun UserClaimEntity.toModel(): UserClaimModel {
+    private fun UserClaimStanceEntity.toModel(): UserClaimModel {
         return UserClaimModel(
             claim = this.claim.toModel(),
             userId = this.id.userId,
@@ -52,8 +52,8 @@ class UserClaimCachedRepository(
         )
     }
 
-    private fun UserClaimModel.toEntity() = UserClaimEntity(
-        id = UserClaimId(
+    private fun UserClaimModel.toEntity() = UserClaimStanceEntity(
+        id = UserClaimStanceId(
             userId = this.userId,
             claimId = this.claim.claimId
         ),

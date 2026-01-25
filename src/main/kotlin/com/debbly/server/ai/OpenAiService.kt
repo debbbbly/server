@@ -1,7 +1,7 @@
 package com.debbly.server.ai
 
 import com.debbly.server.category.repository.CategoryCachedRepository
-import com.debbly.server.claim.model.TopicStance
+import com.debbly.server.claim.model.StanceToTopic
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -162,7 +162,7 @@ class OpenAiService(
             Topic:
                - “Abortion”
             
-            Stance Requirements:
+            Stance (stanceToTopic) Requirements:
 
             - The stance represents how the claim positions itself relative to the dominant, commonly understood point of disagreement for the topic.
             - For policy or culture-war topics, assume an implicit normative axis (e.g. permissive vs restrictive, expansion vs limitation, acceptance vs rejection).
@@ -180,7 +180,7 @@ class OpenAiService(
               "reasoning": "short explanation (1–2 sentences)",
               "categoryId": "string (required when valid=true, null when valid=false)",
               "topic": "neutral topic extracted from the claim (required when valid=true, null when valid=false)",
-              "stance": "FOR|AGAINST|NEUTRAL (required when valid=true, null when valid=false)"
+              "stanceToTopic": "FOR|AGAINST|NEUTRAL (required when valid=true, null when valid=false)"
             }
             
             Examples:
@@ -193,7 +193,7 @@ class OpenAiService(
                   "reasoning": "The claim is clear, specific, and debatable without violating any platform rules",
                   "categoryId": "technology",
                   "topic": "The overall impact of AI on society",
-                  "stance": "FOR"
+                  "stanceToTopic": "FOR"
                 }
                 
                 Claim: "Governments should prioritize climate change mitigation over economic growth"
@@ -205,7 +205,7 @@ class OpenAiService(
                   "reasoning": "The claim is specific and debatable, addressing a significant policy issue.",
                   "categoryId": "economy",
                   "topic": "The prioritization of climate change mitigation versus economic growth in government policy",
-                  "stance": "FOR"
+                  "stanceToTopic": "FOR"
                 }
                 
                 Claim: "Anyone who disagrees with climate science is an idiot"
@@ -217,7 +217,7 @@ class OpenAiService(
                   "reasoning": "The claim contains an insulting personal attack rather than a debatable position",
                   "categoryId": null,
                   "topic": null,
-                  "stance": null
+                  "stanceToTopic": null
                 }
             """.trimIndent()
 
@@ -486,7 +486,7 @@ data class ClaimModerationResult(
     val reasoning: String? = null,
     val categoryId: String? = null,
     val topic: String? = null,
-    val stance: TopicStance? = null,
+    val stanceToTopic: StanceToTopic? = null,
 )
 
 data class UsernameValidationResult(

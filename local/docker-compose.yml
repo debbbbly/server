@@ -78,7 +78,6 @@ services:
 volumes:
   redis_data:
   postgres_data:
-  minio_data:
 
 networks:
   debbly-network:

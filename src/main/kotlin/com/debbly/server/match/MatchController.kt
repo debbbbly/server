@@ -4,6 +4,7 @@ import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.auth.service.AuthService
 import com.debbly.server.infra.error.ForbiddenException
 import com.debbly.server.match.MatchService.MatchingState
+import com.debbly.server.match.model.JoinMatchRequest
 import com.debbly.server.match.model.Match
 import com.debbly.server.match.model.MatchRequest
 import org.springframework.http.ResponseEntity
@@ -17,9 +18,12 @@ class MatchController(
 ) {
 
     @PostMapping("/join")
-    fun joinQueue(@ExternalUserId externalUserId: String?): ResponseEntity<Void> {
+    fun joinQueue(
+        @ExternalUserId externalUserId: String?,
+        @RequestBody request: JoinMatchRequest
+    ): ResponseEntity<Void> {
         authService.authenticate(externalUserId).let { user ->
-            matchService.join(user)
+            matchService.join(user, request)
         }
         return ResponseEntity.ok().build()
     }

@@ -253,3 +253,23 @@ databaseChangeLog:
             columns:
               - column:
                   name: created_at
+  - changeSet:
+      id: 13
+      author: claude
+      comment: remove claim score columns
+      changes:
+        - dropColumn:
+            tableName: claims
+            columnName: score_freshness
+        - dropColumn:
+            tableName: claims
+            columnName: score_stances_recent
+        - dropColumn:
+            tableName: claims
+            columnName: score_debates_recent
+        - dropColumn:
+            tableName: claims
+            columnName: score_baseline
+        - dropColumn:
+            tableName: claims
+            columnName: score_total

@@ -16,7 +16,6 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
-import java.time.Instant
 import java.time.Instant.now
 
 @Service
@@ -29,7 +28,7 @@ class ClaimService(
     private val embeddingRepository: ClaimEmbeddingRepository,
     private val topicService: com.debbly.server.claim.topic.TopicService,
     private val idService: IdService,
-    private val clock: Clock
+    private val clock: Clock,
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -37,19 +36,28 @@ class ClaimService(
 
     fun save(claim: ClaimModel): ClaimModel = claimCachedRepository.save(claim)
 
-    fun getUserClaims(userId: String, limit: Int): List<UserClaimModel> {
-        val activeCategoryIds = categoryCachedRepository.findAll()
-            .filter { it.active }
-            .map { it.categoryId }
-            .toSet()
+    fun getUserClaims(
+        userId: String,
+        limit: Int,
+    ): List<UserClaimModel> {
+        val activeCategoryIds =
+            categoryCachedRepository
+                .findAll()
+                .filter { it.active }
+                .map { it.categoryId }
+                .toSet()
 
-        return userClaimCachedRepository.findByUserId(userId)
+        return userClaimCachedRepository
+            .findByUserId(userId)
             .filter { it.claim.categoryId in activeCategoryIds }
     }
 
-
     @Transactional
-    fun create(title: String, userId: String, stance: ClaimStance? = null): ClaimModel {
+    fun create(
+        title: String,
+        userId: String,
+        stance: ClaimStance? = null,
+    ): ClaimModel {
         logger.info("Processing claim proposal: '$title' by user: $userId")
 
         val validationResult = openAIService.moderateClaim(title)
@@ -72,7 +80,7 @@ class ClaimService(
         if (validationResult.topic.isNullOrBlank()) {
             throw ClaimValidationException(
                 listOf("Topic extraction failed"),
-                "AI failed to extract a topic from the claim. This should not happen for valid claims."
+                "AI failed to extract a topic from the claim. This should not happen for valid claims.",
             )
         }
 
@@ -87,27 +95,28 @@ class ClaimService(
         categoryCachedRepository.findById(categoryId)
             ?: throw IllegalArgumentException("Topic's category not found: $categoryId")
 
-        val claim = ClaimModel(
-            claimId = idService.getId(),
-            categoryId = categoryId,
-            title = validationResult.normalized ?: title,
-            popularity = 0,
-            createdAt = now(clock),
-            topicId = topic.topicId,
-            topicStance = validationResult.stance
-        )
+        val claim =
+            ClaimModel(
+                claimId = idService.getId(),
+                categoryId = categoryId,
+                title = validationResult.normalized ?: title,
+                createdAt = now(clock),
+                topicId = topic.topicId,
+                stanceToTopic = validationResult.stanceToTopic ?: com.debbly.server.claim.model.StanceToTopic.NEUTRAL,
+            )
         claimCachedRepository.save(claim)
 
         try {
             val embedding = openAIService.generateEmbedding(claim.title)
             if (embedding != null) {
-                val embeddingEntity = ClaimEmbeddingEntity(
-                    claimId = claim.claimId,
-                    title = claim.title,
-                    categoryId = claim.categoryId,
-                    embedding = embedding.map { it.toFloat() }.toFloatArray(),
-                    createdAt = claim.createdAt
-                )
+                val embeddingEntity =
+                    ClaimEmbeddingEntity(
+                        claimId = claim.claimId,
+                        title = claim.title,
+                        categoryId = claim.categoryId,
+                        embedding = embedding.map { it.toFloat() }.toFloatArray(),
+                        createdAt = claim.createdAt,
+                    )
                 embeddingRepository.save(embeddingEntity)
                 logger.info("Embedding generated and saved to pgvector DB for claim ${claim.claimId}")
             } else {
@@ -124,12 +133,11 @@ class ClaimService(
                     userId = userId,
                     stance = it,
                     priority = null, // TODO set highest
-                    updatedAt = now(clock)
-                )
+                    updatedAt = now(clock),
+                ),
             )
         }
 
         return claim
     }
-
 }

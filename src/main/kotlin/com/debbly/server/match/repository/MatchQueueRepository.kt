@@ -26,10 +26,11 @@ class MatchQueueRepository(
         redisTemplate.opsForSet().add(USER_MATCH_REQUEST_KEYS, key)
 
         logger.debug(
-            "Queue save: userId={}, {} (claims={}, skipped={})",
+            "Queue save: userId={}, {} (claims={}, topics={}, skipped={})",
             request.userId,
             if (wasExisting) "updated" else "added",
-            request.claimIdToStance.size,
+            request.claims.size,
+            request.topics.size,
             request.skipClaimIds.size
         )
     }

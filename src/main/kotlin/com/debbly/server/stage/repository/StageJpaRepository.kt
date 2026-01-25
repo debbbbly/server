@@ -1,6 +1,7 @@
 package com.debbly.server.stage.repository
 
 import com.debbly.server.stage.repository.entities.StageEntity
+import com.debbly.server.stage.repository.entities.StageStatus
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.CrudRepository
 import org.springframework.data.repository.query.Param
@@ -36,4 +37,57 @@ interface StageJpaRepository : CrudRepository<StageEntity, String> {
 
     @Query("SELECT s.claimId FROM stages s WHERE s.openedAt >= :since AND s.claimId IS NOT NULL")
     fun findClaimIdsByOpenedAtAfter(@Param("since") since: Instant): List<String>
+
+    // Homepage API queries - fetch stages by topic ordered by openedAt DESC (live stages are most recent)
+    @Query("""
+        SELECT DISTINCT s FROM stages s
+        LEFT JOIN FETCH s.hosts
+        WHERE s.topicId IN :topicIds
+        AND s.status IN :statuses
+        ORDER BY s.topicId, s.openedAt DESC NULLS LAST
+    """)
+    fun findStagesByTopicIds(
+        @Param("topicIds") topicIds: List<String>,
+        @Param("statuses") statuses: List<StageStatus>
+    ): List<StageEntity>
+
+    // Count stages for a topic with given statuses
+    @Query("""
+        SELECT COUNT(s) FROM stages s
+        WHERE s.topicId = :topicId
+        AND s.status IN :statuses
+    """)
+    fun countStagesByTopicId(
+        @Param("topicId") topicId: String,
+        @Param("statuses") statuses: List<StageStatus>
+    ): Int
+
+    // Paginated stages for a single topic with cursor support
+    // Cursor is openedAt timestamp - returns stages opened before that time
+    @Query("""
+        SELECT DISTINCT s FROM stages s
+        LEFT JOIN FETCH s.hosts
+        WHERE s.topicId = :topicId
+        AND s.status IN :statuses
+        AND (:cursorOpenedAt IS NULL OR s.openedAt < :cursorOpenedAt)
+        ORDER BY s.openedAt DESC NULLS LAST
+    """)
+    fun findStagesByTopicIdPaginated(
+        @Param("topicId") topicId: String,
+        @Param("statuses") statuses: List<StageStatus>,
+        @Param("cursorOpenedAt") cursorOpenedAt: Instant?
+    ): List<StageEntity>
+
+    // Fetch stages by claimId ordered by openedAt DESC
+    @Query("""
+        SELECT DISTINCT s FROM stages s
+        LEFT JOIN FETCH s.hosts
+        WHERE s.claimId = :claimId
+        AND s.status IN :statuses
+        ORDER BY s.openedAt DESC NULLS LAST
+    """)
+    fun findStagesByClaimId(
+        @Param("claimId") claimId: String,
+        @Param("statuses") statuses: List<StageStatus>
+    ): List<StageEntity>
 }

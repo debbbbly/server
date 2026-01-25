@@ -7,21 +7,15 @@ import java.time.Instant
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.CLASS,
     include = JsonTypeInfo.As.PROPERTY,
-    property = "@class"
+    property = "@class",
 )
 data class ClaimModel(
     val claimId: String,
     val categoryId: String,
     val title: String,
-    val popularity: Int?,
     val createdAt: Instant,
-    val scoreFreshness: Double? = null,
-    val scoreStancesRecent: Double? = null,
-    val scoreDebatesRecent: Double? = null,
-    val scoreBaseline: Double? = null,
-    val scoreTotal: Double? = null,
-    val topicId: String? = null,
-    val topicStance: TopicStance? = null
+    val topicId: String,
+    val stanceToTopic: StanceToTopic,
 )
 
 enum class ClaimStance {
@@ -30,52 +24,43 @@ enum class ClaimStance {
     AGAINST,
 }
 
-enum class TopicStance {
+enum class StanceToTopic {
     FOR,
     NEUTRAL,
     AGAINST,
 }
 
-fun ClaimStance.opposite(): ClaimStance = when (this) {
-    ClaimStance.FOR -> ClaimStance.AGAINST
-    ClaimStance.AGAINST -> ClaimStance.FOR
-    ClaimStance.EITHER -> ClaimStance.EITHER
-}
+fun ClaimStance.opposite(): ClaimStance =
+    when (this) {
+        ClaimStance.FOR -> ClaimStance.AGAINST
+        ClaimStance.AGAINST -> ClaimStance.FOR
+        ClaimStance.EITHER -> ClaimStance.EITHER
+    }
 
-fun ClaimEntity.toModel(): ClaimModel = ClaimModel(
-    claimId = claimId,
-    categoryId = categoryId,
-    title = title,
-    popularity = popularity,
-    createdAt = createdAt,
-    scoreFreshness = scoreFreshness,
-    scoreStancesRecent = scoreStancesRecent,
-    scoreDebatesRecent = scoreDebatesRecent,
-    scoreBaseline = scoreBaseline,
-    scoreTotal = scoreTotal,
-    topicId = topicId,
-    topicStance = topicStance
-)
+fun ClaimEntity.toModel(): ClaimModel =
+    ClaimModel(
+        claimId = claimId,
+        categoryId = categoryId,
+        title = title,
+        createdAt = createdAt,
+        topicId = topicId,
+        stanceToTopic = stanceToTopic,
+    )
 
-fun ClaimModel.toEntity(): ClaimEntity = ClaimEntity(
-    claimId = claimId,
-    categoryId = categoryId,
-    title = title,
-    popularity = popularity,
-    createdAt = createdAt,
-    scoreFreshness = scoreFreshness,
-    scoreStancesRecent = scoreStancesRecent,
-    scoreDebatesRecent = scoreDebatesRecent,
-    scoreBaseline = scoreBaseline,
-    scoreTotal = scoreTotal,
-    topicId = topicId,
-    topicStance = topicStance
-)
+fun ClaimModel.toEntity(): ClaimEntity =
+    ClaimEntity(
+        claimId = claimId,
+        categoryId = categoryId,
+        title = title,
+        createdAt = createdAt,
+        topicId = topicId,
+        stanceToTopic = stanceToTopic,
+    )
 
 data class UserClaimModel(
     val claim: ClaimModel,
     val userId: String,
     val stance: ClaimStance,
     val priority: Int?,
-    val updatedAt: Instant
+    val updatedAt: Instant,
 )

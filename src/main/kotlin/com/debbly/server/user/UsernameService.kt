@@ -12,21 +12,21 @@ class UsernameService(
     private val openAIService: OpenAiService
 ) {
     private val adjectives = listOf(
-        "Bright", "Calm", "Careful", "Clean", "Clear", "Considerate", "Consistent", "Crisp", "Curious",
-        "Detached", "Dry", "Easy", "Equal", "Even", "Fair", "Firm", "Focused", "Fresh", "Gentle",
-        "Grounded", "Honest", "Insightful", "Kind", "Light", "Mild", "Mindful", "Natural", "Neat",
-        "Neutral", "Objective", "Patient", "Plain", "Precise", "Quiet", "Raw", "Reasoned", "Relaxed",
-        "Sharp", "Silent", "Simple", "Smooth", "Soft", "Stable", "Steady", "Still", "Sweet",
-        "Thoughtful", "Unbiased", "Warm", "Whole"
+        // original kept
+        "Bright", "Calm", "Clean", "Clear", "Crisp", "Curious", "Dry", "Easy", "Equal", "Even",
+        "Fair", "Firm", "Fresh", "Gentle", "Honest", "Kind", "Light", "Mild", "Natural", "Neat",
+        "Neutral", "Patient", "Plain", "Precise", "Quiet", "Raw", "Sharp", "Silent", "Simple",
+        "Smooth", "Soft", "Stable", "Steady", "Still", "Sweet", "Warm", "Whole", "Brave",
+        "Bold", "Cool", "Chill", "Clear", "Quick", "True", "Wise", "Witty", "Pure", "Calmly",
+        "Sunny", "Happy", "Mellow", "Zen", "Nice"
     )
 
     private val fruitsVegetables = listOf(
-        "Onion", "Corn", "Kiwi", "Apple", "Zucchini", "Lemon", "Cherry", "Avocado", "Banana",
-        "Carrot", "Coconut", "Mushroom", "Olive", "Pear", "Kale", "Spinach", "Cucumber", "Blueberry",
-        "Grape", "Mango", "Fig", "Beet", "Pea", "Tomato", "Celery", "Cabbage", "Garlic", "Mint",
-        "Peach", "Apricot", "Lettuce", "Lentil", "Squash", "Snap-Pea", "Bean", "Potato", "Rice",
-        "Plum", "Pepper", "Chickpea", "Radish", "Turnip", "Papaya", "Yam", "Pumpkin", "Parsnip",
-        "Broccoli", "Grain"
+        "Onion", "Corn", "Kiwi", "Apple", "Lemon", "Cherry", "Banana", "Carrot", "Olive", "Pear",
+        "Kale", "Grape", "Mango", "Fig", "Beet", "Pea", "Tomato", "Celery", "Garlic", "Mint",
+        "Peach", "Bean", "Rice", "Plum", "Pepper", "Radish", "Turnip", "Papaya", "Yam", "Grain",
+        "Berry", "Lime", "Date", "Guava", "Melon", "Okra", "Chard", "Leek", "Shallot", "Oats",
+        "Wheat", "Rye"
     )
 
     private val reservedUsernames: Set<String> = setOf(
@@ -84,7 +84,7 @@ class UsernameService(
     )
 
     val usernameRegex = Regex(
-        "^(?!.*__)(?!^(.)\\1+$)(?!.*debbly)[A-Za-z0-9_]{5,18}$"
+        "^(?!.*__)(?!^(.)\\1+$)(?!.*debbly)[A-Za-z0-9_]{5,15}$"
     )
 
     fun generateUsername(): String {
@@ -92,9 +92,9 @@ class UsernameService(
         val fruit = fruitsVegetables.random().lowercase()
         val base = "${adjective}_${fruit}"
 
-        val maxAttempts = 100
+        val maxAttempts = 10
         for (attempt in 0 until maxAttempts) {
-            val number = Random.nextInt(10, 100)
+            val number = Random.nextInt(0, 99)
             val username = "${base}_$number"
 
             if (userCachedRepository.findByUsername(username) == null) {
@@ -102,7 +102,7 @@ class UsernameService(
             }
         }
 
-        return "${base}_${Random.nextInt(0, 999999)}"
+        return "${base}_${Random.nextInt(100, 999)}"
     }
 
     fun validateUsername(username: String, currentUserId: String? = null): UsernameValidationResult {
@@ -111,7 +111,7 @@ class UsernameService(
         if (!trimmed.matches(usernameRegex)) {
             return UsernameValidationResult(
                 valid = false,
-                reason = "Username must be 5–18 characters long and contain only letters, digits, or underscores"
+                reason = "Username must be 5–15 characters long and contain only letters, digits, or underscores"
             )
         }
 

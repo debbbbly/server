@@ -156,3 +156,86 @@ databaseChangeLog:
               - column:
                   name: category_id
       comment: "Create index on claims.category_id for efficient category filtering (previously missing)"
+
+  - changeSet:
+      id: 8
+      author: claude
+      changes:
+        - renameColumn:
+            tableName: claims
+            oldColumnName: topic_stance
+            newColumnName: stance_to_topic
+            columnDataType: varchar(16)
+      comment: "Rename topic_stance to topic_alignment for clarity (indicates how claim aligns with topic)"
+
+  - changeSet:
+      id: 9
+      author: claude
+      comment: "Backfill claim topics and stance defaults"
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO topics (topic_id, category_id, title, created_at, updated_at)
+              SELECT 'other', 'society', 'Other', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+              WHERE NOT EXISTS (SELECT 1 FROM topics WHERE topic_id = 'other');
+        - sql:
+            sql: UPDATE claims SET topic_id = 'other' WHERE topic_id IS NULL;
+        - sql:
+            sql: UPDATE claims SET stance_to_topic = 'NEUTRAL' WHERE stance_to_topic IS NULL;
+        - addNotNullConstraint:
+            tableName: claims
+            columnName: topic_id
+            columnDataType: varchar(16)
+        - addNotNullConstraint:
+            tableName: claims
+            columnName: stance_to_topic
+            columnDataType: varchar(16)
+
+  - changeSet:
+      id: 10
+      author: claude
+      comment: "Create users_topics table for storing user stances on topics"
+      changes:
+        - createTable:
+            tableName: users_topics
+            columns:
+              - column:
+                  name: topic_id
+                  type: varchar(16)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: varchar(16)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: stance
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseColumnNames: topic_id
+            baseTableName: users_topics
+            constraintName: fk_users_topics_topic_id
+            referencedColumnNames: topic_id
+            referencedTableName: topics
+        - addForeignKeyConstraint:
+            baseColumnNames: user_id
+            baseTableName: users_topics
+            constraintName: fk_users_topics_user_id
+            referencedColumnNames: user_id
+            referencedTableName: users
+        - createIndex:
+            indexName: idx_users_topics_user_id
+            tableName: users_topics
+            columns:
+              - column:
+                  name: user_id

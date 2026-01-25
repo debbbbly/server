@@ -7,9 +7,9 @@ import java.io.Serializable
 import java.time.Instant
 
 @Entity(name = "users_claims")
-data class UserClaimEntity(
+data class UserClaimStanceEntity(
     @EmbeddedId
-    val id: UserClaimId,
+    val id: UserClaimStanceId,
     @ManyToOne(fetch = FetchType.EAGER)
     @MapsId("claimId")
     @JoinColumn(name = "claim_id")
@@ -22,7 +22,7 @@ data class UserClaimEntity(
 )
 
 @Embeddable
-data class UserClaimId(
+data class UserClaimStanceId(
     val claimId: String,
     val userId: String
 ) : Serializable

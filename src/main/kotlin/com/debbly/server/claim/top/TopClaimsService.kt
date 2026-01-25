@@ -7,7 +7,6 @@ import com.debbly.server.claim.user.repository.UserClaimJpaRepository
 import com.debbly.server.category.repository.CategoryCachedRepository
 import com.debbly.server.stage.repository.StageJpaRepository
 import com.debbly.server.user.repository.UserJpaRepository
-import org.slf4j.LoggerFactory
 import org.slf4j.LoggerFactory.getLogger
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -35,6 +34,7 @@ class TopClaimsService(
             TopClaimResponse(
                 claimId = stats.claimId,
                 categoryId = stats.categoryId,
+                topicId = stats.topicId,
                 title = stats.title,
                 rank = stats.rank,
                 recentDebates = stats.recentDebates,
@@ -43,6 +43,12 @@ class TopClaimsService(
                 recentInterest = stats.recentInterest
             )
         }
+    }
+
+    fun getTopClaimsForTopic(topicId: String, limit: Int = 10): List<TopClaimWithStats> {
+        return topClaimRedisRepository.findAllByOrderByRankAsc()
+            .filter { it.topicId == topicId }
+            .take(limit)
     }
 
     /**
@@ -119,7 +125,7 @@ class TopClaimsService(
             }
         }
 
-        val allClaimsMap = claimJpaRepository.findByClaimIdInWithAllData(allRelevantClaimIds)
+        val allClaimsMap = claimJpaRepository.findByClaimIds(allRelevantClaimIds)
             .filter { it.categoryId in activeCategoryIds }
             .associate { it.claimId to it.toModel() }
 
