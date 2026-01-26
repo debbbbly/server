@@ -4,4 +4,6 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
 
 @Repository
-interface TopicRepository : JpaRepository<TopicEntity, String>
+interface TopicRepository : JpaRepository<TopicEntity, String> {
+    fun findBySlug(slug: String): TopicEntity?
+}

@@ -273,3 +273,24 @@ databaseChangeLog:
         - dropColumn:
             tableName: claims
             columnName: score_total
+
+  - changeSet:
+      id: 14
+      author: claude
+      comment: Add slug column for URL-friendly claim identifiers
+      changes:
+        - addColumn:
+            tableName: claims
+            columns:
+              - column:
+                  name: slug
+                  type: varchar(100)
+                  constraints:
+                    nullable: true
+        - createIndex:
+            indexName: idx_claims_slug
+            tableName: claims
+            columns:
+              - column:
+                  name: slug
+            unique: true

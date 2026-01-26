@@ -1,5 +1,6 @@
 package com.debbly.server.claim.topic
 
+import com.debbly.server.IdService
 import com.debbly.server.ai.OpenAiService
 import com.debbly.server.embedding.topic.TopicEmbeddingEntity
 import com.debbly.server.embedding.topic.TopicEmbeddingRepository
@@ -10,10 +11,10 @@ import com.debbly.server.claim.topic.repository.TopicRepository
 import com.debbly.server.claim.topic.repository.TopicSimilarityEntity
 import com.debbly.server.claim.topic.repository.TopicSimilarityRepository
 import com.debbly.server.embedding.topic.SimilarTopicProjection
+import com.debbly.server.util.SlugService
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.text.Normalizer
 import java.time.Clock
 import java.time.Instant
 
@@ -23,6 +24,8 @@ class TopicService(
     private val topicEmbeddingRepository: TopicEmbeddingRepository,
     private val topicSimilarityRepository: TopicSimilarityRepository,
     private val openAiService: OpenAiService,
+    private val slugService: SlugService,
+    private val idService: IdService,
     private val clock: Clock
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -30,51 +33,6 @@ class TopicService(
     companion object {
         private const val TOPIC_MATCH_THRESHOLD = 0.82
         private const val SIMILARITY_STORE_THRESHOLD = 0.68
-        private const val MAX_SLUG_LENGTH = 50
-    }
-
-    /**
-     * Generate a URL-friendly slug from title.
-     * Example: "Gun Control Laws" -> "gun-control-laws"
-     */
-    private fun slugify(title: String): String {
-        return Normalizer.normalize(title, Normalizer.Form.NFD)
-            .replace(Regex("[\\p{InCombiningDiacriticalMarks}]"), "")
-            .lowercase()
-            .replace(Regex("[^a-z0-9\\s-]"), "")
-            .trim()
-            .replace(Regex("\\s+"), "-")
-            .replace(Regex("-+"), "-")
-            .take(MAX_SLUG_LENGTH)
-            .trimEnd('-')
-    }
-
-    /**
-     * Generate a unique topic ID from title, handling collisions.
-     */
-    private fun generateTopicId(title: String): String {
-        val baseSlug = slugify(title)
-        if (baseSlug.isEmpty()) {
-            return "topic-${System.currentTimeMillis()}"
-        }
-
-        // Check if base slug is available
-        if (!topicRepository.existsById(baseSlug)) {
-            return baseSlug
-        }
-
-        // Find unique slug by appending number
-        var counter = 2
-        while (counter < 100) {
-            val candidateSlug = "$baseSlug-$counter"
-            if (!topicRepository.existsById(candidateSlug)) {
-                return candidateSlug
-            }
-            counter++
-        }
-
-        // Fallback with timestamp
-        return "$baseSlug-${System.currentTimeMillis()}"
     }
 
     /**
@@ -117,9 +75,10 @@ class TopicService(
         // Create new topic with provided categoryId
         val now = Instant.now(clock)
         val newTopic = TopicModel(
-            topicId = generateTopicId(title),
+            topicId = idService.getId(),
             categoryId = categoryId,
             title = title,
+            slug = slugService.slugify(title),
             createdAt = now,
             updatedAt = now
         )

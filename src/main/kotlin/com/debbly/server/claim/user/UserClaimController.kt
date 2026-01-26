@@ -25,6 +25,7 @@ class UserClaimController(
         return userClaimService.getClaims(userId).map { userClaim ->
             GetUserClaimsResponse(
                 claimId = userClaim.claim.claimId,
+                claimSlug = userClaim.claim.slug,
                 categoryId = userClaim.claim.categoryId,
                 title = userClaim.claim.title,
                 userClaim = GetUserClaimsResponse(
@@ -94,6 +95,7 @@ class UserClaimController(
 
     data class GetUserClaimsResponse(
         val claimId: String,
+        val claimSlug: String?,
         val categoryId: String,
         val title: String,
         val userClaim: GetUserClaimsResponse

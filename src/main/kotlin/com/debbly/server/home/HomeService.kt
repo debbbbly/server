@@ -51,7 +51,7 @@ class HomeService(
 
         val responses = getTopicsWithStages(
             userId = userId,
-            topics = filteredTopics.map { TopicInfo(it.topicId, it.categoryId, it.title) },
+            topics = filteredTopics.map { TopicInfo(it.topicId, it.topicSlug, it.categoryId, it.title) },
             stageLimit = stageLimit,
             includeTotalStages = false
         )
@@ -70,12 +70,14 @@ class HomeService(
 
     /**
      * Get single topic detail with paginated stages.
+     * Accepts either topicId or topicSlug for lookup.
      */
-    fun getTopic(userId: String?, topicId: String, stageLimit: Int): HomeTopicResponse {
-        val topic = topicRepository.findById(topicId).getOrNull()
-            ?: throw NoSuchElementException("Topic not found: $topicId")
+    fun getTopic(userId: String?, topicIdOrSlug: String, stageLimit: Int): HomeTopicResponse {
+        val topic = topicRepository.findById(topicIdOrSlug).getOrNull()
+            ?: topicRepository.findBySlug(topicIdOrSlug)
+            ?: throw NoSuchElementException("Topic not found: $topicIdOrSlug")
 
-        val topicInfo = TopicInfo(topic.topicId, topic.categoryId, topic.title)
+        val topicInfo = TopicInfo(topic.topicId, topic.slug ?: topic.topicId, topic.categoryId, topic.title)
 
         return getTopicsWithStages(
             userId = userId,
@@ -88,15 +90,20 @@ class HomeService(
     /**
      * Get paginated stages for a topic using cursor-based pagination.
      * Cursor is the openedAt timestamp of the last stage seen (ISO-8601 format).
+     * Accepts either topicId or topicSlug for lookup.
      */
-    fun getTopicStages(topicId: String, stageCursor: String?, stagesLimit: Int): TopicStagesResponse {
+    fun getTopicStages(topicIdOrSlug: String, stageCursor: String?, stagesLimit: Int): TopicStagesResponse {
+        val topic = topicRepository.findById(topicIdOrSlug).getOrNull()
+            ?: topicRepository.findBySlug(topicIdOrSlug)
+            ?: throw NoSuchElementException("Topic not found: $topicIdOrSlug")
+
         val cursorOpenedAt = stageCursor?.let {
             runCatching { Instant.parse(it) }.getOrNull()
         }
 
         // Query with cursor-based pagination in SQL
         val stages = stageJpaRepository.findStagesByTopicIdPaginated(
-            topicId = topicId,
+            topicId = topic.topicId,
             statuses = STAGE_VISIBLE_STATUSES,
             cursorOpenedAt = cursorOpenedAt
         ).take(stagesLimit + 1)
@@ -120,7 +127,8 @@ class HomeService(
         }
 
         return TopicStagesResponse(
-            topicId = topicId,
+            topicId = topic.topicId,
+            topicSlug = topic.slug ?: topic.topicId,
             stages = stageResponses,
             nextCursor = nextCursor
         )
@@ -187,6 +195,7 @@ class HomeService(
 
             HomeTopicResponse(
                 topicId = topic.topicId,
+                topicSlug = topic.topicSlug,
                 categoryId = topic.categoryId,
                 title = topic.title,
                 claims = topClaims,
@@ -200,6 +209,7 @@ class HomeService(
 
     private fun TopClaimResponse.toHomeTopClaimResponse(userStance: ClaimStance? = null) = HomeTopClaimResponse(
         claimId = claimId,
+        claimSlug = claimSlug,
         title = title,
         forCount = forCount,
         againstCount = againstCount,
@@ -246,7 +256,7 @@ class HomeService(
 
         return HomeStageResponse(
             stageId = stage.stageId,
-            claim = HomeClaimResponse(claim.claimId, claim.title),
+            claim = HomeClaimResponse(claim.claimId, claim.slug, claim.title),
             hosts = hosts,
             status = stage.status,
             openedAt = stage.openedAt,
@@ -256,6 +266,7 @@ class HomeService(
 
     private data class TopicInfo(
         val topicId: String,
+        val topicSlug: String,
         val categoryId: String,
         val title: String
     )

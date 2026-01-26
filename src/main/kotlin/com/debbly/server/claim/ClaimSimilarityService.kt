@@ -55,6 +55,7 @@ class ClaimSimilarityService(
             results.map { projection ->
                 SimilarClaim(
                     claimId = projection.claimId,
+                    claimSlug = null, // Slug not stored in embeddings DB
                     title = projection.title,
                     categoryId = projection.categoryId,
                     similarity = projection.similarity,
@@ -79,6 +80,7 @@ class ClaimSimilarityService(
 
 data class SimilarClaim(
     val claimId: String,
+    val claimSlug: String?,
     val title: String,
     val categoryId: String,
     val similarity: Double,

@@ -43,4 +43,6 @@ interface ClaimJpaRepository : JpaRepository<ClaimEntity, String> {
     fun findByTopicIdNotNullAndCreatedAtAfter(
         @Param("since") since: Instant,
     ): List<ClaimEntity>
+
+    fun findBySlug(slug: String): ClaimEntity?
 }

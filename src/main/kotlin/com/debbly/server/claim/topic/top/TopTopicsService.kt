@@ -23,6 +23,7 @@ class TopTopicsService(
         return topTopicRedisRepository.findAllByOrderByRankAsc().map { stats ->
             TopTopicResponse(
                 topicId = stats.topicId,
+                topicSlug = stats.topicSlug,
                 categoryId = stats.categoryId,
                 title = stats.title,
                 rank = stats.rank,
@@ -112,6 +113,7 @@ class TopTopicsService(
                 topTopicRedisRepository.save(
                     TopTopicWithStats(
                         topicId = topicScore.topicId,
+                        topicSlug = topic.slug ?: topicScore.topicId,
                         categoryId = topic.categoryId,
                         title = topic.title,
                         rank = index + 1,

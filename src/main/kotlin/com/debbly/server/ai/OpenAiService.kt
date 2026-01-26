@@ -362,8 +362,7 @@ class OpenAiService(
     }
 
     fun moderateChatMessage(message: String): ChatModerationResult {
-        // Truncate message if too long
-        val processedMessage = if (message.length > MAX_CHAT_MESSAGE_LENGTH) {
+        val truncated = if (message.length > MAX_CHAT_MESSAGE_LENGTH) {
             message.take(MAX_CHAT_MESSAGE_LENGTH - 3) + "..."
         } else {
             message
@@ -376,7 +375,7 @@ class OpenAiService(
 
             val requestBody = mapOf(
                 "model" to "omni-moderation-latest",
-                "input" to processedMessage
+                "input" to truncated
             )
 
             val request = HttpEntity(requestBody, headers)
@@ -387,7 +386,7 @@ class OpenAiService(
             )
 
             val result = response?.results?.firstOrNull() ?: return ChatModerationResult(
-                message = processedMessage,
+                message = truncated,
                 wasModerated = false
             )
 
@@ -418,7 +417,7 @@ class OpenAiService(
                 )
             } else {
                 ChatModerationResult(
-                    message = processedMessage,
+                    message = truncated,
                     wasModerated = false
                 )
             }
@@ -426,7 +425,7 @@ class OpenAiService(
             logger.error("Error moderating chat message: ${e.message}", e)
             // Fail open - return processed (truncated) message if moderation check fails
             ChatModerationResult(
-                message = processedMessage,
+                message = truncated,
                 wasModerated = false
             )
         }

@@ -239,3 +239,24 @@ databaseChangeLog:
             columns:
               - column:
                   name: user_id
+
+  - changeSet:
+      id: 11
+      author: claude
+      comment: "Add slug column for URL-friendly topic identifiers"
+      changes:
+        - addColumn:
+            tableName: topics
+            columns:
+              - column:
+                  name: slug
+                  type: varchar(100)
+                  constraints:
+                    nullable: true
+        - createIndex:
+            indexName: idx_topics_slug
+            tableName: topics
+            columns:
+              - column:
+                  name: slug
+            unique: true

@@ -92,3 +92,17 @@ databaseChangeLog:
         - sql:
             sql: CREATE INDEX idx_topic_embeddings_embedding ON topic_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)
       comment: "Create IVFFlat index for fast topic similarity search using cosine distance"
+
+  - changeSet:
+      id: 6
+      author: claude
+      changes:
+        - addColumn:
+            tableName: topic_embeddings
+            columns:
+              - column:
+                  name: updated_at
+                  type: timestamp
+                  constraints:
+                    nullable: true
+      comment: "Add updated_at column to topic_embeddings table"

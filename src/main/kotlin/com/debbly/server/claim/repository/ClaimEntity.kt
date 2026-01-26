@@ -10,6 +10,7 @@ data class ClaimEntity(
     val claimId: String,
     val categoryId: String,
     val title: String,
+    val slug: String?,
     val createdAt: Instant,
     val topicId: String,
     @Enumerated(EnumType.STRING)

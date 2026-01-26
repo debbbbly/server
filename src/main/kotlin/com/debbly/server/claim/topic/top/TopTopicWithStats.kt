@@ -7,6 +7,7 @@ import org.springframework.data.redis.core.index.Indexed
 @RedisHash("topTopic")
 data class TopTopicWithStats(
     @Id val topicId: String,
+    val topicSlug: String,
     val categoryId: String,
     val title: String,
     @Indexed val rank: Int,

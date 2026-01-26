@@ -11,6 +11,7 @@ data class HomeTopicsResponse(
 
 data class HomeTopicResponse(
     val topicId: String,
+    val topicSlug: String,
     val categoryId: String,
     val title: String,
     val claims: List<HomeTopClaimResponse>,
@@ -23,6 +24,7 @@ data class HomeTopicResponse(
 
 data class HomeTopClaimResponse(
     val claimId: String,
+    val claimSlug: String?,
     val title: String,
     val forCount: Int,
     val againstCount: Int,
@@ -40,6 +42,7 @@ data class HomeStageResponse(
 
 data class HomeClaimResponse(
     val claimId: String,
+    val claimSlug: String?,
     val title: String
 )
 
@@ -52,6 +55,7 @@ data class HomeHostResponse(
 
 data class TopicStagesResponse(
     val topicId: String,
+    val topicSlug: String,
     val stages: List<HomeStageResponse>,
     val nextCursor: String?
 )

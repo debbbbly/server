@@ -38,17 +38,18 @@ class HomeController(
 
     /**
      * Get single topic detail page with paginated stages.
+     * Accepts either topicId or topicSlug.
      */
-    @GetMapping("/topics/{topicId}")
+    @GetMapping("/topics/{topicIdOrSlug}")
     fun getTopicDetail(
         @ExternalUserId externalUserId: String?,
-        @PathVariable topicId: String,
+        @PathVariable topicIdOrSlug: String,
         @RequestParam(defaultValue = "20") stageLimit: Int
     ): ResponseEntity<HomeTopicResponse> {
         val userId = externalUserId?.let { authService.authenticateOptional(it)?.userId }
         val response = homeService.getTopic(
             userId = userId,
-            topicId = topicId,
+            topicIdOrSlug = topicIdOrSlug,
             stageLimit = stageLimit.coerceIn(1, 50)
         )
         return ResponseEntity.ok(response)
@@ -56,15 +57,16 @@ class HomeController(
 
     /**
      * Get paginated stages for a topic.
+     * Accepts either topicId or topicSlug.
      */
-    @GetMapping("/topics/{topicId}/stages")
+    @GetMapping("/topics/{topicIdOrSlug}/stages")
     fun getTopicStages(
-        @PathVariable topicId: String,
+        @PathVariable topicIdOrSlug: String,
         @RequestParam(required = false) stageCursor: String?,
         @RequestParam(defaultValue = "10") stagesLimit: Int
     ): ResponseEntity<TopicStagesResponse> {
         val response = homeService.getTopicStages(
-            topicId = topicId,
+            topicIdOrSlug = topicIdOrSlug,
             stageCursor = stageCursor,
             stagesLimit = stagesLimit.coerceIn(1, 50)
         )

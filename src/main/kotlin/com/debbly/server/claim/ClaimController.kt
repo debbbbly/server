@@ -7,6 +7,7 @@ import com.debbly.server.claim.model.ClaimModel
 import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.top.TopClaimsService
+import com.debbly.server.claim.topic.repository.TopicRepository
 import com.debbly.server.claim.user.UserClaimService
 import com.debbly.server.stage.repository.StageJpaRepository
 import com.debbly.server.stage.repository.entities.StageStatus
@@ -17,6 +18,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import java.time.Instant
+import kotlin.jvm.optionals.getOrNull
 
 @RestController
 @RequestMapping("/claims")
@@ -28,7 +30,8 @@ class ClaimController(
     private val authService: AuthService,
     private val claimSimilarityService: ClaimSimilarityService,
     private val stageJpaRepository: StageJpaRepository,
-    private val userCachedRepository: UserCachedRepository
+    private val userCachedRepository: UserCachedRepository,
+    private val topicRepository: TopicRepository
 ) {
 
     @GetMapping("/top")
@@ -58,6 +61,7 @@ class ClaimController(
 
             GetTopClaimsResponse(
                 claimId = topClaim.claimId,
+                claimSlug = topClaim.claimSlug,
                 categoryId = topClaim.categoryId,
                 title = topClaim.title,
                 rank = topClaim.rank,
@@ -114,28 +118,36 @@ class ClaimController(
         )
     }
 
-    @GetMapping("/{claimId}")
+    /**
+     * Get claim detail. Accepts either claimId or claimSlug.
+     */
+    @GetMapping("/{claimIdOrSlug}")
     fun getClaimById(
-        @PathVariable claimId: String,
+        @PathVariable claimIdOrSlug: String,
         @ExternalUserId externalUserId: String?,
         @RequestParam(defaultValue = "10") stageLimit: Int
     ): ResponseEntity<ClaimDetailResponse> {
-        val claim = claimCachedRepository.findById(claimId)
+        val claim = claimCachedRepository.findById(claimIdOrSlug)
+            ?: claimCachedRepository.findBySlug(claimIdOrSlug)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Claim not found")
 
         val userId = externalUserId?.let { authService.authenticate(it).userId }
 
+        // Fetch topic to get its slug
+        val topic = topicRepository.findById(claim.topicId).getOrNull()
+        val topicSlug = topic?.slug ?: claim.topicId
+
         // Try to get stats from top claims cache
         val topClaimStats = topClaimsService.getTopClaimsFromCache()
-            .find { it.claimId == claimId }
+            .find { it.claimId == claim.claimId }
 
         val userClaim = userId?.let {
-            userClaimService.getClaims(it).find { uc -> uc.claim.claimId == claimId }
+            userClaimService.getClaims(it).find { uc -> uc.claim.claimId == claim.claimId }
         }
 
         // Fetch stages for this claim
         val stages = stageJpaRepository.findStagesByClaimId(
-            claimId = claimId,
+            claimId = claim.claimId,
             statuses = listOf(StageStatus.OPEN, StageStatus.RECORDED)
         ).take(stageLimit.coerceIn(1, 50))
 
@@ -163,8 +175,10 @@ class ClaimController(
         return ResponseEntity.ok(
             ClaimDetailResponse(
                 claimId = claim.claimId,
+                claimSlug = claim.slug,
                 categoryId = claim.categoryId,
                 topicId = claim.topicId,
+                topicSlug = topicSlug,
                 title = claim.title,
                 recentDebates = topClaimStats?.recentDebates ?: 0,
                 forCount = topClaimStats?.forCount ?: 0,
@@ -192,6 +206,7 @@ class ClaimController(
 
 data class GetTopClaimsResponse(
     val claimId: String,
+    val claimSlug: String?,
     val categoryId: String,
     val title: String,
     val rank: Int,
@@ -208,8 +223,10 @@ data class GetTopClaimsResponse(
 
 data class ClaimDetailResponse(
     val claimId: String,
+    val claimSlug: String?,
     val categoryId: String,
     val topicId: String,
+    val topicSlug: String,
     val title: String,
     val recentDebates: Int,
     val forCount: Int,

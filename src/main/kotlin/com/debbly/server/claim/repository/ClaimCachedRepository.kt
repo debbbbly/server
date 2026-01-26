@@ -22,6 +22,10 @@ class ClaimCachedRepository(
     fun findById(claimId: String): ClaimModel? =
         claimJpaRepository.findById(claimId).getOrNull()?.toModel()
 
+    @Cacheable(value = ["claimsBySlug"], key = "#slug", unless = "#result == null")
+    fun findBySlug(slug: String): ClaimModel? =
+        claimJpaRepository.findBySlug(slug)?.toModel()
+
     @Cacheable(value = ["allClaims"])
     fun findAll(): List<ClaimModel> =
         claimJpaRepository.findAllWithAllData().map { it.toModel() }

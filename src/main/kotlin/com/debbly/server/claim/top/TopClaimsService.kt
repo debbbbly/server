@@ -33,6 +33,7 @@ class TopClaimsService(
         return topClaimRedisRepository.findAllByOrderByRankAsc().map { stats ->
             TopClaimResponse(
                 claimId = stats.claimId,
+                claimSlug = stats.claimSlug,
                 categoryId = stats.categoryId,
                 topicId = stats.topicId,
                 title = stats.title,
@@ -176,6 +177,7 @@ class TopClaimsService(
                 topClaimRedisRepository.save(
                     TopClaimWithStats(
                         claimId = claimScore.claimId,
+                        claimSlug = claim.slug,
                         categoryId = claim.categoryId,
                         topicId = claim.topicId,
                         title = claim.title,

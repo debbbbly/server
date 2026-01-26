@@ -161,16 +161,20 @@ class StageService(
 
         val (isHost, livekitToken) = userId.let { tokenUserId ->
             val isHost = stage.hosts.any { it.userId == userId }
+            val isOpenOrPending = stage.status in setOf(StageStatus.PENDING, StageStatus.OPEN)
+
             val userStance = stage.hosts.find { it.userId == userId }?.stance ?: ClaimStance.EITHER
             val role = if (isHost) "HOST" else "VIEWER"
             val metadata = """{"role":"$role","stance":"${userStance.name}"}"""
 
-            isHost to liveKitService.getToken(
+            val token = if (isOpenOrPending) liveKitService.getToken(
                 userId = tokenUserId,
                 stageId = stageId,
                 canPublish = isHost,
                 metadata = metadata
-            )
+            ) else null
+
+            isHost to token
         }
 
         return StageDetails(

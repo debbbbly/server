@@ -12,6 +12,7 @@ data class TopicEntity(
     @Column(name = "category_id")
     val categoryId: String,
     val title: String,
+    val slug: String?,
     val createdAt: Instant,
-    var updatedAt: Instant
+    var updatedAt: Instant,
 )

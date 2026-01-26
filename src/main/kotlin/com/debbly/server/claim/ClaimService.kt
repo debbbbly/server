@@ -12,6 +12,7 @@ import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.embedding.claim.ClaimEmbeddingEntity
 import com.debbly.server.embedding.claim.ClaimEmbeddingRepository
+import com.debbly.server.util.SlugService
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -28,6 +29,7 @@ class ClaimService(
     private val embeddingRepository: ClaimEmbeddingRepository,
     private val topicService: com.debbly.server.claim.topic.TopicService,
     private val idService: IdService,
+    private val slugService: SlugService,
     private val clock: Clock,
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -95,11 +97,13 @@ class ClaimService(
         categoryCachedRepository.findById(categoryId)
             ?: throw IllegalArgumentException("Topic's category not found: $categoryId")
 
+        val claimTitle = validationResult.normalized ?: title
         val claim =
             ClaimModel(
                 claimId = idService.getId(),
                 categoryId = categoryId,
-                title = validationResult.normalized ?: title,
+                title = claimTitle,
+                slug = slugService.slugify(claimTitle),
                 createdAt = now(clock),
                 topicId = topic.topicId,
                 stanceToTopic = validationResult.stanceToTopic ?: com.debbly.server.claim.model.StanceToTopic.NEUTRAL,
