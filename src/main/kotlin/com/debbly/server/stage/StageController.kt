@@ -2,7 +2,7 @@ package com.debbly.server.stage
 
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.infra.error.UnauthorizedException
-import com.debbly.server.stage.model.StageModel
+import com.debbly.server.stage.model.LiveStageEntity
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.data.repository.query.Param
@@ -37,10 +37,11 @@ class StageController(
         return ResponseEntity.ok(stageDetails)
     }
 
-    data class CreateStageRequest(
-        val claimId: String,
-        val hosts: List<StageModel.StageHostModel>
-    )
+    @GetMapping("/live")
+    fun getLiveStages(): ResponseEntity<List<LiveStageEntity>> {
+        val liveStages = liveStageRedisRepository.findAll().toList()
+        return ResponseEntity.ok(liveStages)
+    }
 
     @PostMapping("/{stageId}/heartbeat")
     fun heartbeat(@PathVariable stageId: String, @ExternalUserId externalUserId: String?): ResponseEntity<Unit> {

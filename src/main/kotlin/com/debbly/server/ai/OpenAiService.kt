@@ -99,7 +99,8 @@ class OpenAiService(
             - Remove emojis, special symbols, random punctuation
             - Remove ALL CAPS shouting (convert to sentence case or title case if appropriate)
             - Normalize slang and contractions into standard English where possible.
-            - Clarify vague claims into specific, debatable statements while keeping intent
+            - Clarify vague claims into specific, debatable statements while keeping intent.
+            - Translate the claim to English if it is not in English.
             
             Claim Categories (categoryId / title):
             - politics / Politics
