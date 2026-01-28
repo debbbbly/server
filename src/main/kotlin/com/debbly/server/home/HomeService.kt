@@ -209,7 +209,7 @@ class HomeService(
         }
     }
 
-    private fun TopClaimResponse.toHomeTopClaimResponse(userStance: ClaimStance? = null) = HomeTopClaimResponse(
+    private fun TopClaimResponse.toHomeTopClaimResponse(userStance: ClaimStance? = null) = HomeClaimResponse(
         claimId = claimId,
         claimSlug = claimSlug,
         title = title,
@@ -258,7 +258,7 @@ class HomeService(
 
         return HomeStageResponse(
             stageId = stage.stageId,
-            claim = HomeClaimResponse(claim.claimId, claim.slug, claim.title),
+            claim = HomeStageClaimResponse(claim.claimId, claim.slug, claim.title),
             hosts = hosts,
             status = stage.status,
             openedAt = stage.openedAt,
@@ -282,7 +282,7 @@ class HomeService(
         val stages = liveStages.map { liveStage ->
             HomeStageResponse(
                 stageId = liveStage.stageId,
-                claim = HomeClaimResponse(
+                claim = HomeStageClaimResponse(
                     claimId = liveStage.claimId ?: "",
                     claimSlug = liveStage.claimSlug,
                     title = liveStage.title ?: ""
