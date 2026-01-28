@@ -11,6 +11,7 @@ data class LiveStageEntity(
     val type: StageType,
     var hosts: Collection<LiveStageHost>,
     val claimId: String?,
+    val claimSlug: String?,
     val title: String?,
     val openedAt: Instant,
     var heartbeatAt: Instant,
@@ -20,6 +21,6 @@ data class LiveStageEntity(
 data class LiveStageHost(
     val userId: String,
     val username: String,
-    val userUrl: String?,
+    val avatarUrl: String?,
     val stance: ClaimStance?
 )

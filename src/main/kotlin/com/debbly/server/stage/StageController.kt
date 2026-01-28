@@ -37,12 +37,6 @@ class StageController(
         return ResponseEntity.ok(stageDetails)
     }
 
-    @GetMapping("/live")
-    fun getLiveStages(): ResponseEntity<List<LiveStageEntity>> {
-        val liveStages = liveStageRedisRepository.findAll().toList()
-        return ResponseEntity.ok(liveStages)
-    }
-
     @PostMapping("/{stageId}/heartbeat")
     fun heartbeat(@PathVariable stageId: String, @ExternalUserId externalUserId: String?): ResponseEntity<Unit> {
         if (externalUserId == null) {

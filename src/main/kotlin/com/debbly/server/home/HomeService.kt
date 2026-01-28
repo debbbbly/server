@@ -11,6 +11,7 @@ import com.debbly.server.claim.topic.top.TopTopicsService
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.claim.user.UserTopicStanceService
 import com.debbly.server.home.model.*
+import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageJpaRepository
 import com.debbly.server.stage.repository.entities.StageEntity
 import com.debbly.server.stage.repository.entities.StageStatus
@@ -29,7 +30,8 @@ class HomeService(
     private val userCachedRepository: UserCachedRepository,
     private val topicRepository: TopicRepository,
     private val userClaimCachedRepository: UserClaimCachedRepository,
-    private val userTopicStanceService: UserTopicStanceService
+    private val userTopicStanceService: UserTopicStanceService,
+    private val liveStageRedisRepository: LiveStageRedisRepository
 ) {
     companion object {
         private val STAGE_VISIBLE_STATUSES = listOf(StageStatus.OPEN, StageStatus.RECORDED)
@@ -270,4 +272,33 @@ class HomeService(
         val categoryId: String,
         val title: String
     )
+
+    /**
+     * Get all currently live stages from Redis cache.
+     */
+    fun getLiveStages(): List<HomeStageResponse> {
+        val liveStages = liveStageRedisRepository.findAll().toList()
+
+        return liveStages.map { liveStage ->
+            HomeStageResponse(
+                stageId = liveStage.stageId,
+                claim = HomeClaimResponse(
+                    claimId = liveStage.claimId ?: "",
+                    claimSlug = liveStage.claimSlug,
+                    title = liveStage.title ?: ""
+                ),
+                hosts = liveStage.hosts.map { host ->
+                    HomeHostResponse(
+                        userId = host.userId,
+                        username = host.username,
+                        avatarUrl = host.avatarUrl,
+                        stance = host.stance
+                    )
+                },
+                status = StageStatus.OPEN,
+                openedAt = liveStage.openedAt,
+                closedAt = null
+            )
+        }
+    }
 }

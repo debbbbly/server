@@ -24,6 +24,7 @@ import com.debbly.server.stage.model.StageType
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageCachedRepository
 import com.debbly.server.stage.repository.entities.StageStatus
+import com.debbly.server.stage.repository.entities.StageStatus.*
 import com.debbly.server.user.SocialType
 import com.debbly.server.user.repository.UserCachedRepository
 import livekit.LivekitModels
@@ -161,7 +162,7 @@ class StageService(
 
         val (isHost, livekitToken) = userId.let { tokenUserId ->
             val isHost = stage.hosts.any { it.userId == userId }
-            val isOpenOrPending = stage.status in setOf(StageStatus.PENDING, StageStatus.OPEN)
+            val isOpenOrPending = stage.status in setOf(PENDING, OPEN)
 
             val userStance = stage.hosts.find { it.userId == userId }?.stance ?: ClaimStance.EITHER
             val role = if (isHost) "HOST" else "VIEWER"
@@ -202,7 +203,7 @@ class StageService(
         if (baseUrl == null) return null
 
         val playlistName = when (status) {
-            StageStatus.CLOSED, StageStatus.RECORDED -> "playlist.m3u8"
+            CLOSED, RECORDED -> "playlist.m3u8"
             else -> "playlist-live.m3u8"
         }
 
@@ -252,7 +253,7 @@ class StageService(
                 title = claim.title,
                 hosts = hosts,
                 createdAt = Instant.now(clock),
-                status = StageStatus.PENDING,
+                status = PENDING,
                 openedAt = null,
                 closedAt = null
             )
@@ -277,7 +278,7 @@ class StageService(
                     claimId = null,
                     topicId = null,
                     createdAt = Instant.now(clock),
-                    status = StageStatus.PENDING,
+                    status = PENDING,
                     openedAt = null,
                     closedAt = null
                 )
@@ -304,12 +305,13 @@ class StageService(
                         LiveStageHost(
                             userId = user.userId,
                             username = user.username ?: "unknown",
-                            userUrl = user.avatarUrl,
+                            avatarUrl = user.avatarUrl,
                             stance = host.stance
                         )
                     }
                 },
                 claimId = stage.claimId,
+                claimSlug = claim?.slug,
                 title = claim?.title,
                 openedAt = Instant.now(clock),
                 heartbeatAt = Instant.now(clock)
@@ -361,7 +363,7 @@ class StageService(
             .map { it.identity }
             .filter { it in allHostUserIds }
 
-        if (connectedHosts.isEmpty() && stage.status != StageStatus.CLOSED) {
+        if (connectedHosts.isEmpty() && stage.status != CLOSED) {
             closeStageAfterAllHostsLeft(stage)
         } else if (!connectedHosts.contains(userId)) {
             // User left but others remain - schedule a check in 5 seconds
@@ -383,7 +385,7 @@ class StageService(
                 return
             }
 
-            if (stage.status == StageStatus.CLOSED) {
+            if (stage.status in setOf(CLOSED, RECORDED)) {
                 logger.debug("Stage $stageId already closed, skipping check")
                 return
             }
@@ -418,7 +420,7 @@ class StageService(
         removeDuplicateParticipants(stageId, liveKitParticipants)
 
         if (liveKitParticipants.map { it.identity }.toSet()
-                .containsAll(allHostUserIds) && stage.status == StageStatus.PENDING
+                .containsAll(allHostUserIds) && stage.status == PENDING
         ) {
             eventPublisher.publishEvent(AllHostsJoinedEvent(stageId))
         }
@@ -535,7 +537,7 @@ class StageService(
     private fun closeStage(stage: StageModel, reason: String) {
         val egressResult = stopEgressIfActive(stage.stageId)
         val recorded = isStageRecorded(egressResult)
-        val status = if (recorded) StageStatus.RECORDED else StageStatus.CLOSED
+        val status = if (recorded) RECORDED else CLOSED
 
         val closedStage = stage.copy(
             status = status,

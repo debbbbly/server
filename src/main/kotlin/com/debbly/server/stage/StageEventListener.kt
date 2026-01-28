@@ -128,12 +128,13 @@ class StageEventListener(
                         LiveStageHost(
                             userId = user.userId,
                             username = user.username ?: "unknown",
-                            userUrl = user.avatarUrl,
+                            avatarUrl = user.avatarUrl,
                             stance = host.stance
                         )
                     }
                 },
                 claimId = stage.claimId,
+                claimSlug = claim?.slug,
                 title = claim?.title,
                 openedAt = openedAt,
                 heartbeatAt = Instant.now(clock),
