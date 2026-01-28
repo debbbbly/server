@@ -276,10 +276,10 @@ class HomeService(
     /**
      * Get all currently live stages from Redis cache.
      */
-    fun getLiveStages(): List<HomeStageResponse> {
+    fun getLiveStages(): HomeLiveResponse {
         val liveStages = liveStageRedisRepository.findAll().toList()
 
-        return liveStages.map { liveStage ->
+        val stages = liveStages.map { liveStage ->
             HomeStageResponse(
                 stageId = liveStage.stageId,
                 claim = HomeClaimResponse(
@@ -300,5 +300,7 @@ class HomeService(
                 closedAt = null
             )
         }
+
+        return HomeLiveResponse(stages = stages)
     }
 }

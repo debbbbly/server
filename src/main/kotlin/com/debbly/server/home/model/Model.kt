@@ -38,6 +38,11 @@ data class HomeStageResponse(
     val status: StageStatus,
     val openedAt: Instant?,
     val closedAt: Instant?,
+    val thumbnailUrl: String? = null
+)
+
+data class HomeLiveResponse(
+    val stages: List<HomeStageResponse>
 )
 
 data class HomeClaimResponse(

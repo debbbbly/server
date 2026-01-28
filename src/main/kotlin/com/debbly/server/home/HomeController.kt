@@ -2,7 +2,7 @@ package com.debbly.server.home
 
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.auth.service.AuthService
-import com.debbly.server.home.model.HomeStageResponse
+import com.debbly.server.home.model.HomeLiveResponse
 import com.debbly.server.home.model.HomeTopicResponse
 import com.debbly.server.home.model.HomeTopicsResponse
 import com.debbly.server.home.model.TopicStagesResponse
@@ -78,7 +78,7 @@ class HomeController(
      * Get all currently live stages.
      */
     @GetMapping("/live")
-    fun getLiveStages(): ResponseEntity<List<HomeStageResponse>> {
+    fun getLiveStages(): ResponseEntity<HomeLiveResponse> {
         val response = homeService.getLiveStages()
         return ResponseEntity.ok(response)
     }
