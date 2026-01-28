@@ -10,16 +10,11 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
 @Configuration
 class WebConfig(
     private val userIdArgumentResolver: UserIdArgumentResolver,
-    private val userEmailArgumentResolver: UserEmailArgumentResolver,
-    private val endpointUsageInterceptor: EndpointUsageInterceptor
+    private val userEmailArgumentResolver: UserEmailArgumentResolver
 ) : WebMvcConfigurer {
 
     override fun addArgumentResolvers(resolvers: MutableList<HandlerMethodArgumentResolver>) {
         resolvers.add(userIdArgumentResolver)
         resolvers.add(userEmailArgumentResolver)
-    }
-
-    override fun addInterceptors(registry: InterceptorRegistry) {
-        registry.addInterceptor(endpointUsageInterceptor)
     }
 }
