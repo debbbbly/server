@@ -23,6 +23,8 @@ import com.debbly.server.stage.model.StageModel
 import com.debbly.server.stage.model.StageType
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageCachedRepository
+import com.debbly.server.stage.repository.entities.CloseReason
+import com.debbly.server.stage.repository.entities.CloseReason.*
 import com.debbly.server.stage.repository.entities.StageStatus
 import com.debbly.server.stage.repository.entities.StageStatus.*
 import com.debbly.server.user.SocialType
@@ -364,7 +366,7 @@ class StageService(
             .filter { it in allHostUserIds }
 
         if (connectedHosts.isEmpty() && stage.status != CLOSED) {
-            closeStageAfterAllHostsLeft(stage)
+            closeStage(stage, HOST_LEFT)
         } else if (!connectedHosts.contains(userId)) {
             // User left but others remain - schedule a check in 5 seconds
             // This gives a grace period for temporary disconnections (network hiccups, page reloads)
@@ -397,17 +399,13 @@ class StageService(
             // Check if the user who left is still absent
             if (!participantIds.contains(leftHostUserId)) {
                 logger.info("User $leftHostUserId still absent after grace period, closing stage $stageId")
-                closeStageAfterAllHostsLeft(stage)
+                closeStage(stage, ALL_HOSTS_LEFT)
             } else {
                 logger.debug("User $leftHostUserId rejoined stage $stageId, not closing")
             }
         } catch (e: Exception) {
             logger.error("Error checking stage $stageId for closure", e)
         }
-    }
-
-    private fun closeStageAfterAllHostsLeft(stage: StageModel) {
-        closeStage(stage, "all_hosts_left")
     }
 
     fun onUserJoined(userId: String, stageId: String) {
@@ -523,7 +521,7 @@ class StageService(
                 val stage = stageRepository.findById(liveStage.stageId)
                 if (stage != null) {
                     logger.info("Closing stage ${stage.stageId} due to time limit (${timeLimitSeconds / 60} minutes)")
-                    closeStage(stage, "timeout")
+                    closeStage(stage, TIMEOUT)
                 } else {
                     logger.warn("Stage ${liveStage.stageId} found in Redis but not in database, cleaning up Redis")
                     liveStageRedisRepository.deleteById(liveStage.stageId)
@@ -534,15 +532,29 @@ class StageService(
         }
     }
 
-    private fun closeStage(stage: StageModel, reason: String) {
+    private fun closeStage(stage: StageModel, reason: CloseReason) {
+
+        val currentStage = stageRepository.findById(stage.stageId)
+        if (currentStage == null || currentStage.status in setOf(CLOSED, RECORDED)) {
+            return
+        }
+
+        stageRepository.save(
+            currentStage.copy(
+                status = CLOSED,
+                closedAt = Instant.now(clock),
+                closeReason = reason
+            )
+        )
+
         val egressResult = stopEgressIfActive(stage.stageId)
         val recorded = isStageRecorded(egressResult)
         val status = if (recorded) RECORDED else CLOSED
 
-        val closedStage = stage.copy(
+        val closedStage = currentStage.copy(
             status = status,
             closedAt = Instant.now(clock),
-            recorded = recorded
+            closeReason = reason
         )
         stageRepository.save(closedStage)
         liveStageRedisRepository.deleteById(stage.stageId)
@@ -553,12 +565,12 @@ class StageService(
         logger.info("Closed stage ${stage.stageId}, reason: $reason, recorded: $recorded, status: $status")
     }
 
-    private fun notifyStageClosed(stageId: String, reason: String) {
+    private fun notifyStageClosed(stageId: String, reason: CloseReason) {
         try {
             val data = mapOf(
                 "data" to mapOf(
                     "stageId" to stageId,
-                    "reason" to reason
+                    "reason" to reason.name.lowercase()
                 )
             )
             val message = message(STAGE_CLOSED, data)

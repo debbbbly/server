@@ -11,6 +11,12 @@ enum class StageStatus {
     RECORDED  // Stage ended with recording available
 }
 
+enum class CloseReason {
+    TIMEOUT,        // Stage closed due to time limit
+    HOST_LEFT,      // A host left the stage
+    ALL_HOSTS_LEFT  // All hosts disconnected
+}
+
 @Entity(name = "stages")
 data class StageEntity(
     @Id
@@ -30,5 +36,6 @@ data class StageEntity(
     val openedAt: Instant?,
     val closedAt: Instant?,
     val hlsUrl: String? = null,
-    val recorded: Boolean = false
+    @Enumerated(EnumType.STRING)
+    val closeReason: CloseReason? = null
 )

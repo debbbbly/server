@@ -32,7 +32,7 @@ interface StageJpaRepository : CrudRepository<StageEntity, String> {
     @Query("SELECT DISTINCT s FROM stages s LEFT JOIN FETCH s.hosts WHERE s.stageId IN (SELECT sh.id.stageId FROM stage_hosts sh WHERE sh.id.userId = :userId) ORDER BY s.createdAt DESC LIMIT 10")
     fun findTop10ByHostUserId(@Param("userId") userId: String): List<StageEntity>
 
-    @Query("SELECT DISTINCT s FROM stages s LEFT JOIN FETCH s.hosts WHERE s.recorded = true ORDER BY s.closedAt DESC LIMIT 30")
+    @Query("SELECT DISTINCT s FROM stages s LEFT JOIN FETCH s.hosts WHERE s.status = 'RECORDED' ORDER BY s.closedAt DESC LIMIT 30")
     fun findTop30RecordedStages(): List<StageEntity>
 
     @Query("SELECT s.claimId FROM stages s WHERE s.openedAt >= :since AND s.claimId IS NOT NULL")

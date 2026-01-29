@@ -5,6 +5,7 @@ import com.debbly.server.stage.model.StageModel.StageHostModel
 import com.debbly.server.stage.repository.entities.StageEntity
 import com.debbly.server.stage.repository.entities.StageHostEntity
 import com.debbly.server.stage.repository.entities.StageHostId
+import com.debbly.server.stage.repository.entities.CloseReason
 import com.debbly.server.stage.repository.entities.StageStatus
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import java.time.Instant
@@ -26,7 +27,7 @@ data class StageModel(
     val openedAt: Instant?,
     val closedAt: Instant?,
     val hlsUrl: String? = null,
-    val recorded: Boolean = false
+    val closeReason: CloseReason? = null
 ) {
     data class StageHostModel(
         val userId: String,
@@ -59,7 +60,7 @@ fun StageModel.toEntity() = StageEntity(
     openedAt = this.openedAt,
     closedAt = this.closedAt,
     hlsUrl = this.hlsUrl,
-    recorded = this.recorded
+    closeReason = this.closeReason
 )
 
 fun StageEntity.toModel() = StageModel(
@@ -79,5 +80,5 @@ fun StageEntity.toModel() = StageModel(
     openedAt = this.openedAt,
     closedAt = this.closedAt,
     hlsUrl = this.hlsUrl,
-    recorded = this.recorded
+    closeReason = this.closeReason
 )

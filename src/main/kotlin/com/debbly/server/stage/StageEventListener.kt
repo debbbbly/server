@@ -17,6 +17,7 @@ import com.debbly.server.stage.model.StageModel
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageCachedRepository
 import com.debbly.server.stage.repository.entities.StageStatus.OPEN
+import com.debbly.server.stage.repository.entities.StageStatus.PENDING
 import com.debbly.server.user.repository.UserCachedRepository
 import org.slf4j.LoggerFactory
 import org.springframework.context.event.EventListener
@@ -24,6 +25,7 @@ import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Component
 import java.time.Clock
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 
 @Component
 class StageEventListener(
@@ -42,13 +44,23 @@ class StageEventListener(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    private val stagesBeingOpened = ConcurrentHashMap.newKeySet<String>()
+
     @EventListener
     @Async("stageEventExecutor")
     fun handleAllHostsJoined(event: AllHostsJoinedEvent) {
         logger.debug("Handling AllHostsJoinedEvent for stage ${event.stageId}")
 
+        if (!stagesBeingOpened.add(event.stageId)) {
+            return
+        }
+
         try {
             val stage = stageRepository.getById(event.stageId)
+            if (stage.status != PENDING) {
+                return
+            }
+
             logger.info("Opening stage ${event.stageId}")
 
             // Delete the match now that stage is opening (stageId = matchId)
@@ -70,6 +82,8 @@ class StageEventListener(
             broadcastDebateStarted(event.stageId, updatedStage)
         } catch (e: Exception) {
             logger.error("Failed to handle AllHostsJoinedEvent for stage ${event.stageId}", e)
+        } finally {
+            stagesBeingOpened.remove(event.stageId)
         }
     }
 

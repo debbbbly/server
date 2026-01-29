@@ -160,3 +160,19 @@ databaseChangeLog:
               - column:
                   name: opened_at
                   descending: true
+  - changeSet:
+      id: 11
+      author: claude
+      comment: Add close_reason column and drop recorded column
+      changes:
+        - addColumn:
+            tableName: stages
+            columns:
+              - column:
+                  name: close_reason
+                  type: varchar(32)
+                  constraints:
+                    nullable: true
+        - dropColumn:
+            tableName: stages
+            columnName: recorded
