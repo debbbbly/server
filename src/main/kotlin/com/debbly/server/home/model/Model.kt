@@ -19,7 +19,8 @@ data class HomeTopicResponse(
     val stagesCursor: String?,
     val totalStages: Int? = null,
     val liveStages: Int? = null,
-    val userStance: ClaimStance? = null
+    val userStance: ClaimStance? = null,
+    val queue: List<QueueUserResponse> = emptyList()
 )
 
 data class HomeClaimResponse(
@@ -28,7 +29,15 @@ data class HomeClaimResponse(
     val title: String,
     val forCount: Int,
     val againstCount: Int,
-    val userStance: ClaimStance? = null
+    val userStance: ClaimStance? = null,
+    val queue: List<QueueUserResponse> = emptyList()
+)
+
+data class QueueUserResponse(
+    val userId: String,
+    val username: String,
+    val avatarUrl: String?,
+    val stance: ClaimStance
 )
 
 data class HomeStageResponse(
@@ -63,4 +72,19 @@ data class TopicStagesResponse(
     val topicSlug: String,
     val stages: List<HomeStageResponse>,
     val nextCursor: String?
+)
+
+data class QueueBroadcastResponse(
+    val topics: List<QueueTopicResponse>,
+    val claims: List<QueueClaimResponse>
+)
+
+data class QueueTopicResponse(
+    val topicId: String,
+    val queue: List<QueueUserResponse>
+)
+
+data class QueueClaimResponse(
+    val claimId: String,
+    val queue: List<QueueUserResponse>
 )

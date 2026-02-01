@@ -11,6 +11,7 @@ import com.debbly.server.claim.topic.top.TopTopicsService
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.claim.user.UserTopicStanceService
 import com.debbly.server.home.model.*
+import com.debbly.server.match.QueueService
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageJpaRepository
 import com.debbly.server.stage.repository.entities.StageEntity
@@ -31,7 +32,8 @@ class HomeService(
     private val topicRepository: TopicRepository,
     private val userClaimCachedRepository: UserClaimCachedRepository,
     private val userTopicStanceService: UserTopicStanceService,
-    private val liveStageRedisRepository: LiveStageRedisRepository
+    private val liveStageRedisRepository: LiveStageRedisRepository,
+    private val queueService: QueueService
 ) {
     companion object {
         private val STAGE_VISIBLE_STATUSES = listOf(StageStatus.OPEN, StageStatus.RECORDED)
@@ -167,6 +169,11 @@ class HomeService(
         val userTopicStances = userId?.let { userTopicStanceService.findByUserIdAndTopicIds(it, topicIds.toList()) } ?: emptyMap()
         val userClaimStances = userId?.let { fetchUserClaimStances(it, topClaimsByTopic.values.flatten().map { c -> c.claimId }) } ?: emptyMap()
 
+        // Fetch queue data
+        val topicQueues = queueService.getQueueByTopicIds(topicIds)
+        val claimIds = topClaimsByTopic.values.flatten().map { it.claimId }.toSet()
+        val claimQueues = queueService.getQueueByClaimIds(claimIds)
+
         return topics.map { topic ->
             val topicStages = stagesByTopic[topic.topicId] ?: emptyList()
             val hasMore = topicStages.size > stageLimit
@@ -192,7 +199,7 @@ class HomeService(
 
             val topClaims = topClaimsByTopic[topic.topicId]
                 ?.take(5)
-                ?.map { it.toHomeTopClaimResponse(userClaimStances[it.claimId]) }
+                ?.map { it.toHomeTopClaimResponse(userClaimStances[it.claimId], claimQueues[it.claimId] ?: emptyList()) }
                 ?: emptyList()
 
             HomeTopicResponse(
@@ -204,18 +211,23 @@ class HomeService(
                 stages = stageResponses,
                 stagesCursor = stagesCursor,
                 totalStages = totalStages,
-                userStance = userTopicStances[topic.topicId]
+                userStance = userTopicStances[topic.topicId],
+                queue = topicQueues[topic.topicId] ?: emptyList()
             )
         }
     }
 
-    private fun TopClaimResponse.toHomeTopClaimResponse(userStance: ClaimStance? = null) = HomeClaimResponse(
+    private fun TopClaimResponse.toHomeTopClaimResponse(
+        userStance: ClaimStance? = null,
+        queue: List<QueueUserResponse> = emptyList()
+    ) = HomeClaimResponse(
         claimId = claimId,
         claimSlug = claimSlug,
         title = title,
         forCount = forCount,
         againstCount = againstCount,
-        userStance = userStance
+        userStance = userStance,
+        queue = queue
     )
 
     private fun fetchUserClaimStances(userId: String, claimIds: List<String>): Map<String, ClaimStance> {

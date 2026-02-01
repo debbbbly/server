@@ -565,6 +565,28 @@ class StageService(
         logger.info("Closed stage ${stage.stageId}, reason: $reason, recorded: $recorded, status: $status")
     }
 
+    fun deleteRecordedStage(stageId: String, userId: String) {
+        val stage = stageRepository.findById(stageId)
+            ?: throw IllegalArgumentException("Stage not found")
+
+        if (stage.hosts.none { it.userId == userId }) {
+            throw UnauthorizedException("User is not a host of this stage")
+        }
+
+        if (stage.status != RECORDED) {
+            throw IllegalArgumentException("Only recorded stages can be deleted")
+        }
+
+        stageRepository.save(
+            stage.copy(
+                status = CLOSED,
+                closeReason = HOST_DELETED
+            )
+        )
+
+        logger.info("Stage $stageId deleted by host $userId")
+    }
+
     private fun notifyStageClosed(stageId: String, reason: CloseReason) {
         try {
             val data = mapOf(

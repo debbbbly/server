@@ -21,6 +21,13 @@ data class ChannelHistoryResponse(
     val messages: List<ChannelMessageResponse>
 )
 
+data class SendMessageResponse(
+    val messageId: String,
+    val message: String,
+    val moderated: Boolean,
+    // val originalMessage: String? = null
+)
+
 data class PresenceUserInfo(
     val userId: String?,
     val username: String,

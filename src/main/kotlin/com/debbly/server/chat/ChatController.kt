@@ -9,6 +9,7 @@ import com.debbly.server.pusher.model.PusherMessageType.CHAT_MESSAGE
 import com.debbly.server.pusher.model.PusherEventName.CHAT_EVENT
 import com.debbly.server.pusher.model.PusherMessage
 import com.debbly.server.pusher.model.SendMessageRequest
+import com.debbly.server.pusher.model.SendMessageResponse
 import com.debbly.server.pusher.service.PusherService
 import jakarta.validation.Valid
 import org.slf4j.LoggerFactory
@@ -30,7 +31,7 @@ class ChatController(
         @PathVariable chatId: String,
         @Valid @RequestBody request: SendMessageRequest,
         @ExternalUserId externalUserId: String?
-    ): ResponseEntity<ChannelMessageResponse> {
+    ): ResponseEntity<SendMessageResponse> {
         try {
             val user = authService.authenticate(externalUserId)
 
@@ -49,7 +50,7 @@ class ChatController(
                 message = moderationResult.message
             )
 
-            val response = ChannelMessageResponse(
+            val pusherMessage = ChannelMessageResponse(
                 messageId = channelMessage.messageId,
                 userId = channelMessage.userId,
                 username = channelMessage.username,
@@ -57,8 +58,15 @@ class ChatController(
                 timestamp = channelMessage.timestamp.toString()
             )
 
-            val message = PusherMessage.message(CHAT_MESSAGE, response)
+            val message = PusherMessage.message(CHAT_MESSAGE, pusherMessage)
             pusherService.sendChannelMessage(chatId, CHAT_EVENT, message)
+
+            val response = SendMessageResponse(
+                messageId = channelMessage.messageId,
+                message = channelMessage.message,
+                moderated = moderationResult.wasModerated,
+                // originalMessage = if (moderationResult.wasModerated) request.message else null
+            )
 
             return ResponseEntity.ok(response)
         } catch (e: Exception) {

@@ -14,7 +14,8 @@ enum class StageStatus {
 enum class CloseReason {
     TIMEOUT,        // Stage closed due to time limit
     HOST_LEFT,      // A host left the stage
-    ALL_HOSTS_LEFT  // All hosts disconnected
+    ALL_HOSTS_LEFT, // All hosts disconnected
+    HOST_DELETED    // Host deleted the recording
 }
 
 @Entity(name = "stages")

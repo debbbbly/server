@@ -52,4 +52,21 @@ class StageController(
 
         return ResponseEntity.ok().build()
     }
+
+    @PostMapping("/{stageId}/delete")
+    fun deleteStage(
+        @PathVariable stageId: String,
+        @ExternalUserId externalUserId: String?
+    ): ResponseEntity<Unit> {
+        if (externalUserId == null) {
+            throw UnauthorizedException()
+        }
+
+        val user = userCachedRepository.findByExternalUserId(externalUserId)
+            ?: throw UnauthorizedException()
+
+        stageService.deleteRecordedStage(stageId, user.userId)
+
+        return ResponseEntity.ok().build()
+    }
 }

@@ -40,13 +40,16 @@ enum class PusherMessageType {
 
     // Stage notifications
     STAGE_OPEN,
-    STAGE_CLOSED
+    STAGE_CLOSED,
 
+    // Queue notifications
+    QUEUE_UPDATE
 }
 
 enum class PusherEventName {
 
     STAGE_EVENT,
     CHAT_EVENT,
-    MATCH_EVENT
+    MATCH_EVENT,
+    QUEUE_EVENT
 }

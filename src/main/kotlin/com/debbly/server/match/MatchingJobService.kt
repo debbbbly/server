@@ -31,6 +31,7 @@ class MatchingJobService(
     private val clock: Clock,
     private val eventPublisher: ApplicationEventPublisher,
     private val topClaimsService: TopClaimsService,
+    private val queueService: QueueService,
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -84,6 +85,8 @@ class MatchingJobService(
         matchQueueRepository.removeAll()
         if (finalRemainingUsers.isNotEmpty()) {
             finalRemainingUsers.forEach { matchQueueRepository.save(it) }
+            // Broadcast queue update with remaining users
+            queueService.broadcastQueueUpdate()
         }
 
         if (matchedUsers.isNotEmpty()) {
