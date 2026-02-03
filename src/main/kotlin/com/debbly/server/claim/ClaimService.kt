@@ -7,6 +7,7 @@ import com.debbly.server.claim.exception.ClaimValidationException
 import com.debbly.server.claim.exception.DuplicateClaimException
 import com.debbly.server.claim.model.ClaimModel
 import com.debbly.server.claim.model.ClaimStance
+import com.debbly.server.claim.model.StanceToTopic
 import com.debbly.server.claim.model.UserClaimModel
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
@@ -14,6 +15,7 @@ import com.debbly.server.embedding.claim.ClaimEmbeddingEntity
 import com.debbly.server.embedding.claim.ClaimEmbeddingRepository
 import com.debbly.server.util.SlugService
 import org.slf4j.LoggerFactory
+import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
@@ -54,6 +56,11 @@ class ClaimService(
             .filter { it.claim.categoryId in activeCategoryIds }
     }
 
+    companion object {
+        private const val MODERATION_CATEGORY_ID = "moderation"
+        private const val MODERATION_TOPIC_ID = "moderation"
+    }
+
     @Transactional
     fun create(
         title: String,
@@ -62,6 +69,7 @@ class ClaimService(
     ): ClaimModel {
         logger.info("Processing claim proposal: '$title' by user: $userId")
 
+        // Step 1: Validate and normalize claim
         val validationResult = openAIService.moderateClaim(title)
 
         if (!validationResult.valid) {
@@ -69,79 +77,169 @@ class ClaimService(
             throw ClaimValidationException(validationResult.violations, validationResult.reasoning)
         }
 
-        // logger.info("Claim validation passed with category: ${validationResult.categoryId}")
-
         val normalizedTitle = validationResult.normalized ?: title
-        val duplicate = claimSimilarityService.findDuplicate(normalizedTitle)
+
+        // Step 2: Generate embedding immediately for duplicate detection
+        val embedding = openAIService.generateEmbedding(normalizedTitle)
+        if (embedding == null) {
+            logger.error("Failed to generate embedding for claim: $normalizedTitle")
+            throw ClaimValidationException(
+                listOf("Embedding generation failed"),
+                "Failed to process claim for similarity checking."
+            )
+        }
+
+        // Step 3: Check for duplicates using embedding
+        val similarClaims = claimSimilarityService.findSimilarClaimsByEmbedding(
+            embedding = embedding,
+            limit = 1,
+            minSimilarity = 0.95
+        )
+        val duplicate = similarClaims.firstOrNull()?.takeIf { it.isDuplicate }
+
         if (duplicate != null) {
             logger.warn("Duplicate claim detected for user $userId: existing claim ${duplicate.claimId}")
             throw DuplicateClaimException(duplicate)
         }
 
-        // Topic is required for all valid claims
-        if (validationResult.topic.isNullOrBlank()) {
-            throw ClaimValidationException(
-                listOf("Topic extraction failed"),
-                "AI failed to extract a topic from the claim. This should not happen for valid claims.",
-            )
-        }
-
-        val suggestedCategoryId = validationResult.categoryId ?: "society"
-        categoryCachedRepository.findById(suggestedCategoryId)
-            ?: throw IllegalArgumentException("Category not found: $suggestedCategoryId")
-
-        val topic = topicService.findOrCreateTopic(validationResult.topic, suggestedCategoryId)
-        logger.info("Claim associated with topic ${topic.topicId}: '${topic.title}' (category: ${topic.categoryId})")
-
-        val categoryId = topic.categoryId
-        categoryCachedRepository.findById(categoryId)
-            ?: throw IllegalArgumentException("Topic's category not found: $categoryId")
-
-        val claimTitle = validationResult.normalized ?: title
-        val claim =
-            ClaimModel(
-                claimId = idService.getId(),
-                categoryId = categoryId,
-                title = claimTitle,
-                slug = slugService.slugify(claimTitle),
-                createdAt = now(clock),
-                topicId = topic.topicId,
-                stanceToTopic = validationResult.stanceToTopic ?: com.debbly.server.claim.model.StanceToTopic.NEUTRAL,
-            )
+        // Step 4: Create claim with moderation category/topic (will be updated async)
+        val claim = ClaimModel(
+            claimId = idService.getId(),
+            categoryId = MODERATION_CATEGORY_ID,
+            title = normalizedTitle,
+            slug = slugService.slugify(normalizedTitle),
+            createdAt = now(clock),
+            topicId = MODERATION_TOPIC_ID,
+            stanceToTopic = StanceToTopic.NEUTRAL,
+        )
         claimCachedRepository.save(claim)
+        logger.info("Claim ${claim.claimId} created with moderation category/topic, awaiting async classification")
 
+        // Step 5: Save embedding
         try {
-            val embedding = openAIService.generateEmbedding(claim.title)
-            if (embedding != null) {
-                val embeddingEntity =
-                    ClaimEmbeddingEntity(
-                        claimId = claim.claimId,
-                        title = claim.title,
-                        categoryId = claim.categoryId,
-                        embedding = embedding.map { it.toFloat() }.toFloatArray(),
-                        createdAt = claim.createdAt,
-                    )
-                embeddingRepository.save(embeddingEntity)
-                logger.info("Embedding generated and saved to pgvector DB for claim ${claim.claimId}")
-            } else {
-                logger.warn("Failed to generate embedding for claim ${claim.claimId}")
-            }
+            val embeddingEntity = ClaimEmbeddingEntity(
+                claimId = claim.claimId,
+                title = claim.title,
+                categoryId = claim.categoryId,
+                embedding = embedding.map { it.toFloat() }.toFloatArray(),
+                createdAt = claim.createdAt,
+            )
+            embeddingRepository.save(embeddingEntity)
+            logger.info("Embedding saved for claim ${claim.claimId}")
         } catch (e: Exception) {
-            logger.error("Error generating/saving embedding for claim ${claim.claimId}: ${e.message}", e)
+            logger.error("Error saving embedding for claim ${claim.claimId}: ${e.message}", e)
         }
 
+        // Step 6: Save user stance if provided
         stance?.let {
             userClaimCachedRepository.save(
                 UserClaimModel(
                     claim = claim,
                     userId = userId,
                     stance = it,
-                    priority = null, // TODO set highest
+                    priority = null,
                     updatedAt = now(clock),
                 ),
             )
         }
 
+        // Step 7: Trigger async topic extraction
+        extractTopicAsync(claim.claimId)
+
         return claim
     }
+
+    /**
+     * Async method to extract topic and category for a claim.
+     * Updates the claim with the extracted values.
+     * If extraction fails, claim remains in moderation category/topic.
+     */
+    @Async
+    fun extractTopicAsync(claimId: String) {
+        try {
+            val claim = claimCachedRepository.findById(claimId)
+            if (claim == null) {
+                logger.error("Claim $claimId not found for async topic extraction")
+                return
+            }
+
+            logger.info("Starting async topic extraction for claim $claimId: '${claim.title}'")
+
+            val extraction = openAIService.extractTopicAndCategory(claim.title)
+            logger.info("Extraction result for claim $claimId: category=${extraction.categoryId}, topic='${extraction.topic}', stance=${extraction.stanceToTopic}")
+
+            // Validate category exists
+            val categoryId = extraction.categoryId
+            if (categoryCachedRepository.findById(categoryId) == null) {
+                logger.error("Category not found for claim $claimId: $categoryId, keeping in moderation")
+                return
+            }
+
+            val topic = topicService.findOrCreateTopic(extraction.topic, categoryId)
+            logger.info("Claim $claimId associated with topic ${topic.topicId}: '${topic.title}'")
+
+            // Update claim with extracted topic and category
+            val updatedClaim = claim.copy(
+                categoryId = topic.categoryId,
+                topicId = topic.topicId,
+                stanceToTopic = extraction.stanceToTopic
+            )
+            claimCachedRepository.save(updatedClaim)
+
+            // Update embedding categoryId as well
+            try {
+                embeddingRepository.updateCategoryId(claimId, topic.categoryId)
+                logger.info("Updated embedding categoryId for claim $claimId")
+            } catch (e: Exception) {
+                logger.error("Error updating embedding categoryId for claim $claimId: ${e.message}", e)
+            }
+
+            logger.info("Async topic extraction completed for claim $claimId: category=${topic.categoryId}, topic=${topic.topicId}")
+
+        } catch (e: Exception) {
+            logger.error("Error in async topic extraction for claim $claimId: ${e.message}", e)
+            // Claim remains in moderation category/topic
+        }
+    }
+
+    @Transactional
+    fun reclassifyClaim(claim: ClaimModel): ReclassifyResult {
+        logger.info("Reclassifying claim ${claim.claimId}: '${claim.title}'")
+
+        val extraction = openAIService.extractTopicAndCategory(claim.title)
+        logger.info("Extraction result for claim ${claim.claimId}: category=${extraction.categoryId}, topic='${extraction.topic}', stance=${extraction.stanceToTopic}")
+
+        // Validate category exists
+        val categoryId = extraction.categoryId
+        categoryCachedRepository.findById(categoryId)
+            ?: throw IllegalArgumentException("Category not found: $categoryId")
+
+        val topic = topicService.findOrCreateTopic(extraction.topic, categoryId)
+
+        logger.info("Claim ${claim.claimId} associated with topic ${topic.topicId}: '${topic.title}'")
+
+        // Update claim with new topic and category
+        val updatedClaim = claim.copy(
+            categoryId = topic.categoryId,
+            topicId = topic.topicId,
+            stanceToTopic = extraction.stanceToTopic
+        )
+        claimCachedRepository.save(updatedClaim)
+
+        return ReclassifyResult(
+            newCategoryId = topic.categoryId,
+            newTopicId = topic.topicId,
+            newTopicTitle = topic.title,
+            newOriginalTopicTitle = extraction.topic,
+            stanceToTopic = extraction.stanceToTopic
+        )
+    }
 }
+
+data class ReclassifyResult(
+    val newCategoryId: String,
+    val newTopicId: String,
+    val newTopicTitle: String,
+    val newOriginalTopicTitle: String,
+    val stanceToTopic: StanceToTopic
+)

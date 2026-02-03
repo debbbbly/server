@@ -106,3 +106,17 @@ databaseChangeLog:
                   constraints:
                     nullable: true
       comment: "Add updated_at column to topic_embeddings table"
+
+  - changeSet:
+      id: 7
+      author: claude
+      preConditions:
+        - onFail: MARK_RAN
+        - columnExists:
+            tableName: claim_embeddings
+            columnName: updated_at
+      changes:
+        - dropColumn:
+            tableName: claim_embeddings
+            columnName: updated_at
+      comment: "Drop updated_at column from claim_embeddings if exists"

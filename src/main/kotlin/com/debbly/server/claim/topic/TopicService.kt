@@ -60,13 +60,6 @@ class TopicService(
         if (mostSimilar != null) {
             logger.info("Found existing topic ${mostSimilar.topicId} with similarity ${mostSimilar.similarity}")
 
-            if (mostSimilar.categoryId != categoryId) {
-                logger.warn(
-                    "Category mismatch: existing topic ${mostSimilar.topicId} has category '${mostSimilar.categoryId}', " +
-                    "but new claim suggested '$categoryId'. Using existing topic's category."
-                )
-            }
-
             val existingTopic = topicRepository.findById(mostSimilar.topicId)
                 .orElseThrow { IllegalStateException("Topic ${mostSimilar.topicId} not found in topics table") }
             return existingTopic.toModel()

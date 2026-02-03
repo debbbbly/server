@@ -192,6 +192,45 @@ class ClaimController(
         )
     }
 
+    /**
+     * Re-extract topic and category for an existing claim (experimental endpoint).
+     */
+    @PostMapping("/{claimId}/reclassify")
+    fun reclassifyClaim(
+        @PathVariable claimId: String
+    ): ResponseEntity<ReclassifyClaimResponse> {
+        val claim = claimCachedRepository.findById(claimId)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Claim not found")
+
+        val extraction = claimService.reclassifyClaim(claim)
+
+        return ResponseEntity.ok(
+            ReclassifyClaimResponse(
+                claimId = claim.claimId,
+                claimTitle = claim.title,
+                previousCategoryId = claim.categoryId,
+                previousTopicId = claim.topicId,
+                newCategoryId = extraction.newCategoryId,
+                newTopicId = extraction.newTopicId,
+                newTopicTitle = extraction.newTopicTitle,
+                newOriginalTopicTitle = extraction.newOriginalTopicTitle,
+                stanceToTopic = extraction.stanceToTopic
+            )
+        )
+    }
+
+    data class ReclassifyClaimResponse(
+        val claimId: String,
+        val claimTitle: String,
+        val previousCategoryId: String,
+        val previousTopicId: String,
+        val newCategoryId: String,
+        val newTopicId: String,
+        val newTopicTitle: String,
+        val newOriginalTopicTitle: String,
+        val stanceToTopic: com.debbly.server.claim.model.StanceToTopic
+    )
+
     data class CreateClaimRequest(
         @field:Size(max = 125, message = "Claim must be at most 125 characters long")
         val title: String,

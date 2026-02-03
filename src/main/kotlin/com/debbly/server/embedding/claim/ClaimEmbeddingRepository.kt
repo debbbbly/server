@@ -71,6 +71,14 @@ class ClaimEmbeddingRepository(
         return jdbcTemplate.queryForObject(sql, Boolean::class.java, claimId) ?: false
     }
 
+    /**
+     * Update the categoryId for an existing claim embedding
+     */
+    fun updateCategoryId(claimId: String, categoryId: String) {
+        val sql = "UPDATE claim_embeddings SET category_id = ? WHERE claim_id = ?"
+        jdbcTemplate.update(sql, categoryId, claimId)
+    }
+
     private val similarClaimRowMapper = RowMapper { rs, _ ->
         SimilarClaimProjection(
             claimId = rs.getString("claim_id"),

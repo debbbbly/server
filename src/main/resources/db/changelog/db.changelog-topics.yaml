@@ -260,3 +260,30 @@ databaseChangeLog:
               - column:
                   name: slug
             unique: true
+
+  - changeSet:
+      id: 12
+      author: claude
+      comment: "Add Moderation topic for internal/system use"
+      changes:
+        - insert:
+            tableName: topics
+            columns:
+              - column:
+                  name: topic_id
+                  value: "moderation"
+              - column:
+                  name: category_id
+                  value: "moderation"
+              - column:
+                  name: title
+                  value: "Moderation"
+              - column:
+                  name: slug
+                  value: "moderation"
+              - column:
+                  name: created_at
+                  valueComputed: "CURRENT_TIMESTAMP"
+              - column:
+                  name: updated_at
+                  valueComputed: "CURRENT_TIMESTAMP"

@@ -294,3 +294,21 @@ databaseChangeLog:
               - column:
                   name: slug
             unique: true
+
+  - changeSet:
+      id: 15
+      author: claude
+      comment: "Add Moderation category for internal/system claims"
+      changes:
+        - insert:
+            tableName: categories
+            columns:
+              - column:
+                  name: category_id
+                  value: "moderation"
+              - column:
+                  name: title
+                  value: "Moderation"
+              - column:
+                  name: active
+                  valueBoolean: false
