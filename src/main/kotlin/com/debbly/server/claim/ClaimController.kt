@@ -9,6 +9,9 @@ import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.top.TopClaimsService
 import com.debbly.server.claim.topic.repository.TopicRepository
 import com.debbly.server.claim.user.UserClaimService
+import com.debbly.server.home.model.HomeHostResponse
+import com.debbly.server.home.model.HomeStageClaimResponse
+import com.debbly.server.home.model.HomeStageResponse
 import com.debbly.server.stage.repository.StageJpaRepository
 import com.debbly.server.stage.repository.entities.StageStatus
 import com.debbly.server.user.repository.UserCachedRepository
@@ -155,11 +158,16 @@ class ClaimController(
         val usersMap = userCachedRepository.findByIds(userIds)
 
         val stageResponses = stages.map { stage ->
-            ClaimDetailResponse.StageResponse(
+            HomeStageResponse(
                 stageId = stage.stageId,
+                claim = HomeStageClaimResponse(
+                    claimId = claim.claimId,
+                    claimSlug = claim.slug,
+                    title = claim.title
+                ),
                 hosts = stage.hosts.map { host ->
                     val user = usersMap[host.id.userId]
-                    ClaimDetailResponse.HostResponse(
+                    HomeHostResponse(
                         userId = host.id.userId,
                         username = user?.username ?: "unknown",
                         avatarUrl = user?.avatarUrl,
@@ -272,24 +280,9 @@ data class ClaimDetailResponse(
     val againstCount: Int,
     val recentInterest: Int,
     val userClaim: UserClaimResponse?,
-    val stages: List<StageResponse>
+    val stages: List<HomeStageResponse>
 ) {
     data class UserClaimResponse(
         val stance: ClaimStance
-    )
-
-    data class StageResponse(
-        val stageId: String,
-        val hosts: List<HostResponse>,
-        val status: StageStatus,
-        val openedAt: Instant?,
-        val closedAt: Instant?
-    )
-
-    data class HostResponse(
-        val userId: String,
-        val username: String,
-        val avatarUrl: String?,
-        val stance: ClaimStance?
     )
 }

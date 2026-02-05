@@ -143,7 +143,6 @@ class ClaimService(
             )
         }
 
-        // Step 7: Trigger async topic extraction
         extractTopicAsync(claim.claimId)
 
         return claim
