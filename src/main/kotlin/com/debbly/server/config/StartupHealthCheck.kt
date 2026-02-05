@@ -1,6 +1,6 @@
 package com.debbly.server.config
 
-import com.debbly.server.livekit.LiveKitService
+import com.debbly.server.livekit.egress.EgressService
 import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.data.redis.core.RedisTemplate
@@ -10,7 +10,7 @@ import org.springframework.web.client.RestTemplate
 @Component
 class StartupHealthCheck(
     private val redisTemplate: RedisTemplate<String, Any>?,
-    private val liveKitService: LiveKitService,
+    private val egressService: EgressService,
     private val authConfig: AuthConfigProperties,
     private val restTemplate: RestTemplate
 ) {
@@ -34,7 +34,7 @@ class StartupHealthCheck(
 
     private fun checkLiveKit() {
         try {
-            liveKitService.listAllEgresses()
+            egressService.listAllEgresses()
             logger.info("LiveKit connection: OK")
         } catch (e: Exception) {
             logger.error("LiveKit connection: FAILED - ${e.message}")

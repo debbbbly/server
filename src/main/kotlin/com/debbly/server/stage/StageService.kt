@@ -8,12 +8,14 @@ import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.livekit.LiveKitService
 import com.debbly.server.livekit.S3LiveKitProperties
+import com.debbly.server.livekit.egress.EgressService
 import com.debbly.server.match.model.Match
 import com.debbly.server.match.repository.MatchRepository
 import com.debbly.server.pusher.model.PusherEventName.STAGE_EVENT
 import com.debbly.server.pusher.model.PusherMessage.Companion.message
 import com.debbly.server.pusher.model.PusherMessageType.STAGE_CLOSED
 import com.debbly.server.pusher.service.PusherService
+import com.debbly.server.settings.LivekitConfig
 import com.debbly.server.settings.SettingsService
 import com.debbly.server.settings.repository.UserSettingsCachedRepository
 import com.debbly.server.stage.event.AllHostsJoinedEvent
@@ -48,6 +50,7 @@ class StageService(
     private val claimRepository: ClaimJpaRepository,
     private val userClaimCachedRepository: UserClaimCachedRepository,
     private val liveKitService: LiveKitService,
+    private val egressService: EgressService,
     private val userSettingsRepository: UserSettingsCachedRepository,
     private val settingsService: SettingsService,
     private val s3Config: S3LiveKitProperties,
@@ -197,7 +200,8 @@ class StageService(
             openedAt = stage.openedAt,
             closedAt = stage.closedAt,
             limitMinutes = settingsService.getStageDuration() / 60,
-            hlsUrl = getHlsUrlForStageStatus(stage.hlsUrl, stage.status)
+            hlsUrl = getHlsUrlForStageStatus(stage.hlsUrl, stage.status),
+            livekitConfig = settingsService.getLivekitClientConfig()
         )
     }
 
@@ -443,7 +447,7 @@ class StageService(
         }
     }
 
-    private fun stopEgressIfActive(stageId: String): LiveKitService.StopEgressResult? {
+    private fun stopEgressIfActive(stageId: String): EgressService.StopEgressResult? {
         logger.debug("Checking for active egress recording for stage $stageId")
         try {
             val liveStageOptional = liveStageRedisRepository.findById(stageId)
@@ -460,7 +464,7 @@ class StageService(
                 return null
             }
 
-            val egress = liveKitService.listAllEgresses(stageId)
+            val egress = egressService.listAllEgresses(stageId)
                 .firstOrNull { it.egressId == egressId }
 
             if (egress == null) {
@@ -468,7 +472,7 @@ class StageService(
             }
 
             if (!egress.isActive) {
-                return LiveKitService.StopEgressResult(
+                return EgressService.StopEgressResult(
                     success = true,
                     startedAt = egress.startedAtMillis,
                     endedAt = egress.endedAtMillis ?: clock.millis(),
@@ -476,7 +480,7 @@ class StageService(
             }
 
             logger.debug("Stopping egress recording for stage $stageId, egressId: $egressId")
-            val result = liveKitService.stopEgress(egress.egressId)
+            val result = egressService.stopCompositeEgress(egress.egressId)
 
             if (!result.success) {
                 logger.warn("Failed to stop egress recording for stage $stageId, egressId: $egressId")
@@ -489,7 +493,7 @@ class StageService(
         }
     }
 
-    private fun isStageRecorded(egressResult: LiveKitService.StopEgressResult?): Boolean {
+    private fun isStageRecorded(egressResult: EgressService.StopEgressResult?): Boolean {
         if (egressResult == null)
             return false
 
@@ -614,7 +618,8 @@ class StageService(
         val openedAt: Instant?,
         val closedAt: Instant?,
         val limitMinutes: Long,
-        val hlsUrl: String?
+        val hlsUrl: String?,
+        val livekitConfig: LivekitConfig
     )
 
     data class StageHistoryDetails(

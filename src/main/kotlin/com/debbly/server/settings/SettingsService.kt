@@ -2,6 +2,7 @@ package com.debbly.server.settings
 
 import com.debbly.server.settings.SettingsName.*
 import com.debbly.server.settings.repository.SettingsJpaRepository
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.github.benmanes.caffeine.cache.LoadingCache
 import org.slf4j.LoggerFactory
@@ -10,7 +11,8 @@ import java.time.Duration
 
 @Service
 class SettingsService(
-    private val settingsRepository: SettingsJpaRepository
+    private val settingsRepository: SettingsJpaRepository,
+    private val objectMapper: ObjectMapper
 ) {
     companion object {
         const val HLS_PARALLEL_LIMIT_DEFAULT = 2;
@@ -58,6 +60,17 @@ class SettingsService(
     fun isCleanupOldEgresses(): Boolean {
         val value = cache.get(CLEANUP_OLD_EGRESSES)
         return value.toBooleanStrictOrNull() ?: CLEANUP_OLD_EGRESSES_DEFAULT
+    }
+
+    fun getLivekitClientConfig(): LivekitConfig {
+        val json = cache.get(LIVEKIT_CLIENT_CONFIG)
+        if (json.isNullOrEmpty()) return LivekitConfig.DEFAULT
+        return try {
+            objectMapper.readValue(json, LivekitConfig::class.java)
+        } catch (e: Exception) {
+            logger.warn("Failed to parse LIVEKIT_CONFIG, using defaults", e)
+            LivekitConfig.DEFAULT
+        }
     }
 
     fun getSetting(name: SettingsName): String? {

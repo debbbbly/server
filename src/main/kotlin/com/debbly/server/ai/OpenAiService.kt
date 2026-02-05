@@ -202,6 +202,7 @@ class OpenAiService(
             A claim is VALID only if it:
             - Is debatable (reasonable people could disagree)
             - Is clear enough to discuss (broad is OK if still clearly controversial)
+            - Is NOT a topic-only statement (must assert a position, judgment, or claim)
             - Does NOT contain personal attacks against private individuals
               (Criticism of public figures’ actions/policies/ideas is allowed)
             - Does NOT contain hate speech
@@ -235,10 +236,11 @@ class OpenAiService(
 
             Clarification rule (use sparingly):
             - Only clarify if the claim is too unclear to debate or to evaluate under the rules.
+            - Do NOT use clarification to turn a topic-only statement into a claim.
             - If clarification is required, prefer a minimal rewrite that stays at the same level of specificity
               as the original.
 
-            A claim is too unclear if a reasonable reader cannot tell what is being asserted without guessing.
+            A claim is too unclear if it does not assert a position, judgment, or stance that can be agreed or disagreed with.            
             Examples of too unclear:
             - "This is terrible"
             - "They are destroying us"
@@ -258,6 +260,7 @@ class OpenAiService(
             Violations must be short labels and include only the minimum set needed:
             - "Not debatable"
             - "Too vague"
+            - "Topic-only"
             - "Personal attacks"
             - "Hate speech"
             - "Promotes illegal acts"
@@ -286,6 +289,15 @@ class OpenAiService(
               "normalized": null,
               "violations": ["Personal attacks"],
               "reasoning": "The claim targets a private individual with an insult rather than presenting a debatable position"
+            }
+            
+            Claim: The Russian language in Ukraine
+            Response:
+            {
+              "valid": false,
+              "normalized": null,
+              "violations": ["Topic-only"],
+              "reasoning": "The statement names a topic but does not assert a position or judgment that can be debated"
             }
 
             Claim: Everything is terrible

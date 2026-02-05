@@ -1,8 +1,8 @@
 package com.debbly.server.stage
 
 import com.debbly.server.claim.repository.ClaimCachedRepository
-import com.debbly.server.livekit.LiveKitService
 import com.debbly.server.livekit.S3LiveKitProperties
+import com.debbly.server.livekit.egress.EgressService
 import com.debbly.server.match.repository.MatchRepository
 import com.debbly.server.pusher.model.PusherEventName.STAGE_EVENT
 import com.debbly.server.pusher.model.PusherMessage.Companion.message
@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap
 class StageEventListener(
     private val stageRepository: StageCachedRepository,
     private val userCachedRepository: UserCachedRepository,
-    private val liveKitService: LiveKitService,
+    private val egressService: EgressService,
     private val liveStageRedisRepository: LiveStageRedisRepository,
     private val claimCachedRepository: ClaimCachedRepository,
     private val userSettingsRepository: UserSettingsCachedRepository,
@@ -113,7 +113,7 @@ class StageEventListener(
 
         val egressId = if (shouldStartEgress) {
             val egressInfo = try {
-                liveKitService.startCompositeEgress(stage.stageId)
+                egressService.startCompositeEgress(stage.stageId)
             } catch (e: Exception) {
                 logger.error("Failed to start egress for stage ${stage.stageId}", e)
                 null
@@ -164,7 +164,7 @@ class StageEventListener(
 
     private fun shouldStartEgressForStage(stage: StageModel): Boolean {
         val maxEgressCount = settingsService.getHlsParallelLimit()
-        val currentActiveEgressCount = liveKitService.countActiveRoomCompositeEgresses()
+        val currentActiveEgressCount = egressService.countActiveRoomCompositeEgresses()
 
         if (currentActiveEgressCount >= maxEgressCount) {
             logger.warn("Max egress limit reached ($currentActiveEgressCount/$maxEgressCount), cannot start egress for stage ${stage.stageId}")
