@@ -78,6 +78,30 @@ interface StageJpaRepository : CrudRepository<StageEntity, String> {
         @Param("cursorOpenedAt") cursorOpenedAt: Instant?
     ): List<StageEntity>
 
+    // Recent stages across all topics, ordered by openedAt DESC (first page)
+    @Query("""
+        SELECT DISTINCT s FROM stages s
+        LEFT JOIN FETCH s.hosts
+        WHERE s.status IN :statuses
+        ORDER BY s.openedAt DESC NULLS LAST
+    """)
+    fun findRecentStages(
+        @Param("statuses") statuses: List<StageStatus>
+    ): List<StageEntity>
+
+    // Recent stages across all topics with cursor, ordered by openedAt DESC
+    @Query("""
+        SELECT DISTINCT s FROM stages s
+        LEFT JOIN FETCH s.hosts
+        WHERE s.status IN :statuses
+        AND s.openedAt < :cursorOpenedAt
+        ORDER BY s.openedAt DESC NULLS LAST
+    """)
+    fun findRecentStagesBeforeCursor(
+        @Param("statuses") statuses: List<StageStatus>,
+        @Param("cursorOpenedAt") cursorOpenedAt: Instant
+    ): List<StageEntity>
+
     // Fetch stages by claimId ordered by openedAt DESC
     @Query("""
         SELECT DISTINCT s FROM stages s

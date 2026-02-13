@@ -14,6 +14,21 @@ class LiveKitConfig {
     lateinit var url: String
     lateinit var apiKey: String
     lateinit var apiSecret: String
+    var egress: EgressConfig = EgressConfig()
+
+    class EgressConfig {
+        var layouts: LayoutsConfig = LayoutsConfig()
+
+        class LayoutsConfig {
+            var landscape: String? = null  // 16:9
+            var portrait: String? = null   // 9:16
+        }
+    }
+}
+
+enum class EgressLayout {
+    LANDSCAPE,  // 16:9 - desktop/web
+    PORTRAIT    // 9:16 - mobile
 }
 
 @Configuration

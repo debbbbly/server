@@ -40,12 +40,76 @@ class HomeService(
     }
 
     /**
+     * Get most recent stages (OPEN or RECORDED) with cursor pagination, regardless of topic.
+     */
+    fun getStages(cursor: String?, limit: Int): HomeStagesResponse {
+        val cursorOpenedAt = cursor?.let { runCatching { Instant.parse(it) }.getOrNull() }
+
+        val stages = if (cursorOpenedAt != null) {
+            stageJpaRepository.findRecentStagesBeforeCursor(STAGE_VISIBLE_STATUSES, cursorOpenedAt)
+        } else {
+            stageJpaRepository.findRecentStages(STAGE_VISIBLE_STATUSES)
+        }.take(limit + 1)
+
+        val hasMore = stages.size > limit
+        val paginatedStages = stages.take(limit)
+
+        val claimsMap = fetchClaimsMap(paginatedStages)
+        val usersMap = fetchUsersMap(paginatedStages)
+
+        val stageResponses = paginatedStages.mapNotNull { stage ->
+            claimsMap[stage.claimId]?.let { claim ->
+                buildStageResponse(stage, claim, usersMap)
+            }
+        }
+
+        val nextCursor = if (hasMore) {
+            paginatedStages.lastOrNull()?.openedAt?.toString()
+        } else {
+            null
+        }
+
+        return HomeStagesResponse(stages = stageResponses, nextCursor = nextCursor)
+    }
+
+    /**
+     * Get top claims with rank-based cursor pagination.
+     */
+    fun getClaims(userId: String?, cursor: String?, limit: Int): HomeClaimsResponse {
+        val topClaims = topClaimsService.getTopClaimsFromCache()
+
+        val cursorRank = cursor?.toIntOrNull() ?: 0
+        val filtered = topClaims
+            .filter { it.rank > cursorRank }
+            .take(limit + 1)
+
+        val hasMore = filtered.size > limit
+        val paginated = filtered.take(limit)
+
+        val claimIds = paginated.map { it.claimId }.toSet()
+        val userClaimStances = userId?.let { fetchUserClaimStances(it, claimIds.toList()) } ?: emptyMap()
+        val claimQueues = queueService.getQueueByClaimIds(claimIds)
+
+        val claimResponses = paginated.map {
+            it.toHomeTopClaimResponse(userClaimStances[it.claimId], claimQueues[it.claimId] ?: emptyList())
+        }
+
+        val nextCursor = if (hasMore) {
+            paginated.lastOrNull()?.rank?.toString()
+        } else {
+            null
+        }
+
+        return HomeClaimsResponse(claims = claimResponses, nextCursor = nextCursor)
+    }
+
+    /**
      * Get homepage data with topics and their stages.
      */
     fun getTopics(userId: String?, topicCursor: String?, topicLimit: Int, stageLimit: Int): HomeTopicsResponse {
-        val allTopics = topTopicsService.getTopTopicsFromCache()
+        val topTopics = topTopicsService.getTopTopicsFromCache()
 
-        val filteredTopics = allTopics
+        val filteredTopics = topTopics
             .filter { it.rank > (topicCursor?.toIntOrNull() ?: 0) }
             .take(topicLimit)
 
@@ -60,7 +124,7 @@ class HomeService(
             includeTotalStages = false
         )
 
-        val nextCursor = if (allTopics.any { it.rank > (filteredTopics.lastOrNull()?.rank ?: Int.MAX_VALUE) }) {
+        val nextCursor = if (topTopics.any { it.rank > (filteredTopics.lastOrNull()?.rank ?: Int.MAX_VALUE) }) {
             filteredTopics.lastOrNull()?.rank?.toString()
         } else {
             null
@@ -274,7 +338,8 @@ class HomeService(
             hosts = hosts,
             status = stage.status,
             openedAt = stage.openedAt,
-            closedAt = stage.closedAt
+            closedAt = stage.closedAt,
+            thumbnailUrl = stage.thumbnailUrl
         )
     }
 

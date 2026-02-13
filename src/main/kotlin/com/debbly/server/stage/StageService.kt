@@ -102,7 +102,8 @@ class StageService(
                 status = stage.status,
                 openedAt = stage.openedAt,
                 closedAt = stage.closedAt,
-                hlsUrl = getHlsUrlForStageStatus(stage.hlsUrl, stage.status)
+                hlsUrl = getHlsUrlForStageStatus(stage.hlsUrl, stage.status),
+                thumbnailUrl = stage.thumbnailUrl
             )
         }
     }
@@ -141,7 +142,8 @@ class StageService(
                 status = stage.status,
                 openedAt = stage.openedAt,
                 closedAt = stage.closedAt,
-                hlsUrl = getHlsUrlForStageStatus(stage.hlsUrl, stage.status)
+                hlsUrl = getHlsUrlForStageStatus(stage.hlsUrl, stage.status),
+                thumbnailUrl = stage.thumbnailUrl
             )
         }
     }
@@ -201,6 +203,7 @@ class StageService(
             closedAt = stage.closedAt,
             limitMinutes = settingsService.getStageDuration() / 60,
             hlsUrl = getHlsUrlForStageStatus(stage.hlsUrl, stage.status),
+            thumbnailUrl = stage.thumbnailUrl,
             livekitConfig = settingsService.getLivekitClientConfig()
         )
     }
@@ -486,10 +489,31 @@ class StageService(
                 logger.warn("Failed to stop egress recording for stage $stageId, egressId: $egressId")
             }
 
+            // Stop any remaining active egresses (e.g. thumbnail egress)
+            stopRemainingEgresses(stageId, egressId)
+
             return result
         } catch (e: Exception) {
             logger.error("Error stopping egress for stage $stageId", e)
             return null
+        }
+    }
+
+    private fun stopRemainingEgresses(stageId: String, excludeEgressId: String) {
+        try {
+            val remaining = egressService.listActiveEgresses(stageId)
+                .filter { it.egressId != excludeEgressId }
+
+            remaining.forEach { egress ->
+                try {
+                    egressService.stopCompositeEgress(egress.egressId)
+                    logger.debug("Stopped remaining egress ${egress.egressId} for stage $stageId")
+                } catch (e: Exception) {
+                    logger.error("Failed to stop remaining egress ${egress.egressId} for stage $stageId", e)
+                }
+            }
+        } catch (e: Exception) {
+            logger.error("Error listing remaining egresses for stage $stageId", e)
         }
     }
 
@@ -619,6 +643,7 @@ class StageService(
         val closedAt: Instant?,
         val limitMinutes: Long,
         val hlsUrl: String?,
+        val thumbnailUrl: String?,
         val livekitConfig: LivekitConfig
     )
 
@@ -629,7 +654,8 @@ class StageService(
         val status: StageStatus,
         val openedAt: Instant?,
         val closedAt: Instant?,
-        val hlsUrl: String?
+        val hlsUrl: String?,
+        val thumbnailUrl: String?
     )
 
     data class Host(

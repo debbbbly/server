@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Side by Side Layout</title>
+    <script src="https://cdn.livekit.io/egress/v1/room-composite.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+        }
+
+        #container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: row;
+        }
+
+        .participant-container {
+            flex: 1;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .participant-container video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Optional: subtle divider between participants */
+        .participant-container:first-child {
+            border-right: 1px solid #1a1a1a;
+        }
+
+        /* Placeholder when waiting for participants */
+        .placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #111;
+            color: #444;
+            font-family: system-ui, -apple-system, sans-serif;
+            font-size: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+<div id="container">
+    <div class="participant-container" id="left">
+        <div class="placeholder">Waiting...</div>
+    </div>
+    <div class="participant-container" id="right">
+        <div class="placeholder">Waiting...</div>
+    </div>
+</div>
+
+<script>
+    const leftContainer = document.getElementById('left');
+    const rightContainer = document.getElementById('right');
+
+    // Track assigned participants
+    let leftParticipant = null;
+    let rightParticipant = null;
+
+    function styleVideo(videoElement) {
+        videoElement.style.width = '100%';
+        videoElement.style.height = '100%';
+        videoElement.style.objectFit = 'cover';
+        videoElement.style.display = 'block';
+        return videoElement;
+    }
+
+    function attachVideo(container, participant) {
+        // Clear placeholder
+        container.innerHTML = '';
+
+        // Get video track
+        const videoTrack = participant.getTrack('camera')?.track;
+        if (videoTrack) {
+            const videoElement = styleVideo(videoTrack.attach());
+            container.appendChild(videoElement);
+        }
+
+        // Handle track subscribed/unsubscribed
+        participant.on('trackSubscribed', (track) => {
+            if (track.kind === 'video') {
+                container.innerHTML = '';
+                container.appendChild(styleVideo(track.attach()));
+            }
+        });
+
+        participant.on('trackUnsubscribed', (track) => {
+            if (track.kind === 'video') {
+                track.detach().forEach(el => el.remove());
+            }
+        });
+    }
+
+    function showPlaceholder(container) {
+        container.innerHTML = '<div class="placeholder">Waiting...</div>';
+    }
+
+    function assignParticipant(participant) {
+        if (!leftParticipant) {
+            leftParticipant = participant;
+            attachVideo(leftContainer, participant);
+        } else if (!rightParticipant) {
+            rightParticipant = participant;
+            attachVideo(rightContainer, participant);
+        }
+        // Ignore additional participants beyond 2
+    }
+
+    function removeParticipant(participant) {
+        if (leftParticipant?.sid === participant.sid) {
+            leftParticipant = null;
+            showPlaceholder(leftContainer);
+        } else if (rightParticipant?.sid === participant.sid) {
+            rightParticipant = null;
+            showPlaceholder(rightContainer);
+        }
+    }
+
+    // Initialize with EgressHelper
+    EgressHelper.onRoomUpdate((room) => {
+        // Handle existing participants
+        room.participants.forEach((participant) => {
+            if (!leftParticipant?.sid !== participant.sid &&
+                rightParticipant?.sid !== participant.sid) {
+                assignParticipant(participant);
+            }
+        });
+    });
+
+    EgressHelper.onParticipantUpdate((participant) => {
+        // New participant joined
+        if (!leftParticipant || leftParticipant.sid === participant.sid ||
+            !rightParticipant || rightParticipant.sid === participant.sid) {
+
+            if (leftParticipant?.sid === participant.sid) {
+                attachVideo(leftContainer, participant);
+            } else if (rightParticipant?.sid === participant.sid) {
+                attachVideo(rightContainer, participant);
+            } else {
+                assignParticipant(participant);
+            }
+        }
+    });
+
+    EgressHelper.onParticipantDisconnected((participant) => {
+        removeParticipant(participant);
+    });
+
+    // Start the egress helper
+    EgressHelper.start();
+</script>
+</body>
+</html>

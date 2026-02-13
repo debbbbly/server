@@ -86,6 +86,10 @@ livekit:
   url: ${LIVEKIT_API_URL}
   api-key: ${LIVEKIT_API_KEY}
   api-secret: ${LIVEKIT_API_SECRET}
+  egress:
+    layouts:
+      landscape: ${LIVEKIT_EGRESS_LAYOUT_LANDSCAPE:}
+      portrait: ${LIVEKIT_EGRESS_LAYOUT_PORTRAIT:}
 
 auth:
   url: ${AUTH_URL:${AUTH_PUBLIC_URL}}

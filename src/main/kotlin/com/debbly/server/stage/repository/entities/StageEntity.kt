@@ -37,6 +37,7 @@ data class StageEntity(
     val openedAt: Instant?,
     val closedAt: Instant?,
     val hlsUrl: String? = null,
+    val thumbnailUrl: String? = null,
     @Enumerated(EnumType.STRING)
     val closeReason: CloseReason? = null
 )

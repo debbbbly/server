@@ -2,10 +2,7 @@ package com.debbly.server.home
 
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.auth.service.AuthService
-import com.debbly.server.home.model.HomeLiveResponse
-import com.debbly.server.home.model.HomeTopicResponse
-import com.debbly.server.home.model.HomeTopicsResponse
-import com.debbly.server.home.model.TopicStagesResponse
+import com.debbly.server.home.model.*
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -70,6 +67,39 @@ class HomeController(
             topicIdOrSlug = topicIdOrSlug,
             stageCursor = stageCursor,
             stagesLimit = stagesLimit.coerceIn(1, 50)
+        )
+        return ResponseEntity.ok(response)
+    }
+
+    /**
+     * Get most recent stages with cursor pagination, regardless of topic.
+     */
+    @GetMapping("/stages")
+    fun getStages(
+        @RequestParam(required = false) cursor: String?,
+        @RequestParam(defaultValue = "10") limit: Int
+    ): ResponseEntity<HomeStagesResponse> {
+        val response = homeService.getStages(
+            cursor = cursor,
+            limit = limit.coerceIn(1, 50)
+        )
+        return ResponseEntity.ok(response)
+    }
+
+    /**
+     * Get top claims with rank-based cursor pagination.
+     */
+    @GetMapping("/claims")
+    fun getClaims(
+        @ExternalUserId externalUserId: String?,
+        @RequestParam(required = false) cursor: String?,
+        @RequestParam(defaultValue = "10") limit: Int
+    ): ResponseEntity<HomeClaimsResponse> {
+        val userId = externalUserId?.let { authService.authenticateOptional(it)?.userId }
+        val response = homeService.getClaims(
+            userId = userId,
+            cursor = cursor,
+            limit = limit.coerceIn(1, 50)
         )
         return ResponseEntity.ok(response)
     }

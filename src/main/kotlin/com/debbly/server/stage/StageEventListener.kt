@@ -121,8 +121,16 @@ class StageEventListener(
 
             if (egressInfo?.egressId != null) {
                 val hlsUrl = buildHlsUrl(stage.stageId)
-                val updatedStage = stage.copy(hlsUrl = hlsUrl)
+                val thumbnailUrl = buildThumbnailUrl(stage.stageId)
+                val updatedStage = stage.copy(hlsUrl = hlsUrl, thumbnailUrl = thumbnailUrl)
                 stageRepository.save(updatedStage)
+
+                try {
+                    egressService.startThumbnailEgress(stage.stageId)
+                } catch (e: Exception) {
+                    logger.error("Failed to start thumbnail egress for stage ${stage.stageId}", e)
+                }
+
                 logger.debug("Started egress for stage ${stage.stageId}, egressId: ${egressInfo.egressId}")
                 egressInfo.egressId
             } else {
@@ -160,6 +168,10 @@ class StageEventListener(
     private fun buildHlsUrl(stageId: String): String {
         // Store base path - actual playlist name will be determined by stage status
         return "${s3Config.endpoint}/${s3Config.bucket.egress}/$stageId"
+    }
+
+    private fun buildThumbnailUrl(stageId: String): String {
+        return "${s3Config.endpoint}/${s3Config.bucket.egress}/$stageId/thumbnails"
     }
 
     private fun shouldStartEgressForStage(stage: StageModel): Boolean {

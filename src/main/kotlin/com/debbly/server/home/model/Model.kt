@@ -23,6 +23,16 @@ data class HomeTopicResponse(
     val queue: List<QueueUserResponse> = emptyList()
 )
 
+data class HomeStagesResponse(
+    val stages: List<HomeStageResponse>,
+    val nextCursor: String?
+)
+
+data class HomeClaimsResponse(
+    val claims: List<HomeClaimResponse>,
+    val nextCursor: String?
+)
+
 data class HomeClaimResponse(
     val claimId: String,
     val claimSlug: String?,

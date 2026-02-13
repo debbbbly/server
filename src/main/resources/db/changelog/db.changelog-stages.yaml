@@ -176,3 +176,16 @@ databaseChangeLog:
         - dropColumn:
             tableName: stages
             columnName: recorded
+  - changeSet:
+      id: 12
+      author: claude
+      comment: Add thumbnail_url column
+      changes:
+        - addColumn:
+            tableName: stages
+            columns:
+              - column:
+                  name: thumbnail_url
+                  type: varchar(512)
+                  constraints:
+                    nullable: true

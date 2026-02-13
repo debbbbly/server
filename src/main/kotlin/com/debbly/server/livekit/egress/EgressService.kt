@@ -1,5 +1,7 @@
 package com.debbly.server.livekit.egress
 
+import com.debbly.server.config.EgressLayout
+import com.debbly.server.config.LiveKitConfig
 import com.debbly.server.livekit.S3LiveKitProperties
 import com.debbly.server.settings.SettingsService
 import io.livekit.server.EgressServiceClient
@@ -13,14 +15,25 @@ class EgressService(
     private val s3Config: S3LiveKitProperties,
     private val livekitEgressService: EgressServiceClient,
     private val settings: SettingsService,
-    private val clock: java.time.Clock
+    private val clock: java.time.Clock,
+    private val liveKitConfig: LiveKitConfig
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    private fun getLayoutUrl(layout: EgressLayout): String {
+        val layouts = liveKitConfig.egress.layouts
+        return when (layout) {
+            EgressLayout.LANDSCAPE -> layouts.landscape
+            EgressLayout.PORTRAIT -> layouts.portrait
+        } ?: "grid"
+    }
+
     fun startCompositeEgress(
         stageId: String,
+        layout: EgressLayout = EgressLayout.LANDSCAPE
     ): LivekitEgress.EgressInfo? {
-        logger.debug("Starting HLS egress for stage $stageId")
+        val layoutUrl = getLayoutUrl(layout)
+        logger.debug("Starting HLS egress for stage $stageId with layout: $layout")
 
         val s3Upload = buildS3Upload()
 
@@ -33,11 +46,16 @@ class EgressService(
             .setS3(s3Upload)
             .build()
 
+        val preset = when (layout) {
+            EgressLayout.LANDSCAPE -> LivekitEgress.EncodingOptionsPreset.H264_1080P_30
+            EgressLayout.PORTRAIT -> LivekitEgress.EncodingOptionsPreset.PORTRAIT_H264_1080P_30
+        }
+
         val call = livekitEgressService.startRoomCompositeEgress(
-            stageId,
-            segmentOutput,
-            "grid",
-            LivekitEgress.EncodingOptionsPreset.H264_1080P_30
+            roomName = stageId,
+            output = segmentOutput,
+            layout = layoutUrl,
+            optionsPreset = preset
         )
         val response = call.execute()
 
@@ -51,14 +69,19 @@ class EgressService(
         }
     }
 
-    fun whay(stageId: String) {
+    fun startThumbnailEgress(stageId: String, layout: EgressLayout = EgressLayout.LANDSCAPE) {
+        val layoutUrl = getLayoutUrl(layout)
+        val (width, height) = when (layout) {
+            EgressLayout.LANDSCAPE -> 1920 to 1080
+            EgressLayout.PORTRAIT -> 1080 to 1920
+        }
         val s3Upload = buildS3Upload()
 
         try {
             val imageOutput = LivekitEgress.ImageOutput.newBuilder()
                 .setCaptureInterval(10)
-                .setWidth(1920)
-                .setHeight(1080)
+                .setWidth(width)
+                .setHeight(height)
                 .setFilenamePrefix("$stageId/thumbnails/")
                 .setFilenameSuffix(IMAGE_SUFFIX_INDEX)
                 .setDisableManifest(true)
@@ -68,7 +91,7 @@ class EgressService(
             val imageCall = livekitEgressService.startRoomCompositeEgress(
                 stageId,
                 imageOutput,
-                "grid",
+                layoutUrl,
             )
 
             val imageResponse = imageCall.execute()
