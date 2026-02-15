@@ -12,6 +12,8 @@ import com.debbly.server.claim.user.UserClaimService
 import com.debbly.server.home.model.HomeHostResponse
 import com.debbly.server.home.model.HomeStageClaimResponse
 import com.debbly.server.home.model.HomeStageResponse
+import com.debbly.server.home.model.QueueUserResponse
+import com.debbly.server.match.QueueService
 import com.debbly.server.stage.repository.StageJpaRepository
 import com.debbly.server.stage.repository.entities.StageStatus
 import com.debbly.server.user.repository.UserCachedRepository
@@ -34,7 +36,8 @@ class ClaimController(
     private val claimSimilarityService: ClaimSimilarityService,
     private val stageJpaRepository: StageJpaRepository,
     private val userCachedRepository: UserCachedRepository,
-    private val topicRepository: TopicRepository
+    private val topicRepository: TopicRepository,
+    private val queueService: QueueService
 ) {
 
     @GetMapping("/top")
@@ -157,12 +160,15 @@ class ClaimController(
         val userIds = stages.flatMap { it.hosts.map { host -> host.id.userId } }.distinct()
         val usersMap = userCachedRepository.findByIds(userIds)
 
+        val claimQueue = queueService.getQueueByClaimIds(setOf(claim.claimId))[claim.claimId] ?: emptyList()
+
         val stageResponses = stages.map { stage ->
             HomeStageResponse(
                 stageId = stage.stageId,
                 claim = HomeStageClaimResponse(
                     claimId = claim.claimId,
                     claimSlug = claim.slug,
+                    categoryId = claim.categoryId,
                     title = claim.title
                 ),
                 hosts = stage.hosts.map { host ->
@@ -195,7 +201,8 @@ class ClaimController(
                 userClaim = userClaim?.let {
                     ClaimDetailResponse.UserClaimResponse(stance = it.stance)
                 },
-                stages = stageResponses
+                stages = stageResponses,
+                queue = claimQueue
             )
         )
     }
@@ -280,7 +287,8 @@ data class ClaimDetailResponse(
     val againstCount: Int,
     val recentInterest: Int,
     val userClaim: UserClaimResponse?,
-    val stages: List<HomeStageResponse>
+    val stages: List<HomeStageResponse>,
+    val queue: List<QueueUserResponse> = emptyList()
 ) {
     data class UserClaimResponse(
         val stance: ClaimStance

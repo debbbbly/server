@@ -36,6 +36,7 @@ data class HomeClaimsResponse(
 data class HomeClaimResponse(
     val claimId: String,
     val claimSlug: String?,
+    val categoryId: String,
     val title: String,
     val forCount: Int,
     val againstCount: Int,
@@ -67,6 +68,7 @@ data class HomeLiveResponse(
 data class HomeStageClaimResponse(
     val claimId: String,
     val claimSlug: String?,
+    val categoryId: String?,
     val title: String
 )
 

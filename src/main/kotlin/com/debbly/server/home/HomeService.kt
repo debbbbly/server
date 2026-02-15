@@ -287,6 +287,7 @@ class HomeService(
     ) = HomeClaimResponse(
         claimId = claimId,
         claimSlug = claimSlug,
+        categoryId = categoryId,
         title = title,
         forCount = forCount,
         againstCount = againstCount,
@@ -334,7 +335,7 @@ class HomeService(
 
         return HomeStageResponse(
             stageId = stage.stageId,
-            claim = HomeStageClaimResponse(claim.claimId, claim.slug, claim.title),
+            claim = HomeStageClaimResponse(claim.claimId, claim.slug, claim.categoryId, claim.title),
             hosts = hosts,
             status = stage.status,
             openedAt = stage.openedAt,
@@ -362,6 +363,7 @@ class HomeService(
                 claim = HomeStageClaimResponse(
                     claimId = liveStage.claimId ?: "",
                     claimSlug = liveStage.claimSlug,
+                    categoryId = null,
                     title = liveStage.title ?: ""
                 ),
                 hosts = liveStage.hosts.map { host ->
