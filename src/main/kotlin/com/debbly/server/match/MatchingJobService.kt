@@ -8,6 +8,7 @@ import com.debbly.server.claim.top.TopClaimsService
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.match.event.MatchFoundEvent
 import com.debbly.server.match.model.*
+import com.debbly.server.match.model.QueueStatus
 import com.debbly.server.match.repository.MatchQueueRepository
 import com.debbly.server.match.repository.MatchRepository
 import com.debbly.server.settings.SettingsService
@@ -36,18 +37,21 @@ class MatchingJobService(
     private val logger = LoggerFactory.getLogger(javaClass)
 
     companion object {
-        private const val QUEUE_TIMEOUT_SECONDS = 15 * 60L // 15 minutes
+        private const val QUEUE_TIMEOUT_SECONDS = 4 * 60 * 60L // 4 hours
     }
 
     fun runMatching() {
         cleanupExpiredMatches()
 
         val allUsers = matchQueueRepository.findAll()
+        val pausedUsers = allUsers.filter { it.status == QueueStatus.PAUSED }
+        val activeUsers = allUsers.filter { it.status == QueueStatus.ACTIVE }
+
         val now = Instant.now(clock)
         val queueTimeoutThreshold = now.minusSeconds(QUEUE_TIMEOUT_SECONDS)
 
-        // Filter out users who have been in queue for more than 15 minutes
-        val (expiredUsers, waitingUsers) = allUsers.partition { it.joinedAt.isBefore(queueTimeoutThreshold) }
+        // Filter out users who have been inactive for more than 4 hours
+        val (expiredUsers, waitingUsers) = activeUsers.partition { it.updatedAt.isBefore(queueTimeoutThreshold) }
 
         // Notify expired users
         if (expiredUsers.isNotEmpty()) {
@@ -62,7 +66,7 @@ class MatchingJobService(
             return
         }
 
-        logger.debug("Starting matching cycle with {} users in queue", sortedWaitingUsers.size)
+        logger.debug("Starting matching cycle with {} active users in queue ({} paused)", sortedWaitingUsers.size, pausedUsers.size)
 
         // Phase 1: Claim Match (Strict)
         matchClaimPhase(sortedWaitingUsers, matchedUsers)
@@ -81,8 +85,19 @@ class MatchingJobService(
             matchNotificationService.notifyStillWaiting(finalRemainingUsers.map { it.userId })
         }
 
-        // Clean up and re-queue remaining users
+        // Clean up and re-queue remaining active users (don't touch paused users)
         matchQueueRepository.removeAll()
+
+        // Re-save paused users
+        pausedUsers.forEach { matchQueueRepository.save(it) }
+
+        // Re-save matched users as PAUSED
+        val matchedRequests = sortedWaitingUsers.filter { it.userId in matchedUsers }
+        matchedRequests.forEach { request ->
+            matchQueueRepository.save(request.copy(status = QueueStatus.PAUSED, updatedAt = now))
+        }
+
+        // Re-save remaining active users
         if (finalRemainingUsers.isNotEmpty()) {
             finalRemainingUsers.forEach { matchQueueRepository.save(it) }
             // Broadcast queue update with remaining users
@@ -90,7 +105,7 @@ class MatchingJobService(
         }
 
         if (matchedUsers.isNotEmpty()) {
-            logger.debug("Matching cycle complete: {} users matched, {} remaining in queue", matchedUsers.size, finalRemainingUsers.size)
+            logger.debug("Matching cycle complete: {} users matched (paused), {} remaining in queue", matchedUsers.size, finalRemainingUsers.size)
         }
     }
 

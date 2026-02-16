@@ -37,6 +37,7 @@ enum class PusherMessageType {
     MATCH_EXPIRED,
     MATCH_FAILED,
     MATCH_STILL_WAITING,
+    MATCH_QUEUE_REMOVED,
 
     // Stage notifications
     STAGE_OPEN,

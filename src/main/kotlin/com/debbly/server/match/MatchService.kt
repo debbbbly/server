@@ -14,6 +14,10 @@ import com.debbly.server.match.event.MatchAcceptedEvent
 import com.debbly.server.match.model.*
 import com.debbly.server.match.repository.MatchQueueRepository
 import com.debbly.server.match.repository.MatchRepository
+import com.debbly.server.pusher.model.PusherEventName.MATCH_EVENT
+import com.debbly.server.pusher.model.PusherMessage.Companion.message
+import com.debbly.server.pusher.model.PusherMessageType.MATCH_QUEUE_REMOVED
+import com.debbly.server.pusher.service.PusherService
 import com.debbly.server.user.model.UserModel
 import com.debbly.server.user.repository.UserCachedRepository
 import org.slf4j.LoggerFactory
@@ -33,12 +37,14 @@ class MatchService(
     private val eventPublisher: ApplicationEventPublisher,
     private val matchValidationService: MatchValidationService,
     private val claimCachedRepository: ClaimCachedRepository,
-    private val userCachedRepository: UserCachedRepository
+    private val userCachedRepository: UserCachedRepository,
+    private val pusherService: PusherService
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
     fun join(user: UserModel, request: JoinMatchRequest) {
         cancelExistingMatchIfPresent(user.userId)
+        val existingRequest = matchQueueRepository.find(user.userId)
 
         // Save stances to DB for each claim
         request.claims?.forEach { claimWithStance ->
@@ -58,14 +64,18 @@ class MatchService(
             )
         }
 
+        val now = Instant.now(clock)
         val matchRequest = MatchRequest(
             userId = user.userId,
-            claims = request.claims ?: emptyList(),
-            topics = request.topics ?: emptyList(),
-            skipUserIds = emptySet(),
-            skipClaimIds = emptySet(),
-            joinedAt = Instant.now(clock),
-            ignores = 0
+            claims = mergeClaims(existingRequest?.claims.orEmpty(), request.claims.orEmpty()),
+            topics = mergeTopics(existingRequest?.topics.orEmpty(), request.topics.orEmpty()),
+            skipUserIds = existingRequest?.skipUserIds.orEmpty(),
+            skipClaimIds = existingRequest?.skipClaimIds.orEmpty(),
+            joinedAt = now,
+            updatedAt = now,
+            ignores = existingRequest?.ignores ?: 0,
+            skipCount = existingRequest?.skipCount ?: 0,
+            status = QueueStatus.ACTIVE
         )
         matchQueueRepository.save(matchRequest)
 
@@ -73,14 +83,40 @@ class MatchService(
         logger.debug("Queue size after join: {}", queueSize)
     }
 
-    fun leave(user: UserModel) {
+    fun leave(user: UserModel, claimIds: List<String>? = null) {
         val existingRequest = matchQueueRepository.find(user.userId)
-        matchQueueRepository.remove(userId = user.userId)
-
-        if (existingRequest != null) {
-            val queueSize = matchQueueRepository.count()
-            logger.debug("Queue size after leave: {}", queueSize)
+        if (existingRequest == null) {
+            return
         }
+
+        val requestedClaimIds = claimIds.orEmpty().toSet()
+        if (requestedClaimIds.isEmpty()) {
+            if (existingRequest.topics.isEmpty()) {
+                matchQueueRepository.remove(userId = user.userId)
+            } else {
+                matchQueueRepository.save(
+                    existingRequest.copy(
+                        claims = emptyList(),
+                        skipClaimIds = emptySet()
+                    )
+                )
+            }
+        } else {
+            val updatedClaims = existingRequest.claims.filterNot { it.claimId in requestedClaimIds }
+            if (updatedClaims.isEmpty() && existingRequest.topics.isEmpty()) {
+                matchQueueRepository.remove(userId = user.userId)
+            } else {
+                matchQueueRepository.save(
+                    existingRequest.copy(
+                        claims = updatedClaims,
+                        skipClaimIds = existingRequest.skipClaimIds - requestedClaimIds
+                    )
+                )
+            }
+        }
+
+        val queueSize = matchQueueRepository.count()
+        logger.debug("Queue size after leave: {}", queueSize)
     }
 
     /**
@@ -115,12 +151,22 @@ class MatchService(
         }
 
         if (existingRequest != null) {
-            val updatedRequest = existingRequest.copy(
-                skipUserIds = skipUserIds,
-                skipClaimIds = skipClaimIds,
-                joinedAt = Instant.now(clock)
-            )
-            matchQueueRepository.save(updatedRequest)
+            val newSkipCount = existingRequest.skipCount + 1
+            if (newSkipCount >= 2) {
+                // Remove user from queue after 2 skips
+                matchQueueRepository.remove(existingRequest.userId)
+                val data = mapOf("reason" to "skip_limit_reached")
+                pusherService.sendUserNotification(user.userId, MATCH_EVENT, message(MATCH_QUEUE_REMOVED, data))
+                logger.info("User {} removed from queue after {} skips", user.userId, newSkipCount)
+            } else {
+                val updatedRequest = existingRequest.copy(
+                    skipUserIds = skipUserIds,
+                    skipClaimIds = skipClaimIds,
+                    updatedAt = Instant.now(clock),
+                    skipCount = newSkipCount
+                )
+                matchQueueRepository.save(updatedRequest)
+            }
         }
 
         // Re-queue opponents
@@ -173,18 +219,20 @@ class MatchService(
 
             val updatedRequest = existingRequest.copy(
                 claims = updatedClaims,
-                joinedAt = Instant.now(clock)
+                updatedAt = Instant.now(clock)
             )
             matchQueueRepository.save(updatedRequest)
         } else if (userWantedStance != null) {
             // Create new request with the switched stance
+            val now = Instant.now(clock)
             val matchRequest = MatchRequest(
                 userId = user.userId,
                 claims = listOf(ClaimWithStance(match.claim.claimId, userWantedStance)),
                 topics = emptyList(),
                 skipUserIds = emptySet(),
                 skipClaimIds = emptySet(),
-                joinedAt = Instant.now(clock),
+                joinedAt = now,
+                updatedAt = now,
                 ignores = 0
             )
             matchQueueRepository.save(matchRequest)
@@ -240,6 +288,12 @@ class MatchService(
 
         matchNotificationService.notifyMatchCancelled(existingMatch, userId, "rejoin")
         matchRepository.delete(existingMatch.matchId)
+
+        // Unpause the queue request if it was paused during match
+        val existingRequest = matchQueueRepository.find(userId)
+        if (existingRequest != null && existingRequest.status == QueueStatus.PAUSED) {
+            matchQueueRepository.save(existingRequest.copy(status = QueueStatus.ACTIVE, updatedAt = Instant.now(clock)))
+        }
     }
 
     private fun reQueueOpponents(match: Match, excludeUserId: String) {
@@ -278,9 +332,12 @@ class MatchService(
     }
 
     fun getQueueDetails(userId: String): QueueResponse {
-        val allRequests = matchQueueRepository.findAll()
+        val allRequests = matchQueueRepository.findAllActive()
         val myRequests = allRequests.filter { it.userId == userId }
         val otherRequests = allRequests.filter { it.userId != userId }
+        val myClaimStances = myRequests
+            .flatMap { it.claims }
+            .associate { it.claimId to it.stance }
 
         // Collect all unique claim IDs and user IDs
         val allClaimIds = allRequests.flatMap { r -> r.claims.map { it.claimId } }.distinct()
@@ -312,8 +369,10 @@ class MatchService(
                     claimSlug = claim.slug,
                     categoryId = claim.categoryId,
                     title = claim.title,
-                    waitingUsers = waitingUsers,
-                    totalWaiting = waitingUsers.size
+                    forCount = waitingUsers.count { it.stance == ClaimStance.FOR },
+                    againstCount = waitingUsers.count { it.stance == ClaimStance.AGAINST },
+                    userStance = myClaimStances[claim.claimId],
+                    queue = waitingUsers
                 )
             }
         }
@@ -322,6 +381,10 @@ class MatchService(
             my = buildClaimDetails(myRequests),
             claims = buildClaimDetails(otherRequests)
         )
+    }
+
+    fun removeFromQueue(userId: String) {
+        matchQueueRepository.remove(userId)
     }
 
     fun getQueue(): List<MatchRequest> = matchQueueRepository.findAll()
@@ -340,10 +403,11 @@ class MatchService(
                 MatchingState(status = MATCHED, matches = listOf(match))
             }
             ?: let {
-                if (matchQueueRepository.find(user.userId) != null) {
-                    MatchingState(status = MATCHING)
-                } else {
-                    MatchingState(status = NOT_MATCHING)
+                val request = matchQueueRepository.find(user.userId)
+                when {
+                    request == null -> MatchingState(status = NOT_MATCHING)
+                    request.status == QueueStatus.PAUSED -> MatchingState(status = IN_MATCH)
+                    else -> MatchingState(status = MATCHING)
                 }
             }
 
@@ -353,6 +417,26 @@ class MatchService(
     )
 
     enum class MatchingStatus {
-        MATCHING, MATCHED, NOT_MATCHING
+        MATCHING, MATCHED, IN_MATCH, NOT_MATCHING
+    }
+
+    private fun mergeClaims(
+        existingClaims: List<ClaimWithStance>,
+        newClaims: List<ClaimWithStance>,
+    ): List<ClaimWithStance> {
+        val mergedByClaimId = LinkedHashMap<String, ClaimWithStance>()
+        existingClaims.forEach { mergedByClaimId[it.claimId] = it }
+        newClaims.forEach { mergedByClaimId[it.claimId] = it }
+        return mergedByClaimId.values.toList()
+    }
+
+    private fun mergeTopics(
+        existingTopics: List<TopicWithStance>,
+        newTopics: List<TopicWithStance>,
+    ): List<TopicWithStance> {
+        val mergedByTopicId = LinkedHashMap<String, TopicWithStance>()
+        existingTopics.forEach { mergedByTopicId[it.topicId] = it }
+        newTopics.forEach { mergedByTopicId[it.topicId] = it }
+        return mergedByTopicId.values.toList()
     }
 }

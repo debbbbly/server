@@ -1,6 +1,7 @@
 package com.debbly.server.match.repository
 
 import com.debbly.server.match.model.MatchRequest
+import com.debbly.server.match.model.QueueStatus
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.data.redis.core.RedisTemplate
@@ -61,6 +62,10 @@ class MatchQueueRepository(
             .mapNotNull {
                 objectMapper.readValue(it, MatchRequest::class.java)
             }
+    }
+
+    fun findAllActive(): List<MatchRequest> {
+        return findAll().filter { it.status == QueueStatus.ACTIVE }
     }
 
     fun count(): Long {

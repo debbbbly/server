@@ -30,7 +30,7 @@ class QueueService(
     fun getQueueByTopicIds(topicIds: Set<String>): Map<String, List<QueueUserResponse>> {
         if (topicIds.isEmpty()) return emptyMap()
 
-        val allRequests = matchQueueRepository.findAll()
+        val allRequests = matchQueueRepository.findAllActive()
         val userIds = allRequests.map { it.userId }.toSet()
         val usersMap = userCachedRepository.findByIds(userIds.toList())
 
@@ -88,7 +88,7 @@ class QueueService(
     fun getQueueByClaimIds(claimIds: Set<String>): Map<String, List<QueueUserResponse>> {
         if (claimIds.isEmpty()) return emptyMap()
 
-        val allRequests = matchQueueRepository.findAll()
+        val allRequests = matchQueueRepository.findAllActive()
         val userIds = allRequests.map { it.userId }.toSet()
         val usersMap = userCachedRepository.findByIds(userIds.toList())
 
@@ -118,7 +118,7 @@ class QueueService(
      * Build full queue broadcast data for all topics and claims.
      */
     fun getQueueBroadcast(): QueueBroadcastResponse {
-        val allRequests = matchQueueRepository.findAll()
+        val allRequests = matchQueueRepository.findAllActive()
 
         if (allRequests.isEmpty()) {
             return QueueBroadcastResponse(topics = emptyList(), claims = emptyList())

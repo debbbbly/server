@@ -6,6 +6,7 @@ import com.debbly.server.home.model.QueueResponse
 import com.debbly.server.infra.error.ForbiddenException
 import com.debbly.server.match.MatchService.MatchingState
 import com.debbly.server.match.model.JoinMatchRequest
+import com.debbly.server.match.model.LeaveMatchRequest
 import com.debbly.server.match.model.Match
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -29,9 +30,12 @@ class MatchController(
     }
 
     @PostMapping("/leave")
-    fun leaveQueue(@ExternalUserId externalUserId: String?): ResponseEntity<Void> {
+    fun leaveQueue(
+        @ExternalUserId externalUserId: String?,
+        @RequestBody(required = false) request: LeaveMatchRequest?
+    ): ResponseEntity<Void> {
         authService.authenticate(externalUserId).let { user ->
-            matchService.leave(user)
+            matchService.leave(user, request?.claimIds)
         }
         return ResponseEntity.ok().build()
     }

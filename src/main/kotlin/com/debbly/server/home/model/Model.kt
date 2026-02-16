@@ -98,8 +98,10 @@ data class QueueClaimDetail(
     val claimSlug: String?,
     val categoryId: String,
     val title: String,
-    val waitingUsers: List<QueueUserResponse>,
-    val totalWaiting: Int
+    val forCount: Int,
+    val againstCount: Int,
+    val userStance: ClaimStance? = null,
+    val queue: List<QueueUserResponse> = emptyList()
 )
 
 data class QueueBroadcastResponse(

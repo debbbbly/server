@@ -3,6 +3,8 @@ package com.debbly.server.stage
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.livekit.S3LiveKitProperties
 import com.debbly.server.livekit.egress.EgressService
+import com.debbly.server.match.MatchService
+import com.debbly.server.match.QueueService
 import com.debbly.server.match.repository.MatchRepository
 import com.debbly.server.pusher.model.PusherEventName.STAGE_EVENT
 import com.debbly.server.pusher.model.PusherMessage.Companion.message
@@ -43,7 +45,9 @@ class StageEventListener(
     private val clock: Clock,
     private val pusherService: PusherService,
     private val matchRepository: MatchRepository,
-    private val stageMediaRepository: StageMediaJpaRepository
+    private val stageMediaRepository: StageMediaJpaRepository,
+    private val matchService: MatchService,
+    private val queueService: QueueService
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -78,6 +82,10 @@ class StageEventListener(
             stageRepository.save(updatedStage)
 
             val allHostUserIds = updatedStage.hosts.map { it.userId }
+
+            // Remove hosts from matching queue — they must manually rejoin after the debate
+            allHostUserIds.forEach { matchService.removeFromQueue(it) }
+            queueService.broadcastQueueUpdate()
 
             //move to a seperate listener later
             updateUserRanks(allHostUserIds)
