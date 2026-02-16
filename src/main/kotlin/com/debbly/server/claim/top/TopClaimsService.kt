@@ -127,7 +127,7 @@ class TopClaimsService(
         }
 
         val allClaimsMap = claimJpaRepository.findByClaimIds(allRelevantClaimIds)
-            .filter { it.categoryId in activeCategoryIds }
+            .filter { !it.removed && it.categoryId in activeCategoryIds }
             .associate { it.claimId to it.toModel() }
 
         val scoredClaims = allRelevantClaimIds.mapNotNull { claimId ->

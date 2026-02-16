@@ -310,6 +310,7 @@ class HomeService(
             .takeIf { it.isNotEmpty() }
             ?.let { claimIds ->
                 claimJpaRepository.findByClaimIds(claimIds)
+                    .filter { !it.removed }
                     .associate { it.claimId to it.toModel() }
             } ?: emptyMap()
     }

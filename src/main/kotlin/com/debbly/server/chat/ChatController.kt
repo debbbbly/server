@@ -3,6 +3,7 @@ package com.debbly.server.chat
 import com.debbly.server.ai.OpenAiService
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.auth.service.AuthService
+import com.debbly.server.infra.error.ForbiddenException
 import com.debbly.server.pusher.model.ChannelHistoryResponse
 import com.debbly.server.pusher.model.ChannelMessageResponse
 import com.debbly.server.pusher.model.PusherMessageType.CHAT_MESSAGE
@@ -34,6 +35,7 @@ class ChatController(
     ): ResponseEntity<SendMessageResponse> {
         try {
             val user = authService.authenticate(externalUserId)
+            if (user.banned) throw ForbiddenException("Your account is limited")
 
             // Rate limiting: 1 message per second per user
             if (!ChatRateLimiter.tryConsume(user.userId)) {

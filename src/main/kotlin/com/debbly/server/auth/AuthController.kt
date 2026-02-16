@@ -335,27 +335,18 @@ class AuthController(
         val provider: String? = null  // Optional: to track which OAuth provider was used
     )
 
-    /**
-     * Sets authentication cookies from already-validated tokens.
-     *
-     * SECURITY NOTE: This endpoint does NOT validate tokens. It should ONLY be called:
-     * 1. After /auth/login or /auth/signup where tokens were validated by the backend
-     * 2. From the frontend to convert response tokens into HTTP-only cookies
-     *
-     * For OAuth flows, use /oauth/callback instead which validates tokens with Supabase first.
-     */
-    @PostMapping("/set-cookie")
-    fun setCookie(
-        @RequestBody request: SetCookie,
-        response: HttpServletResponse
-    ): ResponseEntity<Void> {
-        val secure = "dev" !in env.activeProfiles
-        response.setCookie("accessToken", request.accessToken, 60 * 60, "Lax", secure)
-        response.setCookie("idToken", request.idToken, 60 * 60, "Lax", secure)
-        response.setCookie("refreshToken", request.refreshToken, 60 * 60 * 24 * 30, "Strict", secure)
-
-        return ResponseEntity.ok().build()
-    }
+//    @PostMapping("/set-cookie")
+//    fun setCookie(
+//        @RequestBody request: SetCookie,
+//        response: HttpServletResponse
+//    ): ResponseEntity<Void> {
+//        val secure = "dev" !in env.activeProfiles
+//        response.setCookie("accessToken", request.accessToken, 60 * 60, "Lax", secure)
+//        response.setCookie("idToken", request.idToken, 60 * 60, "Lax", secure)
+//        response.setCookie("refreshToken", request.refreshToken, 60 * 60 * 24 * 30, "Strict", secure)
+//
+//        return ResponseEntity.ok().build()
+//    }
 
     @PostMapping("/google/signin")
     fun googleSignIn(@RequestBody request: GoogleOAuthRequest): ResponseEntity<GoogleOAuthResponse> {

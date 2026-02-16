@@ -24,7 +24,7 @@ class ClaimCachedRepository(
 
     @Cacheable(value = ["claimsBySlug"], key = "#slug", unless = "#result == null")
     fun findBySlug(slug: String): ClaimModel? =
-        claimJpaRepository.findBySlug(slug)?.toModel()
+        claimJpaRepository.findBySlugAndRemovedFalse(slug)?.toModel()
 
     @Cacheable(value = ["allClaims"])
     fun findAll(): List<ClaimModel> =

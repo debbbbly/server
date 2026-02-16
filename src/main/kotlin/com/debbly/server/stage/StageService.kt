@@ -556,6 +556,25 @@ class StageService(
         stageMediaRepository.save(media.copy(status = newStatus, durationSeconds = durationSeconds))
     }
 
+    fun makeStageMediaPrivate(stageId: String, userId: String) {
+        val stage = stageRepository.findById(stageId)
+            ?: throw IllegalArgumentException("Stage not found")
+
+        if (stage.hosts.none { it.userId == userId }) {
+            throw UnauthorizedException("User is not a host of this stage")
+        }
+
+        val media = stageMediaRepository.findById(stageId).orElse(null)
+            ?: throw IllegalArgumentException("Stage media not found")
+
+        if (media.visibility == StageMediaVisibility.HOST_ONLY) {
+            return
+        }
+
+        stageMediaRepository.save(media.copy(visibility = StageMediaVisibility.HOST_ONLY))
+        logger.info("Stage $stageId media set to HOST_ONLY by host $userId")
+    }
+
     fun deleteRecordedStage(stageId: String, userId: String) {
         val stage = stageRepository.findById(stageId)
             ?: throw IllegalArgumentException("Stage not found")

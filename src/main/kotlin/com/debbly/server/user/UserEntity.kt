@@ -20,6 +20,7 @@ data class UserEntity(
     var avatarUrl: String? = null,
     var rank: Int = 0,
     var deleted: Boolean = false,
+    var banned: Boolean = false,
     @Column(length = 1024)
     var bio: String? = null,
     @Column(name = "created_at")
@@ -39,6 +40,7 @@ data class UserEntity(
         avatarUrl = avatarUrl,
         rank = rank,
         deleted = deleted,
+        banned = banned,
         bio = bio,
         createdAt = createdAt,
         lastLogin = lastLogin,

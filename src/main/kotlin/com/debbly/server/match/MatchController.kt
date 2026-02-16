@@ -24,6 +24,7 @@ class MatchController(
         @RequestBody request: JoinMatchRequest
     ): ResponseEntity<Void> {
         authService.authenticate(externalUserId).let { user ->
+            if (user.banned) throw ForbiddenException("Your account is limited")
             matchService.join(user, request)
         }
         return ResponseEntity.ok().build()

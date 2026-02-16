@@ -236,3 +236,17 @@ databaseChangeLog:
               - column:
                   name: last_seen
                   descending: true
+
+  - changeSet:
+      id: 10
+      author: claude
+      changes:
+        - addColumn:
+            tableName: users
+            columns:
+              - column:
+                  name: banned
+                  type: boolean
+                  defaultValue: false
+                  constraints:
+                    nullable: false

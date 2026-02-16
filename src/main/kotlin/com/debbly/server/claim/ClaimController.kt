@@ -6,6 +6,7 @@ import com.debbly.server.claim.GetTopClaimsResponse.UserClaimResponse
 import com.debbly.server.claim.model.ClaimModel
 import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.ClaimCachedRepository
+import com.debbly.server.infra.error.ForbiddenException
 import com.debbly.server.claim.top.TopClaimsService
 import com.debbly.server.claim.topic.repository.TopicRepository
 import com.debbly.server.claim.user.UserClaimService
@@ -90,6 +91,7 @@ class ClaimController(
         @ExternalUserId externalUserId: String?
     ): ResponseEntity<ClaimModel> {
         val user = authService.authenticate(externalUserId)
+        if (user.banned) throw ForbiddenException("Your account is limited")
 
         if (!ClaimRateLimiter.tryConsume(user.userId)) {
             throw ResponseStatusException(

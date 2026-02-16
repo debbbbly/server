@@ -312,3 +312,18 @@ databaseChangeLog:
               - column:
                   name: active
                   valueBoolean: false
+
+  - changeSet:
+      id: 16
+      author: claude
+      comment: Add removed column for soft-delete
+      changes:
+        - addColumn:
+            tableName: claims
+            columns:
+              - column:
+                  name: removed
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false

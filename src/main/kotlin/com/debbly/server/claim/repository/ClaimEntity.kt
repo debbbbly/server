@@ -15,4 +15,5 @@ data class ClaimEntity(
     val topicId: String,
     @Enumerated(EnumType.STRING)
     val stanceToTopic: StanceToTopic,
+    val removed: Boolean = false,
 )
