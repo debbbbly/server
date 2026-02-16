@@ -189,3 +189,74 @@ databaseChangeLog:
                   type: varchar(512)
                   constraints:
                     nullable: true
+  - changeSet:
+      id: 13
+      author: claude
+      comment: Extract stage_media from stages
+      changes:
+        - createTable:
+            tableName: stage_media
+            columns:
+              - column:
+                  name: stage_id
+                  type: varchar(16)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+                    foreignKeyName: fk_stage_media_stage
+                    references: stages(stage_id)
+              - column:
+                  name: hls_live_url
+                  type: varchar(512)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: hls_recording_url
+                  type: varchar(512)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: thumbnail_url
+                  type: varchar(512)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: status
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: composite_egress_id
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: visibility
+                  type: varchar(32)
+                  defaultValue: "PUBLIC"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: duration_seconds
+                  type: bigint
+                  constraints:
+                    nullable: true
+              - column:
+                  name: created_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+        - sql:
+            sql: >
+              INSERT INTO stage_media (stage_id, hls_recording_url, thumbnail_url, status, composite_egress_id, visibility, created_at)
+              SELECT stage_id, hls_url, thumbnail_url, 'COMPLETED', 'migrated', 'PUBLIC', COALESCE(closed_at, created_at)
+              FROM stages WHERE status = 'RECORDED'
+        - sql:
+            sql: >
+              UPDATE stages SET status = 'CLOSED' WHERE status = 'RECORDED'
+        - dropColumn:
+            tableName: stages
+            columnName: hls_url
+        - dropColumn:
+            tableName: stages
+            columnName: thumbnail_url

@@ -1,6 +1,7 @@
 package com.debbly.server.home.model
 
 import com.debbly.server.claim.model.ClaimStance
+import com.debbly.server.stage.repository.entities.StageMediaStatus
 import com.debbly.server.stage.repository.entities.StageStatus
 import java.time.Instant
 
@@ -58,7 +59,8 @@ data class HomeStageResponse(
     val status: StageStatus,
     val openedAt: Instant?,
     val closedAt: Instant?,
-    val thumbnailUrl: String? = null
+    val thumbnailUrl: String? = null,
+    val mediaStatus: StageMediaStatus? = null
 )
 
 data class HomeLiveResponse(
@@ -84,6 +86,20 @@ data class TopicStagesResponse(
     val topicSlug: String,
     val stages: List<HomeStageResponse>,
     val nextCursor: String?
+)
+
+data class QueueResponse(
+    val my: List<QueueClaimDetail>,
+    val claims: List<QueueClaimDetail>
+)
+
+data class QueueClaimDetail(
+    val claimId: String,
+    val claimSlug: String?,
+    val categoryId: String,
+    val title: String,
+    val waitingUsers: List<QueueUserResponse>,
+    val totalWaiting: Int
 )
 
 data class QueueBroadcastResponse(

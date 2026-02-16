@@ -32,73 +32,83 @@ interface StageJpaRepository : CrudRepository<StageEntity, String> {
     @Query("SELECT DISTINCT s FROM stages s LEFT JOIN FETCH s.hosts WHERE s.stageId IN (SELECT sh.id.stageId FROM stage_hosts sh WHERE sh.id.userId = :userId) ORDER BY s.createdAt DESC LIMIT 10")
     fun findTop10ByHostUserId(@Param("userId") userId: String): List<StageEntity>
 
-    @Query("SELECT DISTINCT s FROM stages s LEFT JOIN FETCH s.hosts WHERE s.status = 'RECORDED' ORDER BY s.closedAt DESC LIMIT 30")
-    fun findTop30RecordedStages(): List<StageEntity>
-
     @Query("SELECT s.claimId FROM stages s WHERE s.openedAt >= :since AND s.claimId IS NOT NULL")
     fun findClaimIdsByOpenedAtAfter(@Param("since") since: Instant): List<String>
 
-    // Homepage API queries - fetch stages by topic ordered by openedAt DESC (live stages are most recent)
+    // Homepage API queries - fetch stages that are OPEN or have public media (IN_PROGRESS/COMPLETED)
     @Query("""
         SELECT DISTINCT s FROM stages s
         LEFT JOIN FETCH s.hosts
         WHERE s.topicId IN :topicIds
-        AND s.status IN :statuses
+        AND (s.status = 'OPEN' OR s.stageId IN (
+            SELECT sm.stageId FROM stage_media sm
+            WHERE sm.status IN ('IN_PROGRESS', 'COMPLETED')
+            AND sm.visibility = 'PUBLIC'
+        ))
         ORDER BY s.topicId, s.openedAt DESC NULLS LAST
     """)
     fun findStagesByTopicIds(
-        @Param("topicIds") topicIds: List<String>,
-        @Param("statuses") statuses: List<StageStatus>
+        @Param("topicIds") topicIds: List<String>
     ): List<StageEntity>
 
-    // Count stages for a topic with given statuses
+    // Count stages for a topic that are visible (OPEN or have public media)
     @Query("""
         SELECT COUNT(s) FROM stages s
         WHERE s.topicId = :topicId
-        AND s.status IN :statuses
+        AND (s.status = 'OPEN' OR s.stageId IN (
+            SELECT sm.stageId FROM stage_media sm
+            WHERE sm.status IN ('IN_PROGRESS', 'COMPLETED')
+            AND sm.visibility = 'PUBLIC'
+        ))
     """)
     fun countStagesByTopicId(
-        @Param("topicId") topicId: String,
-        @Param("statuses") statuses: List<StageStatus>
+        @Param("topicId") topicId: String
     ): Int
 
     // Paginated stages for a single topic with cursor support
-    // Cursor is openedAt timestamp - returns stages opened before that time
     @Query("""
         SELECT DISTINCT s FROM stages s
         LEFT JOIN FETCH s.hosts
         WHERE s.topicId = :topicId
-        AND s.status IN :statuses
+        AND (s.status = 'OPEN' OR s.stageId IN (
+            SELECT sm.stageId FROM stage_media sm
+            WHERE sm.status IN ('IN_PROGRESS', 'COMPLETED')
+            AND sm.visibility = 'PUBLIC'
+        ))
         AND (:cursorOpenedAt IS NULL OR s.openedAt < :cursorOpenedAt)
         ORDER BY s.openedAt DESC NULLS LAST
     """)
     fun findStagesByTopicIdPaginated(
         @Param("topicId") topicId: String,
-        @Param("statuses") statuses: List<StageStatus>,
         @Param("cursorOpenedAt") cursorOpenedAt: Instant?
     ): List<StageEntity>
 
-    // Recent stages across all topics, ordered by openedAt DESC (first page)
+    // Recent stages with public media or OPEN, ordered by openedAt DESC (first page)
     @Query("""
         SELECT DISTINCT s FROM stages s
         LEFT JOIN FETCH s.hosts
-        WHERE s.status IN :statuses
+        WHERE s.status = 'OPEN' OR s.stageId IN (
+            SELECT sm.stageId FROM stage_media sm
+            WHERE sm.status IN ('IN_PROGRESS', 'COMPLETED')
+            AND sm.visibility = 'PUBLIC'
+        )
         ORDER BY s.openedAt DESC NULLS LAST
     """)
-    fun findRecentStages(
-        @Param("statuses") statuses: List<StageStatus>
-    ): List<StageEntity>
+    fun findRecentStages(): List<StageEntity>
 
-    // Recent stages across all topics with cursor, ordered by openedAt DESC
+    // Recent stages with cursor, ordered by openedAt DESC
     @Query("""
         SELECT DISTINCT s FROM stages s
         LEFT JOIN FETCH s.hosts
-        WHERE s.status IN :statuses
+        WHERE (s.status = 'OPEN' OR s.stageId IN (
+            SELECT sm.stageId FROM stage_media sm
+            WHERE sm.status IN ('IN_PROGRESS', 'COMPLETED')
+            AND sm.visibility = 'PUBLIC'
+        ))
         AND s.openedAt < :cursorOpenedAt
         ORDER BY s.openedAt DESC NULLS LAST
     """)
     fun findRecentStagesBeforeCursor(
-        @Param("statuses") statuses: List<StageStatus>,
         @Param("cursorOpenedAt") cursorOpenedAt: Instant
     ): List<StageEntity>
 

@@ -26,8 +26,6 @@ data class StageModel(
     val createdAt: Instant,
     val openedAt: Instant?,
     val closedAt: Instant?,
-    val hlsUrl: String? = null,
-    val thumbnailUrl: String? = null,
     val closeReason: CloseReason? = null
 ) {
     data class StageHostModel(
@@ -60,8 +58,6 @@ fun StageModel.toEntity() = StageEntity(
     status = this.status,
     openedAt = this.openedAt,
     closedAt = this.closedAt,
-    hlsUrl = this.hlsUrl,
-    thumbnailUrl = this.thumbnailUrl,
     closeReason = this.closeReason
 )
 
@@ -81,7 +77,5 @@ fun StageEntity.toModel() = StageModel(
     status = this.status,
     openedAt = this.openedAt,
     closedAt = this.closedAt,
-    hlsUrl = this.hlsUrl,
-    thumbnailUrl = this.thumbnailUrl,
     closeReason = this.closeReason
 )

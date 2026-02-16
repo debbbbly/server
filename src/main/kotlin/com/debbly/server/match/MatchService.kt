@@ -2,8 +2,12 @@ package com.debbly.server.match
 
 import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.model.opposite
+import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.user.UserClaimService
 import com.debbly.server.claim.user.UserTopicStanceService
+import com.debbly.server.home.model.QueueClaimDetail
+import com.debbly.server.home.model.QueueResponse
+import com.debbly.server.home.model.QueueUserResponse
 import com.debbly.server.match.MatchService.MatchingStatus.*
 import com.debbly.server.match.event.MatchAcceptedAllEvent
 import com.debbly.server.match.event.MatchAcceptedEvent
@@ -11,6 +15,7 @@ import com.debbly.server.match.model.*
 import com.debbly.server.match.repository.MatchQueueRepository
 import com.debbly.server.match.repository.MatchRepository
 import com.debbly.server.user.model.UserModel
+import com.debbly.server.user.repository.UserCachedRepository
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
@@ -26,7 +31,9 @@ class MatchService(
     private val matchNotificationService: MatchNotificationService,
     private val clock: Clock,
     private val eventPublisher: ApplicationEventPublisher,
-    private val matchValidationService: MatchValidationService
+    private val matchValidationService: MatchValidationService,
+    private val claimCachedRepository: ClaimCachedRepository,
+    private val userCachedRepository: UserCachedRepository
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -268,6 +275,53 @@ class MatchService(
         } else {
             eventPublisher.publishEvent(MatchAcceptedEvent(match, userId))
         }
+    }
+
+    fun getQueueDetails(userId: String): QueueResponse {
+        val allRequests = matchQueueRepository.findAll()
+        val myRequests = allRequests.filter { it.userId == userId }
+        val otherRequests = allRequests.filter { it.userId != userId }
+
+        // Collect all unique claim IDs and user IDs
+        val allClaimIds = allRequests.flatMap { r -> r.claims.map { it.claimId } }.distinct()
+        val allUserIds = allRequests.map { it.userId }.distinct()
+
+        // Batch fetch claims and users
+        val claimsById = allClaimIds.mapNotNull { claimCachedRepository.findById(it) }
+            .associateBy { it.claimId }
+        val usersById = userCachedRepository.findByIds(allUserIds)
+
+        fun buildClaimDetails(requests: List<MatchRequest>): List<QueueClaimDetail> {
+            // Flatten to (claimId, userId, stance) tuples, then group by claimId
+            val entries = requests.flatMap { r ->
+                r.claims.map { c -> Triple(c.claimId, r.userId, c.stance) }
+            }
+            return entries.groupBy { it.first }.mapNotNull { (claimId, tuples) ->
+                val claim = claimsById[claimId] ?: return@mapNotNull null
+                val waitingUsers = tuples.mapNotNull { (_, uId, stance) ->
+                    val user = usersById[uId] ?: return@mapNotNull null
+                    QueueUserResponse(
+                        userId = user.userId,
+                        username = user.username,
+                        avatarUrl = user.avatarUrl,
+                        stance = stance
+                    )
+                }
+                QueueClaimDetail(
+                    claimId = claim.claimId,
+                    claimSlug = claim.slug,
+                    categoryId = claim.categoryId,
+                    title = claim.title,
+                    waitingUsers = waitingUsers,
+                    totalWaiting = waitingUsers.size
+                )
+            }
+        }
+
+        return QueueResponse(
+            my = buildClaimDetails(myRequests),
+            claims = buildClaimDetails(otherRequests)
+        )
     }
 
     fun getQueue(): List<MatchRequest> = matchQueueRepository.findAll()

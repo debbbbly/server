@@ -2,11 +2,11 @@ package com.debbly.server.match
 
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.auth.service.AuthService
+import com.debbly.server.home.model.QueueResponse
 import com.debbly.server.infra.error.ForbiddenException
 import com.debbly.server.match.MatchService.MatchingState
 import com.debbly.server.match.model.JoinMatchRequest
 import com.debbly.server.match.model.Match
-import com.debbly.server.match.model.MatchRequest
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -36,15 +36,11 @@ class MatchController(
         return ResponseEntity.ok().build()
     }
 
-    // TODO: remove, looks like a backdoor
     @GetMapping("/queue")
-    fun getQueue(): ResponseEntity<GetQueueResponse> {
-        return ResponseEntity.ok(GetQueueResponse(matchService.getQueue()))
+    fun getQueue(@ExternalUserId externalUserId: String?): ResponseEntity<QueueResponse> {
+        val user = authService.authenticate(externalUserId)
+        return ResponseEntity.ok(matchService.getQueueDetails(user.userId))
     }
-
-    data class GetQueueResponse(
-        val users: List<MatchRequest>
-    )
 
     // TODO: remove ??? looks like a backdoor
     @GetMapping("/all")

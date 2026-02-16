@@ -154,7 +154,7 @@ class ClaimController(
         // Fetch stages for this claim
         val stages = stageJpaRepository.findStagesByClaimId(
             claimId = claim.claimId,
-            statuses = listOf(StageStatus.OPEN, StageStatus.RECORDED)
+            statuses = listOf(StageStatus.OPEN, StageStatus.CLOSED)
         ).take(stageLimit.coerceIn(1, 50))
 
         val userIds = stages.flatMap { it.hosts.map { host -> host.id.userId } }.distinct()

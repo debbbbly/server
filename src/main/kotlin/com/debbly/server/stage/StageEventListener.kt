@@ -16,6 +16,9 @@ import com.debbly.server.stage.model.LiveStageHost
 import com.debbly.server.stage.model.StageModel
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageCachedRepository
+import com.debbly.server.stage.repository.StageMediaJpaRepository
+import com.debbly.server.stage.repository.entities.StageMediaEntity
+import com.debbly.server.stage.repository.entities.StageMediaStatus
 import com.debbly.server.stage.repository.entities.StageStatus.OPEN
 import com.debbly.server.stage.repository.entities.StageStatus.PENDING
 import com.debbly.server.user.repository.UserCachedRepository
@@ -39,7 +42,8 @@ class StageEventListener(
     private val s3Config: S3LiveKitProperties,
     private val clock: Clock,
     private val pusherService: PusherService,
-    private val matchRepository: MatchRepository
+    private val matchRepository: MatchRepository,
+    private val stageMediaRepository: StageMediaJpaRepository
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -120,10 +124,20 @@ class StageEventListener(
             }
 
             if (egressInfo?.egressId != null) {
-                val hlsUrl = buildHlsUrl(stage.stageId)
+                val basePath = buildHlsUrl(stage.stageId)
                 val thumbnailUrl = buildThumbnailUrl(stage.stageId)
-                val updatedStage = stage.copy(hlsUrl = hlsUrl, thumbnailUrl = thumbnailUrl)
-                stageRepository.save(updatedStage)
+
+                stageMediaRepository.save(
+                    StageMediaEntity(
+                        stageId = stage.stageId,
+                        hlsLiveUrl = "$basePath/playlist-live.m3u8",
+                        hlsRecordingUrl = "$basePath/playlist.m3u8",
+                        thumbnailUrl = thumbnailUrl,
+                        status = StageMediaStatus.IN_PROGRESS,
+                        compositeEgressId = egressInfo.egressId,
+                        createdAt = Instant.now(clock)
+                    )
+                )
 
                 try {
                     egressService.startThumbnailEgress(stage.stageId)

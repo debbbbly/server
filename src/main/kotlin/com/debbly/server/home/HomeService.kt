@@ -14,7 +14,9 @@ import com.debbly.server.home.model.*
 import com.debbly.server.match.QueueService
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageJpaRepository
+import com.debbly.server.stage.repository.StageMediaJpaRepository
 import com.debbly.server.stage.repository.entities.StageEntity
+import com.debbly.server.stage.repository.entities.StageMediaEntity
 import com.debbly.server.stage.repository.entities.StageStatus
 import com.debbly.server.user.model.UserModel
 import com.debbly.server.user.repository.UserCachedRepository
@@ -33,22 +35,20 @@ class HomeService(
     private val userClaimCachedRepository: UserClaimCachedRepository,
     private val userTopicStanceService: UserTopicStanceService,
     private val liveStageRedisRepository: LiveStageRedisRepository,
-    private val queueService: QueueService
+    private val queueService: QueueService,
+    private val stageMediaRepository: StageMediaJpaRepository
 ) {
-    companion object {
-        private val STAGE_VISIBLE_STATUSES = listOf(StageStatus.OPEN, StageStatus.RECORDED)
-    }
 
     /**
-     * Get most recent stages (OPEN or RECORDED) with cursor pagination, regardless of topic.
+     * Get most recent stages (OPEN or with public media) with cursor pagination, regardless of topic.
      */
     fun getStages(cursor: String?, limit: Int): HomeStagesResponse {
         val cursorOpenedAt = cursor?.let { runCatching { Instant.parse(it) }.getOrNull() }
 
         val stages = if (cursorOpenedAt != null) {
-            stageJpaRepository.findRecentStagesBeforeCursor(STAGE_VISIBLE_STATUSES, cursorOpenedAt)
+            stageJpaRepository.findRecentStagesBeforeCursor(cursorOpenedAt)
         } else {
-            stageJpaRepository.findRecentStages(STAGE_VISIBLE_STATUSES)
+            stageJpaRepository.findRecentStages()
         }.take(limit + 1)
 
         val hasMore = stages.size > limit
@@ -56,10 +56,11 @@ class HomeService(
 
         val claimsMap = fetchClaimsMap(paginatedStages)
         val usersMap = fetchUsersMap(paginatedStages)
+        val mediaMap = fetchMediaMap(paginatedStages)
 
         val stageResponses = paginatedStages.mapNotNull { stage ->
             claimsMap[stage.claimId]?.let { claim ->
-                buildStageResponse(stage, claim, usersMap)
+                buildStageResponse(stage, claim, usersMap, mediaMap[stage.stageId])
             }
         }
 
@@ -172,7 +173,6 @@ class HomeService(
         // Query with cursor-based pagination in SQL
         val stages = stageJpaRepository.findStagesByTopicIdPaginated(
             topicId = topic.topicId,
-            statuses = STAGE_VISIBLE_STATUSES,
             cursorOpenedAt = cursorOpenedAt
         ).take(stagesLimit + 1)
 
@@ -181,10 +181,11 @@ class HomeService(
 
         val claimsMap = fetchClaimsMap(paginatedStages)
         val usersMap = fetchUsersMap(paginatedStages)
+        val mediaMap = fetchMediaMap(paginatedStages)
 
         val stageResponses = paginatedStages.mapNotNull { stage ->
             claimsMap[stage.claimId]?.let { claim ->
-                buildStageResponse(stage, claim, usersMap)
+                buildStageResponse(stage, claim, usersMap, mediaMap[stage.stageId])
             }
         }
 
@@ -214,7 +215,7 @@ class HomeService(
 
         val topicIds = topics.map { it.topicId }.toSet()
 
-        val allStages = stageJpaRepository.findStagesByTopicIds(topicIds.toList(), STAGE_VISIBLE_STATUSES)
+        val allStages = stageJpaRepository.findStagesByTopicIds(topicIds.toList())
         // Take stageLimit + 1 per topic to check hasMore
         val stagesByTopic = allStages.groupBy { it.topicId }
             .mapValues { (_, stages) -> stages.take(stageLimit + 1) }
@@ -225,9 +226,9 @@ class HomeService(
             .groupBy { it.topicId }
 
         // Only fetch data for stages we'll actually return (not the +1 extras)
-        val stagesToEnrich = stagesByTopic.values.flatten().take(stageLimit)
         val claimsMap = fetchClaimsMap(allStages)
         val usersMap = fetchUsersMap(allStages)
+        val mediaMap = fetchMediaMap(allStages)
 
         // Fetch user stances if authenticated
         val userTopicStances = userId?.let { userTopicStanceService.findByUserIdAndTopicIds(it, topicIds.toList()) } ?: emptyMap()
@@ -245,7 +246,7 @@ class HomeService(
 
             val stageResponses = limitedStages.mapNotNull { stage ->
                 claimsMap[stage.claimId]?.let { claim ->
-                    buildStageResponse(stage, claim, usersMap)
+                    buildStageResponse(stage, claim, usersMap, mediaMap[stage.stageId])
                 }
             }
 
@@ -256,7 +257,7 @@ class HomeService(
             }
 
             val totalStages = if (includeTotalStages) {
-                stageJpaRepository.countStagesByTopicId(topic.topicId, STAGE_VISIBLE_STATUSES)
+                stageJpaRepository.countStagesByTopicId(topic.topicId)
             } else {
                 null
             }
@@ -318,10 +319,17 @@ class HomeService(
         return userCachedRepository.findByIds(userIds)
     }
 
+    private fun fetchMediaMap(stages: List<StageEntity>): Map<String, StageMediaEntity> {
+        val stageIds = stages.map { it.stageId }
+        if (stageIds.isEmpty()) return emptyMap()
+        return stageMediaRepository.findByStageIdIn(stageIds).associateBy { it.stageId }
+    }
+
     private fun buildStageResponse(
         stage: StageEntity,
         claim: ClaimModel,
-        usersMap: Map<String, UserModel>
+        usersMap: Map<String, UserModel>,
+        media: StageMediaEntity? = null
     ): HomeStageResponse {
         val hosts = stage.hosts.map { host ->
             val user = usersMap[host.id.userId]
@@ -340,7 +348,8 @@ class HomeService(
             status = stage.status,
             openedAt = stage.openedAt,
             closedAt = stage.closedAt,
-            thumbnailUrl = stage.thumbnailUrl
+            thumbnailUrl = media?.thumbnailUrl,
+            mediaStatus = media?.status
         )
     }
 

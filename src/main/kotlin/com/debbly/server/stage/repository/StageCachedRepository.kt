@@ -3,7 +3,6 @@ package com.debbly.server.stage.repository
 import com.debbly.server.stage.model.StageModel
 import com.debbly.server.stage.model.toEntity
 import com.debbly.server.stage.model.toModel
-import com.debbly.server.stage.repository.entities.StageEntity
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
@@ -46,11 +45,6 @@ class StageCachedRepository(
 
     fun findTop10ByHostUserId(userId: String): List<StageModel> {
         return stageJpaRepository.findTop10ByHostUserId(userId)
-            .map { it.toModel() }
-    }
-
-    fun findTop30RecordedStages(): List<StageModel> {
-        return stageJpaRepository.findTop30RecordedStages()
             .map { it.toModel() }
     }
 

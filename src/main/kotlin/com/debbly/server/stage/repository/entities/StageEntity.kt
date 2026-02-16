@@ -7,8 +7,7 @@ import java.time.Instant
 enum class StageStatus {
     PENDING,  // Stage created but not opened yet
     OPEN,     // Stage is currently live
-    CLOSED,   // Stage ended without recording
-    RECORDED  // Stage ended with recording available
+    CLOSED    // Stage ended
 }
 
 enum class CloseReason {
@@ -36,8 +35,6 @@ data class StageEntity(
     val status: StageStatus,
     val openedAt: Instant?,
     val closedAt: Instant?,
-    val hlsUrl: String? = null,
-    val thumbnailUrl: String? = null,
     @Enumerated(EnumType.STRING)
     val closeReason: CloseReason? = null
 )
