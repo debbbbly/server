@@ -37,7 +37,7 @@ class AuthController(
         ResponseEntity.status(BAD_REQUEST).body(TokenResponse(error = error))
 
     @PostMapping("/signup")
-    fun signup(@RequestBody request: SignupRequest): ResponseEntity<UnifiedAuthResponse> {
+    fun signup(@RequestBody request: SignupRequest, response: HttpServletResponse): ResponseEntity<UnifiedAuthResponse> {
         if (!AuthRateLimiter.tryConsume(request.email)) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .body(UnifiedAuthResponse(error = AUTH_TOO_MANY_ATTEMPTS))
@@ -58,11 +58,14 @@ class AuthController(
                     )
                 )
 
+                setCookie(
+                    signInResponse.accessToken,
+                    signInResponse.refreshToken ?: "",
+                    response
+                )
+
                 return ResponseEntity.ok(
                     UnifiedAuthResponse(
-                        accessToken = signInResponse.accessToken,
-                        idToken = signInResponse.accessToken,
-                        refreshToken = signInResponse.refreshToken,
                         signedUp = false,
                         success = true
                     )
@@ -174,7 +177,10 @@ class AuthController(
     }
 
     @PostMapping("/refresh")
-    fun refreshToken(@CookieValue("refreshToken") refreshToken: String): ResponseEntity<TokenResponse> {
+    fun refreshToken(
+        @CookieValue("refreshToken") refreshToken: String,
+        httpResponse: HttpServletResponse
+    ): ResponseEntity<TokenResponse> {
         return try {
             logger.info(
                 "Attempting to refresh token. Token length: ${refreshToken.length}, first 20 chars: ${
@@ -189,13 +195,12 @@ class AuthController(
                 logger.warn("Refresh token failed with error: ${response.error}")
                 ResponseEntity.status(UNAUTHORIZED).body(TokenResponse(error = AUTH_REFRESH_TOKEN_INVALID))
             } else {
-                ResponseEntity.ok(
-                    TokenResponse(
-                        accessToken = response.accessToken,
-                        idToken = response.accessToken,
-                        refreshToken = response.refreshToken ?: refreshToken
-                    )
-                )
+                val newAccessToken = response.accessToken ?: ""
+                val newRefreshToken = response.refreshToken ?: refreshToken
+
+                setCookie(newAccessToken, newRefreshToken, httpResponse)
+
+                ResponseEntity.ok(TokenResponse())
             }
         } catch (e: Exception) {
             logger.error("Token refresh failed", e)
@@ -335,19 +340,6 @@ class AuthController(
         val provider: String? = null  // Optional: to track which OAuth provider was used
     )
 
-//    @PostMapping("/set-cookie")
-//    fun setCookie(
-//        @RequestBody request: SetCookie,
-//        response: HttpServletResponse
-//    ): ResponseEntity<Void> {
-//        val secure = "dev" !in env.activeProfiles
-//        response.setCookie("accessToken", request.accessToken, 60 * 60, "Lax", secure)
-//        response.setCookie("idToken", request.idToken, 60 * 60, "Lax", secure)
-//        response.setCookie("refreshToken", request.refreshToken, 60 * 60 * 24 * 30, "Strict", secure)
-//
-//        return ResponseEntity.ok().build()
-//    }
-
     @PostMapping("/google/signin")
     fun googleSignIn(@RequestBody request: GoogleOAuthRequest): ResponseEntity<GoogleOAuthResponse> {
         return try {
@@ -418,12 +410,6 @@ class AuthController(
 
         val success: Boolean = false,
         val error: AuthErrorCode? = null
-    )
-
-    data class SetCookie(
-        val accessToken: String,
-        val idToken: String,
-        val refreshToken: String,
     )
 
     data class RefreshTokenRequest(

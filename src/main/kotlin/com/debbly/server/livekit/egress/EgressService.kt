@@ -4,11 +4,15 @@ import com.debbly.server.config.EgressLayout
 import com.debbly.server.config.LiveKitConfig
 import com.debbly.server.livekit.S3LiveKitProperties
 import com.debbly.server.settings.SettingsService
+import com.debbly.server.stage.repository.StageMediaJpaRepository
 import io.livekit.server.EgressServiceClient
 import livekit.LivekitEgress
 import livekit.LivekitEgress.ImageFileSuffix.IMAGE_SUFFIX_INDEX
+import org.springframework.beans.factory.annotation.Qualifier
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import software.amazon.awssdk.services.s3.S3Client
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request
 
 @Service
 class EgressService(
@@ -16,9 +20,12 @@ class EgressService(
     private val livekitEgressService: EgressServiceClient,
     private val settings: SettingsService,
     private val clock: java.time.Clock,
-    private val liveKitConfig: LiveKitConfig
+    private val liveKitConfig: LiveKitConfig,
+    @Qualifier("s3LiveKitClient") private val s3Client: S3Client,
+    private val stageMediaRepository: StageMediaJpaRepository
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
+    private val thumbnailScheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor()
 
     private fun getLayoutUrl(layout: EgressLayout): String {
         val layouts = liveKitConfig.egress.layouts
@@ -54,8 +61,9 @@ class EgressService(
         val call = livekitEgressService.startRoomCompositeEgress(
             roomName = stageId,
             output = segmentOutput,
-            layout = layoutUrl,
-            optionsPreset = preset
+            layout = "",
+            optionsPreset = preset,
+            customBaseUrl = layoutUrl
         )
         val response = call.execute()
 
@@ -72,14 +80,14 @@ class EgressService(
     fun startThumbnailEgress(stageId: String, layout: EgressLayout = EgressLayout.LANDSCAPE) {
         val layoutUrl = getLayoutUrl(layout)
         val (width, height) = when (layout) {
-            EgressLayout.LANDSCAPE -> 1920 to 1080
-            EgressLayout.PORTRAIT -> 1080 to 1920
+            EgressLayout.LANDSCAPE -> 1280 to 720
+            EgressLayout.PORTRAIT -> 720 to 1280
         }
         val s3Upload = buildS3Upload()
 
         try {
             val imageOutput = LivekitEgress.ImageOutput.newBuilder()
-                .setCaptureInterval(10)
+                .setCaptureInterval(15)
                 .setWidth(width)
                 .setHeight(height)
                 .setFilenamePrefix("$stageId/thumbnails/")
@@ -91,18 +99,71 @@ class EgressService(
             val imageCall = livekitEgressService.startRoomCompositeEgress(
                 stageId,
                 imageOutput,
-                layoutUrl,
+                layout = "",
+                customBaseUrl = layoutUrl,
             )
 
             val imageResponse = imageCall.execute()
 
             if (imageResponse.isSuccessful) {
-                logger.info("Started thumbnail egress for room $stageId, egressId: ${imageResponse.body()?.egressId}")
+                val egressId = imageResponse.body()?.egressId
+                logger.info("Started thumbnail egress for room $stageId, egressId: $egressId")
+                if (egressId != null) {
+                    scheduleThumbnailStop(egressId, stageId)
+                }
             } else {
                 logger.warn("Failed to start thumbnail egress for room $stageId: ${imageResponse.message()}")
             }
         } catch (e: Exception) {
             logger.error("Error starting thumbnail egress for room $stageId", e)
+        }
+    }
+
+    private fun scheduleThumbnailStop(egressId: String, stageId: String) {
+        thumbnailScheduler.schedule({
+            try {
+                val call = livekitEgressService.stopEgress(egressId)
+                val response = call.execute()
+                if (response.isSuccessful) {
+                    logger.info("Auto-stopped thumbnail egress $egressId for room $stageId")
+                    resolveThumbnailUrl(stageId)
+                } else {
+                    logger.warn("Failed to auto-stop thumbnail egress $egressId: ${response.message()}")
+                }
+            } catch (e: Exception) {
+                logger.error("Error auto-stopping thumbnail egress $egressId", e)
+            }
+        }, 60, java.util.concurrent.TimeUnit.SECONDS)
+    }
+
+    private fun resolveThumbnailUrl(stageId: String) {
+        try {
+            val prefix = "$stageId/thumbnails/"
+            val request = ListObjectsV2Request.builder()
+                .bucket(s3Config.bucket.egress)
+                .prefix(prefix)
+                .build()
+
+            val response = s3Client.listObjectsV2(request)
+            val jpegKeys = response.contents()
+                .map { it.key() }
+                .filter { it.endsWith(".jpeg") || it.endsWith(".jpg") }
+                .sorted()
+
+            val thumbnailKey = if (jpegKeys.size >= 2) jpegKeys[1] else jpegKeys.firstOrNull()
+
+            if (thumbnailKey != null) {
+                val thumbnailUrl = "${s3Config.endpoint}/${s3Config.bucket.egress}/$thumbnailKey"
+                val media = stageMediaRepository.findById(stageId).orElse(null)
+                if (media != null) {
+                    stageMediaRepository.save(media.copy(thumbnailUrl = thumbnailUrl))
+                    logger.info("Resolved thumbnail for stage $stageId: $thumbnailUrl")
+                }
+            } else {
+                logger.warn("No thumbnail images found in S3 for stage $stageId")
+            }
+        } catch (e: Exception) {
+            logger.error("Error resolving thumbnail URL for stage $stageId", e)
         }
     }
 

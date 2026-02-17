@@ -4,16 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stacked Layout</title>
-    <script src="https://cdn.livekit.io/egress/v1/room-composite.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { width: 100%; height: 100%; overflow: hidden; background-color: #000; }
         #container { width: 100%; height: 100%; display: flex; flex-direction: column; }
-        .participant-container { flex: 1; width: 100%; position: relative; overflow: hidden; }
-        .participant-container video { width: 100%; height: 100%; object-fit: cover; }
-        .participant-container:first-child { border-bottom: 1px solid #1a1a1a; }
-        .placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background-color: #111; color: #444; font-family: system-ui,
-sans-serif; font-size: 1.5rem; }
+        .participant-container { height: 50%; width: 100%; position: relative; overflow: hidden; }
+        .participant-container video { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background-color: #111; color: #444; font-family: system-ui, sans-serif; font-size: 1.5rem; }
     </style>
 </head>
 <body>
@@ -26,33 +24,92 @@ sans-serif; font-size: 1.5rem; }
     </div>
 </div>
 <script>
-    const containers = { top: document.getElementById('top'), bottom: document.getElementById('bottom') };
-    const participants = { top: null, bottom: null };
+    const { Room, RoomEvent, Track } = LivekitClient;
+    const topContainer = document.getElementById('top');
+    const bottomContainer = document.getElementById('bottom');
+
+    let topParticipant = null;
+    let bottomParticipant = null;
+
+    const params = new URLSearchParams(window.location.search);
+    const livekitURL = params.get('url');
+    const accessToken = params.get('token');
 
     function attachVideo(container, participant) {
         container.innerHTML = '';
-        const videoTrack = participant.getTrack('camera')?.track;
-        if (videoTrack) container.appendChild(videoTrack.attach());
-        participant.on('trackSubscribed', (track) => {
-            if (track.kind === 'video') { container.innerHTML = ''; container.appendChild(track.attach()); }
-        });
+        const cameraPublication = participant.getTrackPublication(Track.Source.Camera);
+        if (cameraPublication && cameraPublication.track) {
+            const videoElement = cameraPublication.track.attach();
+            videoElement.style.width = '100%';
+            videoElement.style.height = '100%';
+            videoElement.style.objectFit = 'cover';
+            videoElement.style.display = 'block';
+            container.appendChild(videoElement);
+        }
+    }
+
+    function showPlaceholder(container) {
+        container.innerHTML = '<div class="placeholder">Waiting...</div>';
     }
 
     function assignParticipant(participant) {
-        if (!participants.top) { participants.top = participant; attachVideo(containers.top, participant); }
-        else if (!participants.bottom) { participants.bottom = participant; attachVideo(containers.bottom, participant); }
+        if (!topParticipant) {
+            topParticipant = participant;
+            attachVideo(topContainer, participant);
+        } else if (!bottomParticipant && participant.identity !== topParticipant.identity) {
+            bottomParticipant = participant;
+            attachVideo(bottomContainer, participant);
+        }
     }
 
-    EgressHelper.onParticipantUpdate((p) => {
-        if (participants.top?.sid === p.sid) attachVideo(containers.top, p);
-        else if (participants.bottom?.sid === p.sid) attachVideo(containers.bottom, p);
-        else assignParticipant(p);
-    });
-    EgressHelper.onParticipantDisconnected((p) => {
-        if (participants.top?.sid === p.sid) { participants.top = null; containers.top.innerHTML = '<div class="placeholder">Waiting...</div>'; }
-        else if (participants.bottom?.sid === p.sid) { participants.bottom = null; containers.bottom.innerHTML = '<div class="placeholder">Waiting...</div>'; }
-    });
-    EgressHelper.start();
+    function removeParticipant(participant) {
+        if (topParticipant?.identity === participant.identity) {
+            topParticipant = null;
+            showPlaceholder(topContainer);
+        } else if (bottomParticipant?.identity === participant.identity) {
+            bottomParticipant = null;
+            showPlaceholder(bottomContainer);
+        }
+    }
+
+    async function main() {
+        const room = new Room();
+
+        room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+            if (track.kind !== Track.Kind.Video) return;
+            if (topParticipant?.identity === participant.identity) {
+                attachVideo(topContainer, topParticipant);
+            } else if (bottomParticipant?.identity === participant.identity) {
+                attachVideo(bottomContainer, bottomParticipant);
+            } else {
+                assignParticipant(participant);
+            }
+        });
+
+        room.on(RoomEvent.TrackUnsubscribed, (track) => {
+            if (track.kind === Track.Kind.Video) {
+                track.detach().forEach(el => el.remove());
+            }
+        });
+
+        room.on(RoomEvent.ParticipantConnected, (participant) => {
+            assignParticipant(participant);
+        });
+
+        room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+            removeParticipant(participant);
+        });
+
+        await room.connect(livekitURL, accessToken);
+
+        room.remoteParticipants.forEach((participant) => {
+            assignParticipant(participant);
+        });
+
+        console.log('START_RECORDING');
+    }
+
+    main();
 </script>
 </body>
 </html>
