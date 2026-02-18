@@ -5,12 +5,16 @@ import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.auth.UserEmail
 import com.debbly.server.user.repository.SocialUsernameCachedRepository
 import com.debbly.server.user.repository.UserCachedRepository
+import com.debbly.server.user.repository.UserReportJpaRepository
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
+import jakarta.servlet.http.HttpServletRequest
+import java.time.Clock
+import java.time.Instant.now
 import java.util.*
 
 @RestController
@@ -21,7 +25,9 @@ class UserController(
     private val onlineUsersService: OnlineUsersService,
     private val userService: UserService,
     private val socialUsernameCachedRepository: SocialUsernameCachedRepository,
-    private val usernameService: UsernameService
+    private val usernameService: UsernameService,
+    private val userReportRepository: UserReportJpaRepository,
+    private val clock: Clock
 ) {
 
     @GetMapping("/me")
@@ -302,5 +308,47 @@ class UserController(
     data class UpdateSocialUsernamesResponse(
         val success: Boolean,
         val message: String
+    )
+
+    @PostMapping("/{userId}/report")
+    fun reportUser(
+        @PathVariable userId: String,
+        @ExternalUserId externalUserId: String?,
+        @RequestBody request: ReportUserRequest,
+        httpRequest: HttpServletRequest
+    ): ResponseEntity<Void> {
+        val rateLimitKey = externalUserId ?: httpRequest.remoteAddr
+        if (!ReportRateLimiter.tryConsume(rateLimitKey)) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build()
+        }
+
+        val reporter = externalUserId?.let { userCachedRepository.findByExternalUserId(it) }
+
+        if (reporter != null && reporter.userId == userId) {
+            return ResponseEntity.badRequest().build()
+        }
+
+        if (reporter != null && userReportRepository.existsByReporterUserIdAndReportedUserId(reporter.userId, userId)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build()
+        }
+
+        userCachedRepository.findById(userId)
+            ?: return ResponseEntity.notFound().build()
+
+        userReportRepository.save(
+            UserReportEntity(
+                reportId = idService.getId(),
+                reporterUserId = reporter?.userId,
+                reportedUserId = userId,
+                reason = request.reason,
+                createdAt = now(clock)
+            )
+        )
+
+        return ResponseEntity.noContent().build()
+    }
+
+    data class ReportUserRequest(
+        val reason: ReportReason
     )
 }

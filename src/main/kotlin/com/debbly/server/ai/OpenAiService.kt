@@ -7,6 +7,8 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.openai.OpenAiChatOptions
+import org.springframework.ai.openai.api.ResponseFormat
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
@@ -26,6 +28,10 @@ class OpenAiService(
     private val restTemplate = RestTemplate()
     private val moderationUrl = "https://api.openai.com/v1/moderations"
     private val embeddingUrl = "https://api.openai.com/v1/embeddings"
+
+    private val jsonChatOptions = OpenAiChatOptions.builder()
+        .responseFormat(ResponseFormat(ResponseFormat.Type.JSON_OBJECT, null))
+        .build()
 
     companion object {
         private const val DEFAULT_MODERATION_EMOJI = "🚫"
@@ -317,6 +323,7 @@ class OpenAiService(
             val response = chatClient.prompt()
                 .system(CLAIM_VALIDATION_PROMPT)
                 .user(sanitizeClaimInput(claim))
+                .options(jsonChatOptions)
                 .call()
                 .content() ?: ""
 
@@ -334,6 +341,7 @@ class OpenAiService(
             val response = chatClient.prompt()
                 .system(TOPIC_EXTRACTION_PROMPT)
                 .user(sanitizeClaimInput(claim))
+                .options(jsonChatOptions)
                 .call()
                 .content() ?: ""
             val elapsedMs = System.currentTimeMillis() - startTime

@@ -250,3 +250,62 @@ databaseChangeLog:
                   defaultValue: false
                   constraints:
                     nullable: false
+
+  - changeSet:
+      id: 11
+      author: claude
+      changes:
+        - createTable:
+            tableName: user_reports
+            columns:
+              - column:
+                  name: report_id
+                  type: varchar(16)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: reporter_user_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: reported_user_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: reason
+                  type: varchar(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: user_reports
+            baseColumnNames: reporter_user_id
+            referencedTableName: users
+            referencedColumnNames: user_id
+            constraintName: fk_user_reports_reporter
+            onDelete: SET NULL
+        - addForeignKeyConstraint:
+            baseTableName: user_reports
+            baseColumnNames: reported_user_id
+            referencedTableName: users
+            referencedColumnNames: user_id
+            constraintName: fk_user_reports_reported
+            onDelete: CASCADE
+        - addUniqueConstraint:
+            tableName: user_reports
+            columnNames: reporter_user_id, reported_user_id
+            constraintName: uq_user_reports_reporter_reported
+        - createIndex:
+            tableName: user_reports
+            indexName: idx_user_reports_reported
+            columns:
+              - column:
+                  name: reported_user_id

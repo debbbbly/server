@@ -80,8 +80,8 @@ class EgressService(
     fun startThumbnailEgress(stageId: String, layout: EgressLayout = EgressLayout.LANDSCAPE) {
         val layoutUrl = getLayoutUrl(layout)
         val (width, height) = when (layout) {
-            EgressLayout.LANDSCAPE -> 1280 to 720
-            EgressLayout.PORTRAIT -> 720 to 1280
+            EgressLayout.LANDSCAPE -> 480 to 270
+            EgressLayout.PORTRAIT -> 270 to 480
         }
         val s3Upload = buildS3Upload()
 
