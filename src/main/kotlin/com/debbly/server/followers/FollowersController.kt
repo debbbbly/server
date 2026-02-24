@@ -1,6 +1,5 @@
 package com.debbly.server.followers
 
-import com.debbly.server.IdService
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.http.HttpStatus
@@ -14,10 +13,10 @@ class FollowersController(
     private val userFollowService: UserFollowService,
 ) {
 
-    @PostMapping("/follow")
+    @PostMapping("/{userId}/follow")
     fun followUser(
-        @ExternalUserId externalUserId: String?,
-        @RequestBody request: FollowRequest
+        @PathVariable userId: String,
+        @ExternalUserId externalUserId: String?
     ): ResponseEntity<Void> {
         if (externalUserId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
@@ -27,7 +26,7 @@ class FollowersController(
             ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
 
         return try {
-            userFollowService.followUser(currentUser.userId, request.userId)
+            userFollowService.followUser(currentUser.userId, userId)
             ResponseEntity.ok().build()
         } catch (e: IllegalArgumentException) {
             ResponseEntity.badRequest().build()
@@ -38,10 +37,10 @@ class FollowersController(
         }
     }
 
-    @PostMapping("/unfollow")
+    @PostMapping("/{userId}/unfollow")
     fun unfollowUser(
-        @ExternalUserId externalUserId: String?,
-        @RequestBody request: UnfollowRequest
+        @PathVariable userId: String,
+        @ExternalUserId externalUserId: String?
     ): ResponseEntity<Void> {
         if (externalUserId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
@@ -51,7 +50,7 @@ class FollowersController(
             ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
 
         return try {
-            userFollowService.unfollowUser(currentUser.userId, request.userId)
+            userFollowService.unfollowUser(currentUser.userId, userId)
             ResponseEntity.ok().build()
         } catch (e: IllegalArgumentException) {
             ResponseEntity.badRequest().build()
@@ -60,7 +59,7 @@ class FollowersController(
         }
     }
 
-    @GetMapping("/follow")
+    @GetMapping("/following")
     fun getFollowing(@ExternalUserId externalUserId: String?): ResponseEntity<List<UserSummary>> {
         if (externalUserId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
@@ -91,14 +90,6 @@ class FollowersController(
         }
         return ResponseEntity.ok(response)
     }
-
-    data class FollowRequest(
-        val userId: String
-    )
-
-    data class UnfollowRequest(
-        val userId: String
-    )
 
     data class UserSummary(
         val id: String,

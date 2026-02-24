@@ -226,6 +226,7 @@ class StageService(
                 type = if (hosts.size == 1) StageType.SOLO else StageType.ONE_ON_ONE,
                 claimId = claim.claimId,
                 topicId = claim.topicId,
+                eventId = match.eventId,
                 title = claim.title,
                 hosts = hosts,
                 createdAt = Instant.now(clock),

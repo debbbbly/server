@@ -260,3 +260,37 @@ databaseChangeLog:
         - dropColumn:
             tableName: stages
             columnName: thumbnail_url
+
+  - changeSet:
+      id: 14
+      author: system
+      preConditions:
+        - onFail: MARK_RAN
+          not:
+            indexExists:
+              indexName: idx_stage_hosts_user_id
+              tableName: stage_hosts
+      changes:
+        - createIndex:
+            indexName: idx_stage_hosts_user_id
+            tableName: stage_hosts
+            columns:
+              - column:
+                  name: user_id
+
+  - changeSet:
+      id: 15
+      author: system
+      preConditions:
+        - onFail: MARK_RAN
+          not:
+            indexExists:
+              indexName: idx_stages_claim_id
+              tableName: stages
+      changes:
+        - createIndex:
+            indexName: idx_stages_claim_id
+            tableName: stages
+            columns:
+              - column:
+                  name: claim_id

@@ -39,6 +39,10 @@ class PusherService(
         }
     }
 
+    fun sendRawChannelMessage(channel: String, eventName: PusherEventName, message: PusherMessage) {
+        triggerEvent(channel, eventName, message)
+    }
+
     private fun triggerEvent(channel: String, eventName: PusherEventName, data: Any) {
         try {
             pusher.trigger(channel, eventName.name, data)

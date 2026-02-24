@@ -35,7 +35,7 @@ class UserClaimController(
         }
     }
 
-    @PostMapping("/{claimId}/update-stance")
+    @PutMapping("/{claimId}/stance")
     fun updateUserClaimStance(
         @PathVariable userId: String,
         @PathVariable claimId: String,

@@ -2,7 +2,7 @@ package com.debbly.server.home
 
 import com.debbly.server.claim.model.ClaimModel
 import com.debbly.server.claim.model.ClaimStance
-import com.debbly.server.claim.model.toModel
+import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.repository.ClaimJpaRepository
 import com.debbly.server.claim.top.TopClaimResponse
 import com.debbly.server.claim.top.TopClaimsService
@@ -30,6 +30,7 @@ class HomeService(
     private val topClaimsService: TopClaimsService,
     private val stageJpaRepository: StageJpaRepository,
     private val claimJpaRepository: ClaimJpaRepository,
+    private val claimCachedRepository: ClaimCachedRepository,
     private val userCachedRepository: UserCachedRepository,
     private val topicRepository: TopicRepository,
     private val userClaimCachedRepository: UserClaimCachedRepository,
@@ -305,14 +306,9 @@ class HomeService(
     }
 
     private fun fetchClaimsMap(stages: List<StageEntity>): Map<String, ClaimModel> {
-        return stages.mapNotNull { it.claimId }
-            .distinct()
-            .takeIf { it.isNotEmpty() }
-            ?.let { claimIds ->
-                claimJpaRepository.findByClaimIds(claimIds)
-                    .filter { !it.removed }
-                    .associate { it.claimId to it.toModel() }
-            } ?: emptyMap()
+        val claimIds = stages.mapNotNull { it.claimId }.distinct()
+        if (claimIds.isEmpty()) return emptyMap()
+        return claimCachedRepository.findByIds(claimIds)
     }
 
     private fun fetchUsersMap(stages: List<StageEntity>): Map<String, UserModel> {

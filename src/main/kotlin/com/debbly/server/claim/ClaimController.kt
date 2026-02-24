@@ -10,6 +10,7 @@ import com.debbly.server.infra.error.ForbiddenException
 import com.debbly.server.claim.top.TopClaimsService
 import com.debbly.server.claim.topic.repository.TopicRepository
 import com.debbly.server.claim.user.UserClaimService
+import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.home.model.HomeHostResponse
 import com.debbly.server.home.model.HomeStageClaimResponse
 import com.debbly.server.home.model.HomeStageResponse
@@ -33,6 +34,7 @@ class ClaimController(
     private val claimCachedRepository: ClaimCachedRepository,
     private val topClaimsService: TopClaimsService,
     private val userClaimService: UserClaimService,
+    private val userClaimCachedRepository: UserClaimCachedRepository,
     private val authService: AuthService,
     private val claimSimilarityService: ClaimSimilarityService,
     private val stageJpaRepository: StageJpaRepository,
@@ -40,6 +42,22 @@ class ClaimController(
     private val topicRepository: TopicRepository,
     private val queueService: QueueService
 ) {
+
+    @GetMapping("/search")
+    fun search(
+        @RequestParam q: String,
+        @RequestParam(required = false) categoryId: String?,
+        @RequestParam(defaultValue = "20") limit: Int
+    ): List<ClaimSearchResponse> =
+        claimService.search(q, categoryId, limit.coerceAtMost(50)).map {
+            ClaimSearchResponse(
+                claimId = it.claimId,
+                claimSlug = it.slug,
+                categoryId = it.categoryId,
+                topicId = it.topicId,
+                title = it.title,
+            )
+        }
 
     @GetMapping("/top")
     fun getTopClaims(
@@ -85,7 +103,7 @@ class ClaimController(
         }
     }
 
-    @PostMapping("/create")
+    @PostMapping
     fun create(
         @RequestBody request: CreateClaimRequest,
         @ExternalUserId externalUserId: String?
@@ -150,7 +168,7 @@ class ClaimController(
             .find { it.claimId == claim.claimId }
 
         val userClaim = userId?.let {
-            userClaimService.getClaims(it).find { uc -> uc.claim.claimId == claim.claimId }
+            userClaimCachedRepository.findByUserIdClaimId(it, claim.claimId)
         }
 
         // Fetch stages for this claim
@@ -259,6 +277,14 @@ class ClaimController(
         val hasDuplicates: Boolean
     )
 }
+
+data class ClaimSearchResponse(
+    val claimId: String,
+    val claimSlug: String?,
+    val categoryId: String,
+    val topicId: String,
+    val title: String,
+)
 
 data class GetTopClaimsResponse(
     val claimId: String,

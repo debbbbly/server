@@ -12,7 +12,7 @@ class TopClaimsUpdateTask(
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    @Scheduled(fixedRate = 10000)
+    @Scheduled(fixedRate = 120000)
     fun updateTopClaims() {
         try {
             topClaimsService.calculateAndUpdateTopClaims()

@@ -70,7 +70,7 @@ class StageController(
         return ResponseEntity.ok().build()
     }
 
-    @PostMapping("/{stageId}/delete")
+    @DeleteMapping("/{stageId}")
     fun deleteStage(
         @PathVariable stageId: String,
         @ExternalUserId externalUserId: String?

@@ -36,9 +36,12 @@ class ClaimService(
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    fun findAll(): List<ClaimModel> = claimCachedRepository.findAll()
-
     fun save(claim: ClaimModel): ClaimModel = claimCachedRepository.save(claim)
+
+    fun search(query: String, categoryId: String?, limit: Int = 20): List<ClaimModel> {
+        if (query.isBlank() || query.length < 2) return emptyList()
+        return claimCachedRepository.search(query.trim(), categoryId, limit)
+    }
 
     fun getUserClaims(
         userId: String,

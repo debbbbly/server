@@ -1,0 +1,243 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1
+      author: codex
+      changes:
+        - createTable:
+            tableName: events
+            columns:
+              - column:
+                  name: event_id
+                  type: varchar(16)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: claim_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_events_claim
+                    references: claims(claim_id)
+              - column:
+                  name: host_user_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_events_host_user
+                    references: users(user_id)
+              - column:
+                  name: host_stance
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: start_time
+                  type: timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: varchar(2000)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: cover_image_url
+                  type: varchar(1024)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: created_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: cancelled_at
+                  type: timestamp
+                  constraints:
+                    nullable: true
+        - createIndex:
+            indexName: idx_events_status_start_time
+            tableName: events
+            columns:
+              - column:
+                  name: status
+              - column:
+                  name: start_time
+        - createIndex:
+            indexName: idx_events_claim_id
+            tableName: events
+            columns:
+              - column:
+                  name: claim_id
+        - createIndex:
+            indexName: idx_events_host_user_id
+            tableName: events
+            columns:
+              - column:
+                  name: host_user_id
+  - changeSet:
+      id: 2
+      author: codex
+      changes:
+        - createTable:
+            tableName: event_participants
+            columns:
+              - column:
+                  name: event_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_event_participant_event
+                    references: events(event_id)
+              - column:
+                  name: user_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_event_participant_user
+                    references: users(user_id)
+              - column:
+                  name: status
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: stance
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: event_participants
+            columnNames: event_id, user_id
+            constraintName: pk_event_participants
+  - changeSet:
+      id: 3
+      author: codex
+      changes:
+        - createTable:
+            tableName: event_reminders
+            columns:
+              - column:
+                  name: event_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_event_reminders_event
+                    references: events(event_id)
+              - column:
+                  name: user_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_event_reminders_user
+                    references: users(user_id)
+              - column:
+                  name: created_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: event_reminders
+            columnNames: event_id, user_id
+            constraintName: pk_event_reminders
+  - changeSet:
+      id: 4
+      author: codex
+      changes:
+        - addColumn:
+            tableName: stages
+            columns:
+              - column:
+                  name: event_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: true
+        - addForeignKeyConstraint:
+            baseColumnNames: event_id
+            baseTableName: stages
+            constraintName: fk_stages_event_id
+            referencedColumnNames: event_id
+            referencedTableName: events
+        - createIndex:
+            indexName: idx_stages_event_id
+            tableName: stages
+            columns:
+              - column:
+                  name: event_id
+  - changeSet:
+      id: events-rename-accepted-to-signed-up
+      author: system
+      changes:
+        - update:
+            tableName: event_participants
+            columns:
+              - column:
+                  name: status
+                  value: SIGNED_UP
+            where: status = 'ACCEPTED'
+  - changeSet:
+      id: events-add-counter-columns
+      author: system
+      changes:
+        - addColumn:
+            tableName: events
+            columns:
+              - column:
+                  name: signed_up_count
+                  type: int
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: reminder_count
+                  type: int
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+        - sql:
+            sql: >
+              UPDATE events e
+              SET signed_up_count = (
+                SELECT COUNT(*) FROM event_participants p
+                WHERE p.event_id = e.event_id
+                  AND p.status IN ('SIGNED_UP', 'MATCHED')
+              ),
+              reminder_count = (
+                SELECT COUNT(*) FROM event_reminders r
+                WHERE r.event_id = e.event_id
+              )
+  - changeSet:
+      id: events-participants-idx-event-status-created
+      author: system
+      changes:
+        - createIndex:
+            tableName: event_participants
+            indexName: idx_event_participants_event_status_created
+            columns:
+              - column:
+                  name: event_id
+              - column:
+                  name: status
+              - column:
+                  name: created_at

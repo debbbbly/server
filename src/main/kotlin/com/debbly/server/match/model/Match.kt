@@ -7,6 +7,7 @@ data class Match(
     val matchId: String,
     val claim: MatchClaim,
     val topicId: String? = null,
+    val eventId: String? = null,
     val matchReason: MatchReason? = null,
     val status: MatchStatus,
     val opponents: List<MatchOpponent>,

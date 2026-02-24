@@ -1,0 +1,13 @@
+databaseChangeLog:
+  - changeSet:
+      id: claim-search-trgm-extension
+      author: system
+      changes:
+        - sql:
+            sql: CREATE EXTENSION IF NOT EXISTS pg_trgm;
+  - changeSet:
+      id: claim-search-trgm-index
+      author: system
+      changes:
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_claims_title_trgm ON claims USING GIN (title gin_trgm_ops);

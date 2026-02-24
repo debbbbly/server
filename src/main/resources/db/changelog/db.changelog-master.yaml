@@ -6,6 +6,10 @@ databaseChangeLog:
   - include:
       file: db/changelog/db.changelog-stages.yaml
   - include:
+      file: db/changelog/db.changelog-events.yaml
+  - include:
       file: db/changelog/db.changelog-settings.yaml
   - include:
       file: db/changelog/db.changelog-topics.yaml
+  - include:
+      file: db/changelog/db.changelog-claim-search.yaml

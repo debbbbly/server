@@ -45,4 +45,11 @@ interface ClaimJpaRepository : JpaRepository<ClaimEntity, String> {
     ): List<ClaimEntity>
 
     fun findBySlugAndRemovedFalse(slug: String): ClaimEntity?
+
+    @Query("SELECT c FROM claims c WHERE (:categoryId IS NULL OR c.categoryId = :categoryId) AND LOWER(c.title) LIKE :pattern AND c.removed = false ORDER BY c.createdAt DESC LIMIT :limit")
+    fun searchByTitle(
+        @Param("pattern") pattern: String,
+        @Param("categoryId") categoryId: String?,
+        @Param("limit") limit: Int,
+    ): List<ClaimEntity>
 }

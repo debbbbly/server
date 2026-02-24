@@ -3,6 +3,7 @@ package com.debbly.server.user
 import com.debbly.server.IdService
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.auth.UserEmail
+import com.debbly.server.storage.S3Service
 import com.debbly.server.user.repository.SocialUsernameCachedRepository
 import com.debbly.server.user.repository.UserCachedRepository
 import com.debbly.server.user.repository.UserReportJpaRepository
@@ -11,7 +12,6 @@ import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.annotation.*
-import org.springframework.web.multipart.MultipartFile
 import jakarta.servlet.http.HttpServletRequest
 import java.time.Clock
 import java.time.Instant.now
@@ -27,6 +27,7 @@ class UserController(
     private val socialUsernameCachedRepository: SocialUsernameCachedRepository,
     private val usernameService: UsernameService,
     private val userReportRepository: UserReportJpaRepository,
+    private val s3Service: S3Service,
     private val clock: Clock
 ) {
 
@@ -104,6 +105,19 @@ class UserController(
         val count: Int
     )
 
+    /**
+     * Client should call this every ~60 seconds to maintain online presence.
+     * Refreshes the TTL window in Redis so the user stays "online".
+     */
+    @PostMapping("/heartbeat")
+    fun heartbeat(@ExternalUserId externalUserId: String?): ResponseEntity<Void> {
+        if (externalUserId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+        val user = userCachedRepository.findByExternalUserId(externalUserId)
+            ?: return ResponseEntity.notFound().build()
+        onlineUsersService.markUserOnline(user.userId)
+        return ResponseEntity.noContent().build()
+    }
+
     @GetMapping("/top")
     fun getTopUsers(): ResponseEntity<ListUsersResponse> {
         val topUsers = userCachedRepository.findTop100ByRankDesc()
@@ -119,7 +133,7 @@ class UserController(
         return ResponseEntity.ok(ListUsersResponse(topUsers, topUsers.size))
     }
 
-    @DeleteMapping("{userId}/delete")
+    @DeleteMapping("{userId}")
     fun deleteUser(
         @PathVariable userId: String,
         @ExternalUserId externalUserId: String?
@@ -200,11 +214,54 @@ class UserController(
         val message: String
     )
 
+    data class CreateAvatarUploadUrlRequest(
+        val contentType: String
+    )
+
+    data class CreateAvatarUploadUrlResponse(
+        val key: String,
+        val uploadUrl: String,
+        val publicUrl: String,
+        val expiresInSeconds: Long
+    )
+
+    @PostMapping("{userId}/avatar/upload-url")
+    fun createAvatarUploadUrl(
+        @PathVariable userId: String,
+        @ExternalUserId externalUserId: String?,
+        @RequestBody request: CreateAvatarUploadUrlRequest
+    ): ResponseEntity<CreateAvatarUploadUrlResponse> {
+        if (externalUserId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+        }
+
+        val user = userCachedRepository.findByExternalUserId(externalUserId)
+            ?: return ResponseEntity.notFound().build()
+
+        if (user.userId != userId) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+        }
+
+        val upload = s3Service.generateAvatarUpload(user.userId, request.contentType)
+        return ResponseEntity.ok(
+            CreateAvatarUploadUrlResponse(
+                key = upload.key,
+                uploadUrl = upload.uploadUrl,
+                publicUrl = upload.publicUrl,
+                expiresInSeconds = upload.expiresInSeconds
+            )
+        )
+    }
+
+    data class UpdateAvatarRequest(
+        val key: String
+    )
+
     @PutMapping("{userId}/avatar")
     fun updateAvatar(
         @PathVariable userId: String,
         @ExternalUserId externalUserId: String?,
-        @RequestParam("file") file: MultipartFile
+        @RequestBody request: UpdateAvatarRequest
     ): ResponseEntity<UpdateAvatarResponse> {
         if (externalUserId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
@@ -217,7 +274,7 @@ class UserController(
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
         }
 
-        val result = userService.updateAvatar(user, file)
+        val result = userService.updateAvatar(user, request.key)
 
         return if (result.success) {
             ResponseEntity.ok(UpdateAvatarResponse(true, result.message, result.avatarUrl))

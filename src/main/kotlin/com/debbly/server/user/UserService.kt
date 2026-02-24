@@ -10,7 +10,6 @@ import com.debbly.server.user.repository.SocialUsernameCachedRepository
 import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.cache.CacheManager
 import org.springframework.stereotype.Service
-import org.springframework.web.multipart.MultipartFile
 import java.time.Clock
 import java.time.Instant.now
 
@@ -77,50 +76,27 @@ class UserService(
         )
     }
 
-    fun updateAvatar(user: UserModel, file: MultipartFile): UpdateAvatarResult {
-        // Validate content type
-        val contentType = file.contentType
-        if (contentType == null || !contentType.startsWith("image/")) {
+    fun updateAvatar(user: UserModel, avatarKey: String): UpdateAvatarResult {
+        if (!s3Service.isAvatarKeyOwnedByUser(user.userId, avatarKey)) {
             return UpdateAvatarResult(
                 success = false,
-                message = "File must be an image",
+                message = "Invalid avatar key",
                 avatarUrl = null
             )
         }
 
-        // Validate file size
-        val maxSizeBytes = 5 * 1024 * 1024
-        if (file.size > maxSizeBytes) {
-            return UpdateAvatarResult(
-                success = false,
-                message = "File size must be less than 5MB",
-                avatarUrl = null
-            )
-        }
-
-        val aiValidation = openAIService.validateAvatar(file.bytes, contentType)
-        if (!aiValidation.valid) {
-            return UpdateAvatarResult(
-                success = false,
-                message = aiValidation.reason,
-                avatarUrl = null
-            )
-        }
-
-        // Delete old avatar
+        // Delete old avatar if it is in our users bucket
         user.avatarUrl?.let { oldUrl ->
-            if (oldUrl.contains(s3Service::class.simpleName ?: "")) {
+            if (s3Service.isUsersPublicUrl(oldUrl)) {
                 try {
                     s3Service.deleteAvatar(oldUrl)
                 } catch (e: Exception) {
-                    // Log error but continue with upload
                     println("Failed to delete old avatar: ${e.message}")
                 }
             }
         }
 
-        // Upload new avatar
-        val avatarUrl = s3Service.uploadAvatar(file, user.userId)
+        val avatarUrl = s3Service.buildUsersPublicUrl(avatarKey)
         user.avatarUrl = avatarUrl
         userCachedRepository.save(user)
 

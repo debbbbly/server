@@ -8,6 +8,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3Client
+import software.amazon.awssdk.services.s3.presigner.S3Presigner
 import java.net.URI
 
 @ConfigurationProperties(prefix = "s3.default")
@@ -42,6 +43,20 @@ class S3DefaultConfig(private val properties: S3DefaultProperties) {
             .endpointOverride(URI.create(properties.endpoint))
             .credentialsProvider(StaticCredentialsProvider.create(credentials))
             .forcePathStyle(properties.forcePathStyle)
+            .build()
+    }
+
+    @Bean("s3DefaultPresigner")
+    fun s3DefaultPresigner(): S3Presigner {
+        val credentials = AwsBasicCredentials.create(
+            properties.accessKey,
+            properties.secret
+        )
+
+        return S3Presigner.builder()
+            .region(Region.of(properties.region))
+            .endpointOverride(URI.create(properties.endpoint))
+            .credentialsProvider(StaticCredentialsProvider.create(credentials))
             .build()
     }
 }

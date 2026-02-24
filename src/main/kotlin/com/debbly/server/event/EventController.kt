@@ -1,0 +1,216 @@
+package com.debbly.server.event
+
+import com.debbly.server.auth.ExternalUserId
+import com.debbly.server.auth.service.AuthService
+import com.debbly.server.claim.model.ClaimStance
+import com.debbly.server.event.model.EventListFilter
+import com.debbly.server.home.model.HomeStageResponse
+import com.debbly.server.storage.S3Service
+import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.*
+import org.springframework.web.server.ResponseStatusException
+import org.springframework.http.HttpStatus
+import java.time.Instant
+
+@RestController
+@RequestMapping("/events")
+class EventController(
+    private val eventService: EventService,
+    private val authService: AuthService,
+    private val s3Service: S3Service
+) {
+
+    @GetMapping
+    fun listEvents(
+        @RequestParam(required = false, defaultValue = "upcoming") filter: EventListFilter,
+        @RequestParam(required = false) cursor: String?,
+        @RequestParam(required = false, defaultValue = "20") limit: Int
+    ): ResponseEntity<EventService.EventListResponse> {
+        val response = eventService.listEvents(
+            filter = filter,
+            limit = limit.coerceIn(1, 100),
+            cursor = cursor
+        )
+
+        return ResponseEntity.ok(response)
+    }
+
+    @GetMapping("/{eventId}")
+    fun getEvent(
+        @PathVariable eventId: String,
+        @ExternalUserId externalUserId: String?
+    ): ResponseEntity<EventService.EventDetail> {
+        val userId = externalUserId?.let { authService.authenticateOptional(it)?.userId }
+        return ResponseEntity.ok(eventService.getEventDetail(eventId, userId))
+    }
+
+    data class CreateCoverUploadUrlRequest(
+        val contentType: String
+    )
+
+    data class CreateCoverUploadUrlResponse(
+        val key: String,
+        val uploadUrl: String,
+        val publicUrl: String,
+        val expiresInSeconds: Long
+    )
+
+    @PostMapping("/cover/upload-url")
+    fun createCoverUploadUrl(
+        @ExternalUserId externalUserId: String?,
+        @RequestBody request: CreateCoverUploadUrlRequest
+    ): ResponseEntity<CreateCoverUploadUrlResponse> {
+        val user = authService.authenticate(externalUserId)
+        val upload = s3Service.generateEventCoverUpload(user.userId, request.contentType)
+        return ResponseEntity.ok(
+            CreateCoverUploadUrlResponse(
+                key = upload.key,
+                uploadUrl = upload.uploadUrl,
+                publicUrl = upload.publicUrl,
+                expiresInSeconds = upload.expiresInSeconds
+            )
+        )
+    }
+
+    data class CreateEventHttpRequest(
+        val claimId: String,
+        val hostStance: ClaimStance,
+        val startTime: Instant,
+        val description: String?,
+        val coverImageKey: String? = null
+    )
+
+    @PostMapping
+    fun create(
+        @ExternalUserId externalUserId: String?,
+        @RequestBody request: CreateEventHttpRequest
+    ): ResponseEntity<EventService.EventDetail> {
+        val user = authService.authenticate(externalUserId)
+        val coverImageUrl = request.coverImageKey?.let { key ->
+            if (!s3Service.isEventCoverKeyOwnedByUser(user.userId, key)) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid cover image key")
+            }
+            s3Service.buildUsersPublicUrl(key)
+        }
+
+        return ResponseEntity.ok(
+            eventService.create(
+                user.userId,
+                EventService.CreateEventRequest(
+                    claimId = request.claimId,
+                    hostStance = request.hostStance,
+                    startTime = request.startTime,
+                    description = request.description,
+                    coverImageUrl = coverImageUrl
+                )
+            )
+        )
+    }
+
+    data class SignUpEventRequest(val stance: ClaimStance)
+
+    @PostMapping("/{eventId}/signup")
+    fun signUp(
+        @PathVariable eventId: String,
+        @ExternalUserId externalUserId: String?,
+        @RequestBody request: SignUpEventRequest
+    ): ResponseEntity<EventService.EventParticipantView> {
+        val user = authService.authenticate(externalUserId)
+        return ResponseEntity.ok(eventService.signUp(eventId, user.userId, request.stance))
+    }
+
+    @PostMapping("/{eventId}/remind")
+    fun remind(
+        @PathVariable eventId: String,
+        @ExternalUserId externalUserId: String?
+    ): ResponseEntity<Map<String, Any>> {
+        val user = authService.authenticate(externalUserId)
+        val reminderCount = eventService.remind(eventId, user.userId)
+        return ResponseEntity.ok(mapOf("eventId" to eventId, "reminderCount" to reminderCount))
+    }
+
+    @DeleteMapping("/{eventId}/signup")
+    fun cancelSignUp(
+        @PathVariable eventId: String,
+        @ExternalUserId externalUserId: String?
+    ): ResponseEntity<Void> {
+        val user = authService.authenticate(externalUserId)
+        eventService.cancelSignUp(eventId, user.userId)
+        return ResponseEntity.noContent().build()
+    }
+
+    @DeleteMapping("/{eventId}/remind")
+    fun cancelRemind(
+        @PathVariable eventId: String,
+        @ExternalUserId externalUserId: String?
+    ): ResponseEntity<Void> {
+        val user = authService.authenticate(externalUserId)
+        eventService.cancelRemind(eventId, user.userId)
+        return ResponseEntity.noContent().build()
+    }
+
+    @PostMapping("/{eventId}/start")
+    fun start(
+        @PathVariable eventId: String,
+        @ExternalUserId externalUserId: String?
+    ): ResponseEntity<EventService.EventDetail> {
+        val user = authService.authenticate(externalUserId)
+        return ResponseEntity.ok(eventService.start(eventId, user.userId))
+    }
+
+    @PostMapping("/{eventId}/complete")
+    fun stop(
+        @PathVariable eventId: String,
+        @ExternalUserId externalUserId: String?
+    ): ResponseEntity<EventService.EventDetail> {
+        val user = authService.authenticate(externalUserId)
+        return ResponseEntity.ok(eventService.complete(eventId, user.userId))
+    }
+
+    data class MatchRequest(val userId: String)
+
+    @PostMapping("/{eventId}/match")
+    fun matchNext(
+        @PathVariable eventId: String,
+        @ExternalUserId externalUserId: String?,
+        @RequestBody request: MatchRequest? // nullable, match with user if present
+    ): ResponseEntity<EventService.MatchNextResponse> {
+        val user = authService.authenticate(externalUserId)
+        return ResponseEntity.ok(eventService.match(eventId, user.userId, request?.userId))
+    }
+
+    @DeleteMapping("/{eventId}/participants/{removeUserId}")
+    fun removeUser(
+        @PathVariable eventId: String,
+        @PathVariable removeUserId: String,
+        @ExternalUserId externalUserId: String?,
+    ): ResponseEntity<EventService.EventDetail> {
+        val user = authService.authenticate(externalUserId)
+        return ResponseEntity.ok(eventService.removeUser(eventId, user.userId, removeUserId))
+    }
+
+    @GetMapping("/{eventId}/stages")
+    fun listEventStages(
+        @PathVariable eventId: String,
+        @RequestParam(required = false, defaultValue = "20") limit: Int,
+        @RequestParam(required = false) cursor: String?
+    ): ResponseEntity<EventService.EventStagesListResponse> {
+        return ResponseEntity.ok(eventService.getEventStages(eventId, limit.coerceIn(1, 100), cursor))
+    }
+
+    @GetMapping("/{eventId}/stages/live")
+    fun listLiveEventStages(
+        @PathVariable eventId: String
+    ): ResponseEntity<List<HomeStageResponse>> {
+        return ResponseEntity.ok(eventService.getEventLiveStages(eventId))
+    }
+
+    @PostMapping("/{eventId}/cancel")
+    fun cancel(
+        @PathVariable eventId: String,
+        @ExternalUserId externalUserId: String?
+    ): ResponseEntity<EventService.EventDetail> {
+        val user = authService.authenticate(externalUserId)
+        return ResponseEntity.ok(eventService.cancel(eventId, user.userId))
+    }
+}

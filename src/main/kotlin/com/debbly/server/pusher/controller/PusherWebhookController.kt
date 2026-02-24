@@ -4,6 +4,7 @@ import com.debbly.server.match.MatchService
 import com.debbly.server.match.QueueService
 import com.debbly.server.pusher.config.PusherProperties
 import com.debbly.server.pusher.service.PusherService
+import com.debbly.server.user.OnlineUsersService
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
@@ -17,7 +18,8 @@ class PusherWebhookController(
     private val matchService: MatchService,
     private val queueService: QueueService,
     private val pusherProperties: PusherProperties,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val onlineUsersService: OnlineUsersService
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -45,9 +47,16 @@ class PusherWebhookController(
                 val eventName = event.get("name")?.asText() ?: continue
                 val channel = event.get("channel")?.asText() ?: continue
 
+                if (eventName == "channel_occupied" && channel.startsWith(PusherService.USER_CHANNEL_PREFIX)) {
+                    val userId = channel.removePrefix(PusherService.USER_CHANNEL_PREFIX)
+                    logger.info("User {} connected (channel_occupied)", userId)
+                    onlineUsersService.markUserOnline(userId)
+                }
+
                 if (eventName == "channel_vacated" && channel.startsWith(PusherService.USER_CHANNEL_PREFIX)) {
                     val userId = channel.removePrefix(PusherService.USER_CHANNEL_PREFIX)
                     logger.info("User {} disconnected (channel_vacated), removing from queue", userId)
+                    onlineUsersService.markUserOffline(userId)
                     matchService.removeFromQueue(userId)
                     queueService.broadcastQueueUpdate()
                 }

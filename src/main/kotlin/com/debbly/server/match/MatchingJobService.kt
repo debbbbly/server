@@ -6,6 +6,7 @@ import com.debbly.server.claim.model.StanceToTopic
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.top.TopClaimsService
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
+import com.debbly.server.match.event.MatchExpiredEvent
 import com.debbly.server.match.event.MatchFoundEvent
 import com.debbly.server.match.model.*
 import com.debbly.server.match.model.QueueStatus
@@ -379,6 +380,7 @@ class MatchingJobService(
 
                 matchRepository.delete(match.matchId)
                 matchNotificationService.notifyMatchTimeout(match)
+                eventPublisher.publishEvent(MatchExpiredEvent(match))
             }
         }
     }

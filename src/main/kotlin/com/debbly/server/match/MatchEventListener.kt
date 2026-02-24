@@ -5,6 +5,10 @@ import com.debbly.server.match.event.MatchAcceptedAllEvent
 import com.debbly.server.match.event.MatchAcceptedEvent
 import com.debbly.server.match.event.MatchFoundEvent
 import com.debbly.server.match.repository.MatchRepository
+import com.debbly.server.pusher.model.PusherEventName.EVENT_EVENT
+import com.debbly.server.pusher.model.PusherMessage.Companion.message
+import com.debbly.server.pusher.model.PusherMessageType.EVENT_MATCHED
+import com.debbly.server.pusher.service.PusherService
 import com.debbly.server.stage.StageService
 import org.slf4j.LoggerFactory
 import org.springframework.context.event.EventListener
@@ -16,7 +20,8 @@ class MatchEventListener(
     private val matchNotificationService: MatchNotificationService,
     private val liveKitService: LiveKitService,
     private val stageService: StageService,
-    private val matchRepository: MatchRepository
+    private val matchRepository: MatchRepository,
+    private val pusherService: PusherService,
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -66,6 +71,18 @@ class MatchEventListener(
         try {
             stageService.createStage(event.match)
             matchNotificationService.notifyMatchAcceptedAll(event.match)
+
+            event.match.eventId?.let { eventId ->
+                pusherService.sendRawChannelMessage(
+                    "event:$eventId",
+                    EVENT_EVENT,
+                    message(EVENT_MATCHED, mapOf(
+                        "eventId" to eventId,
+                        "matchId" to event.match.matchId,
+                        "stageId" to event.match.matchId,
+                    ))
+                )
+            }
         } catch (e: Exception) {
             logger.error("Failed to handle MatchAcceptedAllEvent for match ${event.match.matchId}", e)
             try {

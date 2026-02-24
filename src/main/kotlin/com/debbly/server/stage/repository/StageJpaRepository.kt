@@ -124,4 +124,36 @@ interface StageJpaRepository : CrudRepository<StageEntity, String> {
         @Param("claimId") claimId: String,
         @Param("statuses") statuses: List<StageStatus>
     ): List<StageEntity>
+
+    // First page of stages for an event (no cursor), ordered by createdAt DESC
+    @Query("""
+        SELECT DISTINCT s FROM stages s
+        LEFT JOIN FETCH s.hosts
+        WHERE s.eventId = :eventId
+        ORDER BY s.createdAt DESC
+    """)
+    fun findByEventId(@Param("eventId") eventId: String): List<StageEntity>
+
+    // Subsequent pages of stages for an event (with cursor), ordered by createdAt DESC
+    @Query("""
+        SELECT DISTINCT s FROM stages s
+        LEFT JOIN FETCH s.hosts
+        WHERE s.eventId = :eventId
+        AND s.createdAt < :cursor
+        ORDER BY s.createdAt DESC
+    """)
+    fun findByEventIdBeforeCursor(
+        @Param("eventId") eventId: String,
+        @Param("cursor") cursor: Instant
+    ): List<StageEntity>
+
+    // Only OPEN (live) stages for an event
+    @Query("""
+        SELECT DISTINCT s FROM stages s
+        LEFT JOIN FETCH s.hosts
+        WHERE s.eventId = :eventId
+        AND s.status = 'OPEN'
+        ORDER BY s.openedAt DESC
+    """)
+    fun findOpenByEventId(@Param("eventId") eventId: String): List<StageEntity>
 }

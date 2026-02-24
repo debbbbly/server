@@ -44,7 +44,17 @@ enum class PusherMessageType {
     STAGE_CLOSED,
 
     // Queue notifications
-    QUEUE_UPDATE
+    QUEUE_UPDATE,
+
+    // Event notifications
+    EVENT_UPDATED,
+    EVENT_QUEUE_UPDATED,
+    EVENT_STARTED,
+    EVENT_STOPPED,
+    EVENT_MATCHED,
+    EVENT_CANCELLED,
+    EVENT_ACCEPTED,
+    EVENT_REMINDED,
 }
 
 enum class PusherEventName {
@@ -52,5 +62,6 @@ enum class PusherEventName {
     STAGE_EVENT,
     CHAT_EVENT,
     MATCH_EVENT,
-    QUEUE_EVENT
+    QUEUE_EVENT,
+    EVENT_EVENT,
 }

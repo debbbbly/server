@@ -43,6 +43,7 @@ class UserCachedRepository(
     )
     fun save(user: UserModel): UserModel = userJpaRepository.save(user.toEntity()).toModel()
 
+    @Cacheable(value = ["topUsers"])
     fun findTop100ByRankDesc(): List<UserModel> {
         return userJpaRepository.findTop100ByRankDesc(PageRequest.of(0, 100))
             .map { it.toModel() }

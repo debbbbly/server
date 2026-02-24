@@ -21,6 +21,7 @@ data class StageModel(
     val title: String?,
     val claimId: String?,
     val topicId: String? = null,
+    val eventId: String? = null,
     val hosts: List<StageHostModel>,
     val status: StageStatus,
     val createdAt: Instant,
@@ -45,6 +46,7 @@ fun StageModel.toEntity() = StageEntity(
     title = this.title,
     claimId = this.claimId,
     topicId = this.topicId,
+    eventId = this.eventId,
     hosts = this.hosts.map { model ->
         StageHostEntity(
             id = StageHostId(
@@ -67,6 +69,7 @@ fun StageEntity.toModel() = StageModel(
     title = this.title,
     claimId = this.claimId,
     topicId = this.topicId,
+    eventId = this.eventId,
     hosts = this.hosts.map { entity ->
         StageHostModel(
             userId = entity.id.userId,
