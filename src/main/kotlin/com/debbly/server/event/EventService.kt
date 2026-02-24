@@ -93,7 +93,7 @@ class EventService(
         val status: EventStatus,
         val signedUpCount: Long,
         val reminderCount: Long,
-        val coverImageUrl: String?
+        val bannerImageUrl: String?
     )
 
     data class EventListResponse(
@@ -107,7 +107,7 @@ class EventService(
         val host: EventUserSummary,
         val hostStance: ClaimStance,
         val description: String?,
-        val coverImageUrl: String?,
+        val bannerImageUrl: String?,
         val startTime: Instant,
         val status: EventStatus,
         val reminderCount: Int,
@@ -133,7 +133,7 @@ class EventService(
         val hostStance: ClaimStance,
         val startTime: Instant,
         val description: String?,
-        val coverImageUrl: String?
+        val bannerImageUrl: String?
     )
 
     data class EventStagesListResponse(
@@ -215,7 +215,7 @@ class EventService(
             host = EventUserSummary(owner.userId, owner.username, owner.avatarUrl),
             hostStance = event.hostStance,
             description = event.description,
-            coverImageUrl = event.coverImageUrl,
+            bannerImageUrl = event.bannerImageUrl,
             startTime = event.startTime,
             status = event.status,
             signedUpCount = event.signedUpCount,
@@ -245,7 +245,7 @@ class EventService(
             startTime = request.startTime,
             status = EventStatus.SCHEDULED,
             description = request.description,
-            coverImageUrl = request.coverImageUrl,
+            bannerImageUrl = request.bannerImageUrl,
             createdAt = now,
             updatedAt = now,
             cancelledAt = null
@@ -582,9 +582,9 @@ class EventService(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "description must be <= 2000 characters")
         }
 
-        request.coverImageUrl?.let {
+        request.bannerImageUrl?.let {
             runCatching { URI.create(it) }.getOrElse {
-                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "coverImageUrl must be a valid URI")
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "bannerImageUrl must be a valid URI")
             }
         }
     }
@@ -621,7 +621,7 @@ class EventService(
                 status = event.status,
                 signedUpCount = event.signedUpCount.toLong(),
                 reminderCount = event.reminderCount.toLong(),
-                coverImageUrl = event.coverImageUrl
+                bannerImageUrl = event.bannerImageUrl
             )
         }
     }

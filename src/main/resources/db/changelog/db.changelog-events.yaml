@@ -228,6 +228,15 @@ databaseChangeLog:
                 WHERE r.event_id = e.event_id
               )
   - changeSet:
+      id: events-rename-cover-image-url-to-banner-image-url
+      author: system
+      changes:
+        - renameColumn:
+            tableName: events
+            oldColumnName: cover_image_url
+            newColumnName: banner_image_url
+            columnDataType: varchar(1024)
+  - changeSet:
       id: events-participants-idx-event-status-created
       author: system
       changes:

@@ -44,26 +44,26 @@ class EventController(
         return ResponseEntity.ok(eventService.getEventDetail(eventId, userId))
     }
 
-    data class CreateCoverUploadUrlRequest(
+    data class CreateBannerUploadUrlRequest(
         val contentType: String
     )
 
-    data class CreateCoverUploadUrlResponse(
+    data class CreateBannerUploadUrlResponse(
         val key: String,
         val uploadUrl: String,
         val publicUrl: String,
         val expiresInSeconds: Long
     )
 
-    @PostMapping("/cover/upload-url")
-    fun createCoverUploadUrl(
+    @PostMapping("/banner/upload-url")
+    fun createBannerUploadUrl(
         @ExternalUserId externalUserId: String?,
-        @RequestBody request: CreateCoverUploadUrlRequest
-    ): ResponseEntity<CreateCoverUploadUrlResponse> {
+        @RequestBody request: CreateBannerUploadUrlRequest
+    ): ResponseEntity<CreateBannerUploadUrlResponse> {
         val user = authService.authenticate(externalUserId)
-        val upload = s3Service.generateEventCoverUpload(user.userId, request.contentType)
+        val upload = s3Service.generateEventBannerUpload(user.userId, request.contentType)
         return ResponseEntity.ok(
-            CreateCoverUploadUrlResponse(
+            CreateBannerUploadUrlResponse(
                 key = upload.key,
                 uploadUrl = upload.uploadUrl,
                 publicUrl = upload.publicUrl,
@@ -77,7 +77,7 @@ class EventController(
         val hostStance: ClaimStance,
         val startTime: Instant,
         val description: String?,
-        val coverImageKey: String? = null
+        val bannerImageKey: String? = null
     )
 
     @PostMapping
@@ -86,9 +86,9 @@ class EventController(
         @RequestBody request: CreateEventHttpRequest
     ): ResponseEntity<EventService.EventDetail> {
         val user = authService.authenticate(externalUserId)
-        val coverImageUrl = request.coverImageKey?.let { key ->
-            if (!s3Service.isEventCoverKeyOwnedByUser(user.userId, key)) {
-                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid cover image key")
+        val bannerImageUrl = request.bannerImageKey?.let { key ->
+            if (!s3Service.isEventBannerKeyOwnedByUser(user.userId, key)) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid banner image key")
             }
             s3Service.buildUsersPublicUrl(key)
         }
@@ -101,7 +101,7 @@ class EventController(
                     hostStance = request.hostStance,
                     startTime = request.startTime,
                     description = request.description,
-                    coverImageUrl = coverImageUrl
+                    bannerImageUrl = bannerImageUrl
                 )
             )
         )

@@ -20,7 +20,7 @@ data class EventEntity(
     @Enumerated(EnumType.STRING)
     val status: EventStatus,
     val description: String?,
-    val coverImageUrl: String?,
+    val bannerImageUrl: String?,
     val createdAt: Instant,
     val updatedAt: Instant,
     val cancelledAt: Instant? = null,
