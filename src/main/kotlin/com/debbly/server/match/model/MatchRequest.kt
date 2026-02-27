@@ -12,7 +12,9 @@ data class MatchRequest(
     val updatedAt: Instant = joinedAt,
     val ignores: Int = 0,
     val skipCount: Int = 0,
-    val status: QueueStatus = QueueStatus.ACTIVE
+    val status: QueueStatus = QueueStatus.ACTIVE,
+    val eventId: String? = null,
+    val withUserId: String? = null,
 ) {
     fun hasOnlyClaims(): Boolean = claims.isNotEmpty() && topics.isEmpty()
     fun hasTopics(): Boolean = topics.isNotEmpty()

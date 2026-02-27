@@ -4,7 +4,11 @@ import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.stage.model.LiveStageEntity
 import com.debbly.server.stage.repository.LiveStageRedisRepository
+import com.debbly.server.stage.repository.StageCachedRepository
 import com.debbly.server.user.repository.UserCachedRepository
+import com.debbly.server.viewer.ViewerScope
+import com.debbly.server.viewer.ViewerService
+import jakarta.servlet.http.HttpServletRequest
 import org.springframework.data.repository.query.Param
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -14,7 +18,9 @@ import org.springframework.web.bind.annotation.*
 class StageController(
     private val stageService: StageService,
     private val liveStageRedisRepository: LiveStageRedisRepository,
-    private val userCachedRepository: UserCachedRepository
+    private val userCachedRepository: UserCachedRepository,
+    private val stageCachedRepository: StageCachedRepository,
+    private val viewerService: ViewerService
 ) {
 
     @GetMapping("/history")
@@ -69,6 +75,28 @@ class StageController(
 
         return ResponseEntity.ok().build()
     }
+
+    @PostMapping("/{stageId}/view")
+    fun trackViewer(
+        @PathVariable stageId: String,
+        @ExternalUserId externalUserId: String?,
+        httpRequest: HttpServletRequest
+    ): ResponseEntity<Unit> {
+        val viewerId = externalUserId ?: httpRequest.remoteAddr
+        viewerService.trackViewer(ViewerScope.STAGE, stageId, viewerId)
+        stageCachedRepository.findById(stageId)?.eventId?.let { eventId ->
+            viewerService.trackViewer(ViewerScope.EVENT, eventId, viewerId)
+        }
+        return ResponseEntity.ok().build()
+    }
+
+    @GetMapping("/{stageId}/viewers")
+    fun getViewerCount(@PathVariable stageId: String): ResponseEntity<ViewerCountResponse> {
+        val count = viewerService.getViewerCount(ViewerScope.STAGE, stageId)
+        return ResponseEntity.ok(ViewerCountResponse(count))
+    }
+
+    data class ViewerCountResponse(val count: Long)
 
     @DeleteMapping("/{stageId}")
     fun deleteStage(

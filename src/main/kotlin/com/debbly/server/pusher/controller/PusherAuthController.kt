@@ -57,24 +57,24 @@ class PusherAuthController(
                     }
                 }
 
-                channelName.startsWith("presence-stage-hosts-") -> {
-                    // Presence channel for stage hosts only (max 100 members limit is fine for hosts)
-                    val stageId = channelName.removePrefix("presence-stage-hosts-")
-                    // TODO: Add check to verify user is actually a host of this stage
-
-                    pusher.authenticate(
-                        socketId,
-                        channelName,
-                        com.pusher.rest.data.PresenceUser(
-                            userInfo.userId,
-                            mapOf(
-                                "username" to userInfo.username,
-                                "avatarUrl" to (userInfo.avatarUrl ?: ""),
-                                "isRegistered" to userInfo.isRegistered
-                            )
-                        )
-                    )
-                }
+//                channelName.startsWith("presence-stage-hosts-") -> {
+//                    // Presence channel for stage hosts only (max 100 members limit is fine for hosts)
+//                    val stageId = channelName.removePrefix("presence-stage-hosts-")
+//                    // TODO: Add check to verify user is actually a host of this stage
+//
+//                    pusher.authenticate(
+//                        socketId,
+//                        channelName,
+//                        com.pusher.rest.data.PresenceUser(
+//                            userInfo.userId,
+//                            mapOf(
+//                                "username" to userInfo.username,
+//                                "avatarUrl" to (userInfo.avatarUrl ?: ""),
+//                                "isRegistered" to userInfo.isRegistered
+//                            )
+//                        )
+//                    )
+//                }
 
                 channelName.startsWith("public-") -> {
                     // Public channels don't require authentication

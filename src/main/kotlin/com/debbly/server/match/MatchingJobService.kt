@@ -41,6 +41,7 @@ class MatchingJobService(
         private const val QUEUE_TIMEOUT_SECONDS = 4 * 60 * 60L // 4 hours
     }
 
+    @Synchronized
     fun runMatching() {
         cleanupExpiredMatches()
 
@@ -69,10 +70,16 @@ class MatchingJobService(
 
         logger.debug("Starting matching cycle with {} active users in queue ({} paused)", sortedWaitingUsers.size, pausedUsers.size)
 
-        // Phase 1: Claim Match (Strict)
+        // Phase 0: Direct User Match (mutual targetUserId pairs, highest priority)
+        matchDirectUserPhase(sortedWaitingUsers, matchedUsers)
+
+        // Phase 1: Event Match (host vs participant, grouped by eventId)
+        matchEventPhase(sortedWaitingUsers, matchedUsers)
+
+        // Phase 2: Claim Match (Strict) - event and direct-match queue entries are excluded inside
         matchClaimPhase(sortedWaitingUsers, matchedUsers)
 
-        // Phase 2: Topic Match (Flexible)
+        // Phase 3: Topic Match (Flexible)
         val remainingUsersWithTopics =
             sortedWaitingUsers
                 .filter { it.userId !in matchedUsers && it.hasTopics() }
@@ -80,33 +87,140 @@ class MatchingJobService(
             matchTopicPhase(remainingUsersWithTopics, matchedUsers)
         }
 
-        // Notify remaining users that they're still waiting
+        // Notify remaining non-event users that they're still waiting
         val finalRemainingUsers = sortedWaitingUsers.filter { it.userId !in matchedUsers }
-        if (finalRemainingUsers.isNotEmpty()) {
-            matchNotificationService.notifyStillWaiting(finalRemainingUsers.map { it.userId })
+        val stillWaitingNonEventUsers = finalRemainingUsers.filter { it.eventId == null }
+        if (stillWaitingNonEventUsers.isNotEmpty()) {
+            matchNotificationService.notifyStillWaiting(stillWaitingNonEventUsers.map { it.userId })
         }
 
         // Clean up and re-queue remaining active users (don't touch paused users)
         matchQueueRepository.removeAll()
 
-        // Re-save paused users
-        pausedUsers.forEach { matchQueueRepository.save(it) }
+        // Re-save paused non-event users (event entries don't persist between cycles)
+        pausedUsers.filter { it.eventId == null }.forEach { matchQueueRepository.save(it) }
 
-        // Re-save matched users as PAUSED
-        val matchedRequests = sortedWaitingUsers.filter { it.userId in matchedUsers }
+        // Re-save matched non-event users as PAUSED (event users exit queue after match)
+        val matchedRequests = sortedWaitingUsers.filter { it.userId in matchedUsers && it.eventId == null }
         matchedRequests.forEach { request ->
             matchQueueRepository.save(request.copy(status = QueueStatus.PAUSED, updatedAt = now))
         }
 
-        // Re-save remaining active users
-        if (finalRemainingUsers.isNotEmpty()) {
-            finalRemainingUsers.forEach { matchQueueRepository.save(it) }
+        // Re-save remaining active non-event users
+        if (stillWaitingNonEventUsers.isNotEmpty()) {
+            stillWaitingNonEventUsers.forEach { matchQueueRepository.save(it) }
             // Broadcast queue update with remaining users
             queueService.broadcastQueueUpdate()
         }
 
         if (matchedUsers.isNotEmpty()) {
             logger.debug("Matching cycle complete: {} users matched (paused), {} remaining in queue", matchedUsers.size, finalRemainingUsers.size)
+        }
+    }
+
+    /**
+     * Phase 0: Direct User Match
+     * Match pairs where both users have set each other as targetUserId (mutual request).
+     * These entries never fall through to later phases.
+     */
+    private fun matchDirectUserPhase(
+        requests: List<MatchRequest>,
+        matchedUsers: MutableSet<String>,
+    ) {
+        val byUserId = requests.associateBy { it.userId }
+
+        for (requestA in requests.filter { it.withUserId != null }) {
+            if (requestA.userId in matchedUsers) continue
+
+            val withUserId = requestA.withUserId ?: continue
+            val requestB = byUserId[withUserId] ?: continue
+            if (requestB.userId in matchedUsers) continue
+
+            if (requestB.withUserId != requestA.userId) continue // must be mutual
+
+            val claimId = requestA.claims.firstOrNull()?.claimId
+                ?: requestB.claims.firstOrNull()?.claimId
+                ?: continue
+
+            val stanceA = requestA.claims.firstOrNull { it.claimId == claimId }?.stance ?: ClaimStance.FOR
+            val stanceB = requestB.claims.firstOrNull { it.claimId == claimId }?.stance ?: ClaimStance.AGAINST
+
+            matchedUsers.add(requestA.userId)
+            matchedUsers.add(requestB.userId)
+
+            createAndStoreMatch(
+                userA = requestA,
+                userB = requestB,
+                claimId = claimId,
+                stanceA = stanceA,
+                stanceB = stanceB,
+                topicId = null,
+                eventId = requestA.eventId ?: requestB.eventId,
+                reason = MatchReason.USER_MATCH,
+            )
+
+            logger.debug(
+                "Phase 0 (Direct User Match): Matched {} with {}",
+                requestA.userId,
+                requestB.userId,
+            )
+        }
+    }
+
+    /**
+     * Phase 1: Event Match
+     * Match event participants with opposite stances on the event claim, FIFO by joinedAt.
+     * Multiple pairs can be matched per cycle. No special host treatment.
+     * Queue entries with eventId (and no targetUserId) are only matched here and never fall through to Phase 2/3.
+     */
+    private fun matchEventPhase(
+        users: List<MatchRequest>,
+        matchedUsers: MutableSet<String>,
+    ) {
+        val eventGroups = users
+            .filter { it.eventId != null && it.withUserId == null }
+            .groupBy { it.eventId!! }
+
+        for ((eventId, eventUsers) in eventGroups) {
+            val available = eventUsers.filter { it.claims.isNotEmpty() }
+
+            for (i in available.indices) {
+                val userA = available[i]
+                if (userA.userId in matchedUsers) continue
+
+                for (j in i + 1 until available.size) {
+                    val userB = available[j]
+                    if (userB.userId in matchedUsers) continue
+
+                    val claimId = userA.claims.first().claimId
+                    val stanceA = userA.claims.first().stance
+                    val stanceB = userB.claims.firstOrNull { it.claimId == claimId }?.stance ?: continue
+
+                    if (!areOpposite(stanceA, stanceB)) continue
+
+                    matchedUsers.add(userA.userId)
+                    matchedUsers.add(userB.userId)
+
+                    createAndStoreMatch(
+                        userA = userA,
+                        userB = userB,
+                        claimId = claimId,
+                        stanceA = stanceA,
+                        stanceB = stanceB,
+                        topicId = null,
+                        eventId = eventId,
+                        reason = MatchReason.CLAIM_MATCH,
+                    )
+
+                    logger.debug(
+                        "Phase 1 (Event Match): Matched {} with {} for event {}",
+                        userA.userId,
+                        userB.userId,
+                        eventId,
+                    )
+                    break
+                }
+            }
         }
     }
 
@@ -123,11 +237,15 @@ class MatchingJobService(
             val userA = users[i]
             if (userA.userId in matchedUsers) continue
             if (userA.claims.isEmpty()) continue
+            if (userA.eventId != null) continue
+            if (userA.withUserId != null) continue
 
             for (j in i + 1 until users.size) {
                 val userB = users[j]
                 if (userB.userId in matchedUsers) continue
                 if (userB.claims.isEmpty()) continue
+                if (userB.eventId != null) continue
+                if (userB.withUserId != null) continue
 
                 // Check skip lists
                 if (userA.userId in userB.skipUserIds || userB.userId in userA.skipUserIds) continue
@@ -404,6 +522,7 @@ class MatchingJobService(
         stanceA: ClaimStance,
         stanceB: ClaimStance,
         topicId: String?,
+        eventId: String? = null,
         reason: MatchReason,
     ) {
         val matchId = idService.getId()
@@ -433,6 +552,7 @@ class MatchingJobService(
                 matchId = matchId,
                 claim = Match.MatchClaim(claim.claimId, claim.title),
                 topicId = topicId,
+                eventId = eventId,
                 matchReason = reason,
                 status = MatchStatus.PENDING,
                 opponents =
@@ -442,7 +562,7 @@ class MatchingJobService(
                             username = userAEntity.username,
                             avatarUrl = userAEntity.avatarUrl,
                             stance = finalA,
-                            status = MatchOpponentStatus.PENDING,
+                            status = if (eventId != null) MatchOpponentStatus.ACCEPTED else MatchOpponentStatus.PENDING,
                             userA.ignores,
                         ),
                         Match.MatchOpponent(
@@ -467,6 +587,6 @@ class MatchingJobService(
         when (this) {
             ClaimStance.FOR -> ClaimStance.AGAINST
             ClaimStance.AGAINST -> ClaimStance.FOR
-            ClaimStance.EITHER -> error("No opposite for EITHER")
+            ClaimStance.EITHER -> ClaimStance.EITHER
         }
 }

@@ -1,19 +1,25 @@
 package com.debbly.server.match
 
+import com.debbly.server.event.model.EventAcceptanceStatus
+import com.debbly.server.event.repository.EventJpaRepository
+import com.debbly.server.event.repository.EventParticipantJpaRepository
 import com.debbly.server.livekit.LiveKitService
 import com.debbly.server.match.event.MatchAcceptedAllEvent
 import com.debbly.server.match.event.MatchAcceptedEvent
 import com.debbly.server.match.event.MatchFoundEvent
+import com.debbly.server.match.model.MatchOpponentStatus
 import com.debbly.server.match.repository.MatchRepository
 import com.debbly.server.pusher.model.PusherEventName.EVENT_EVENT
 import com.debbly.server.pusher.model.PusherMessage.Companion.message
 import com.debbly.server.pusher.model.PusherMessageType.EVENT_MATCHED
+import com.debbly.server.pusher.model.PusherMessageType.EVENT_QUEUE_UPDATED
 import com.debbly.server.pusher.service.PusherService
 import com.debbly.server.stage.StageService
 import org.slf4j.LoggerFactory
 import org.springframework.context.event.EventListener
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Component
+import java.time.Instant
 
 @Component
 class MatchEventListener(
@@ -22,6 +28,8 @@ class MatchEventListener(
     private val stageService: StageService,
     private val matchRepository: MatchRepository,
     private val pusherService: PusherService,
+    private val eventParticipantRepository: EventParticipantJpaRepository,
+    private val eventJpaRepository: EventJpaRepository,
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -46,6 +54,25 @@ class MatchEventListener(
         try {
             val room = liveKitService.createRoom(event.match.matchId)
             if (room != null) {
+                // For event matches, update participant status and push queue update
+                event.match.eventId?.let { eventId ->
+                    val participantUserId = event.match.opponents
+                        .firstOrNull { it.status == MatchOpponentStatus.PENDING }?.userId
+                    if (participantUserId != null) {
+                        val participant = eventParticipantRepository.findByEventIdAndUserId(eventId, participantUserId)
+                        if (participant != null && participant.status == EventAcceptanceStatus.SIGNED_UP) {
+                            eventParticipantRepository.save(
+                                participant.copy(status = EventAcceptanceStatus.MATCHED, updatedAt = Instant.now())
+                            )
+                            eventJpaRepository.decrementSignedUpCount(eventId)
+                        }
+                        pusherService.sendRawChannelMessage(
+                            "event:$eventId",
+                            EVENT_EVENT,
+                            message(EVENT_QUEUE_UPDATED, mapOf("eventId" to eventId)),
+                        )
+                    }
+                }
                 matchNotificationService.notifyMatchFound(event.match)
             } else {
                 logger.error("Failed to create LiveKit room for match: ${event.match.matchId}")

@@ -12,6 +12,8 @@ interface EventParticipantJpaRepository : JpaRepository<EventParticipantEntity, 
 
     fun findByEventIdAndStatusOrderByCreatedAtAsc(eventId: String, status: EventAcceptanceStatus): List<EventParticipantEntity>
 
+    fun findByEventIdAndStatusInOrderByCreatedAtAsc(eventId: String, statuses: List<EventAcceptanceStatus>): List<EventParticipantEntity>
+
     @Query(
         value = """
             SELECT *

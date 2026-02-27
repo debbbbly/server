@@ -3,6 +3,8 @@ package com.debbly.server.chat
 import com.debbly.server.ai.OpenAiService
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.auth.service.AuthService
+import com.debbly.server.chat.repository.ChatRepository
+import com.debbly.server.event.repository.EventCachedRepository
 import com.debbly.server.infra.error.ForbiddenException
 import com.debbly.server.pusher.model.ChannelHistoryResponse
 import com.debbly.server.pusher.model.ChannelMessageResponse
@@ -12,6 +14,7 @@ import com.debbly.server.pusher.model.PusherMessage
 import com.debbly.server.pusher.model.SendMessageRequest
 import com.debbly.server.pusher.model.SendMessageResponse
 import com.debbly.server.pusher.service.PusherService
+import com.debbly.server.stage.repository.StageCachedRepository
 import jakarta.validation.Valid
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
@@ -22,8 +25,11 @@ import org.springframework.web.bind.annotation.*
 class ChatController(
     private val pusherService: PusherService,
     private val chatService: ChatService,
+    private val chatRepository: ChatRepository,
     private val authService: AuthService,
-    private val openAIService: OpenAiService
+    private val openAIService: OpenAiService,
+    private val stageCachedRepository: StageCachedRepository,
+    private val eventCachedRepository: EventCachedRepository
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -36,6 +42,7 @@ class ChatController(
         try {
             val user = authService.authenticate(externalUserId)
             if (user.banned) throw ForbiddenException("Your account is limited")
+            if (chatRepository.isMuted(chatId, user.userId)) throw ForbiddenException("You are muted in this chat")
 
             // Rate limiting: 1 message per second per user
             if (!ChatRateLimiter.tryConsume(user.userId)) {
@@ -75,6 +82,38 @@ class ChatController(
             logger.error("Failed to send message to channel $chatId: ${e.message}", e)
             return ResponseEntity.status(401).build()
         }
+    }
+
+    @PutMapping("/{chatId}/users/{userId}/mute")
+    fun muteUser(
+        @PathVariable chatId: String,
+        @PathVariable userId: String,
+        @ExternalUserId externalUserId: String?
+    ): ResponseEntity<Unit> {
+        val requester = authService.authenticate(externalUserId)
+        requireChatHost(chatId, requester.userId)
+        chatRepository.muteUser(chatId, userId)
+        return ResponseEntity.ok().build()
+    }
+
+    @DeleteMapping("/{chatId}/users/{userId}/mute")
+    fun unmuteUser(
+        @PathVariable chatId: String,
+        @PathVariable userId: String,
+        @ExternalUserId externalUserId: String?
+    ): ResponseEntity<Unit> {
+        val requester = authService.authenticate(externalUserId)
+        requireChatHost(chatId, requester.userId)
+        chatRepository.unmuteUser(chatId, userId)
+        return ResponseEntity.ok().build()
+    }
+
+    private fun requireChatHost(chatId: String, userId: String) {
+        val isStageHost = stageCachedRepository.findById(chatId)
+            ?.hosts?.any { it.userId == userId } == true
+        val isEventHost = !isStageHost && eventCachedRepository.findById(chatId)
+            ?.hostUserId == userId
+        if (!isStageHost && !isEventHost) throw ForbiddenException("Only the host can mute users")
     }
 
     @GetMapping("/{chatId}/messages")

@@ -11,7 +11,7 @@ class MatchingJob {
         this.matchingJobService = matchingJobService
     }
 
-    @Scheduled(fixedRate = 10000)
+    @Scheduled(fixedRate = 5000)
     fun scheduleMatching() {
         matchingJobService.runMatching()
     }

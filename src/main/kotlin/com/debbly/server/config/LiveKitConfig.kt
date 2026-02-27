@@ -2,17 +2,23 @@ package com.debbly.server.config
 
 import io.livekit.server.EgressServiceClient
 import io.livekit.server.RoomServiceClient
+import jakarta.validation.constraints.NotBlank
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.stereotype.Component
+import org.springframework.validation.annotation.Validated
 
+@Validated
 @Component
 @ConfigurationProperties(prefix = "livekit")
 class LiveKitConfig {
+    @field:NotBlank
     lateinit var url: String
+    @field:NotBlank
     lateinit var apiKey: String
+    @field:NotBlank
     lateinit var apiSecret: String
     var egress: EgressConfig = EgressConfig()
 

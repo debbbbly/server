@@ -8,6 +8,7 @@ import com.debbly.server.user.model.SocialUsernameModel
 import com.debbly.server.user.model.UserModel
 import com.debbly.server.user.repository.SocialUsernameCachedRepository
 import com.debbly.server.user.repository.UserCachedRepository
+import org.slf4j.LoggerFactory
 import org.springframework.cache.CacheManager
 import org.springframework.stereotype.Service
 import java.time.Clock
@@ -25,6 +26,8 @@ class UserService(
     private val usernameService: UsernameService,
     private val clock: Clock
 ) {
+
+    private val logger = LoggerFactory.getLogger(javaClass)
 
     fun createUser(externalUserId: String, email: String): UserModel {
         val existingUser = userCachedRepository.findByExternalUserId(externalUserId)
@@ -91,7 +94,7 @@ class UserService(
                 try {
                     s3Service.deleteAvatar(oldUrl)
                 } catch (e: Exception) {
-                    println("Failed to delete old avatar: ${e.message}")
+                    logger.warn("Failed to delete old avatar: ${e.message}")
                 }
             }
         }

@@ -5,38 +5,35 @@ import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.repository.ClaimJpaRepository
 import com.debbly.server.event.model.EventAcceptanceStatus
+import com.debbly.server.event.model.EventAcceptanceStatus.MATCHED
+import com.debbly.server.event.model.EventAcceptanceStatus.NO_SHOW
+import com.debbly.server.event.model.EventAcceptanceStatus.REMOVED
+import com.debbly.server.event.model.EventAcceptanceStatus.SIGNED_UP
+import com.debbly.server.event.model.EventAcceptanceStatus.WITHDRAWN
 import com.debbly.server.event.model.EventListFilter
 import com.debbly.server.event.model.EventStatus
-import com.debbly.server.event.repository.EventCachedRepository
-import com.debbly.server.event.repository.EventEntity
-import com.debbly.server.event.repository.EventJpaRepository
-import com.debbly.server.event.repository.EventParticipantEntity
-import com.debbly.server.event.repository.EventParticipantJpaRepository
-import com.debbly.server.event.repository.EventReminderEntity
-import com.debbly.server.event.repository.EventReminderJpaRepository
+import com.debbly.server.event.repository.*
 import com.debbly.server.home.model.HomeHostResponse
 import com.debbly.server.home.model.HomeStageClaimResponse
 import com.debbly.server.home.model.HomeStageResponse
 import com.debbly.server.infra.error.ForbiddenException
-import com.debbly.server.match.event.MatchFoundEvent
-import com.debbly.server.match.model.Match
-import com.debbly.server.match.model.MatchOpponentStatus
-import com.debbly.server.match.model.MatchReason
-import com.debbly.server.match.model.MatchStatus
-import com.debbly.server.match.repository.MatchRepository
+import com.debbly.server.match.MatchingJobService
+import com.debbly.server.match.model.ClaimWithStance
+import com.debbly.server.match.model.MatchRequest
+import com.debbly.server.match.repository.MatchQueueRepository
 import com.debbly.server.pusher.model.PusherEventName.EVENT_EVENT
 import com.debbly.server.pusher.model.PusherMessage.Companion.message
 import com.debbly.server.pusher.model.PusherMessageType
 import com.debbly.server.pusher.service.PusherService
-import com.debbly.server.settings.SettingsService
 import com.debbly.server.stage.repository.StageJpaRepository
 import com.debbly.server.stage.repository.StageMediaJpaRepository
 import com.debbly.server.user.OnlineUsersService
 import com.debbly.server.user.repository.UserCachedRepository
 import jakarta.transaction.Transactional
-import org.springframework.context.ApplicationEventPublisher
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
+import org.springframework.http.HttpStatus.BAD_REQUEST
+import org.springframework.http.HttpStatus.NOT_FOUND
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
 import java.net.URI
@@ -55,10 +52,9 @@ class EventService(
     private val userRepository: UserCachedRepository,
     private val stageJpaRepository: StageJpaRepository,
     private val stageMediaRepository: StageMediaJpaRepository,
-    private val matchRepository: MatchRepository,
+    private val matchQueueRepository: MatchQueueRepository,
+    private val matchingJobService: MatchingJobService,
     private val onlineUsersService: OnlineUsersService,
-    private val eventPublisher: ApplicationEventPublisher,
-    private val settingsService: SettingsService,
     private val pusherService: PusherService,
     private val idService: IdService,
     private val clock: Clock,
@@ -82,6 +78,12 @@ class EventService(
         val status: EventAcceptanceStatus,
         val stance: ClaimStance,
         val createdAt: Instant
+    )
+
+    data class EventParticipantSummary(
+        val userId: String,
+        val username: String,
+        val online: Boolean
     )
 
     data class EventCard(
@@ -112,7 +114,9 @@ class EventService(
         val status: EventStatus,
         val reminderCount: Int,
         val signedUpCount: Int,
-        val currentUserState: CurrentUserEventState
+        val currentUserState: CurrentUserEventState,
+        val participants: List<EventParticipantSummary>,
+        val onlineSignedUpCount: Int
     )
 
     data class CurrentUserEventState(
@@ -123,15 +127,19 @@ class EventService(
 
     data class MatchNextResponse(
         val eventId: String,
-        val matchId: String,
-        val matchedUser: EventUserSummary,
-        val matchedAcceptanceId: String
     )
 
     data class CreateEventRequest(
         val claimId: String,
         val hostStance: ClaimStance,
         val startTime: Instant,
+        val description: String?,
+        val bannerImageUrl: String?
+    )
+
+    data class UpdateEventRequest(
+        val hostStance: ClaimStance?,
+        val startTime: Instant?,
         val description: String?,
         val bannerImageUrl: String?
     )
@@ -173,34 +181,49 @@ class EventService(
     fun getEventDetail(eventId: String, userId: String?): EventDetail {
         val event = getEventOrThrow(eventId)
         val claim = claimRepository.findById(event.claimId).getOrElse {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Claim not found")
+            throw ResponseStatusException(NOT_FOUND, "Claim not found")
         }
 
-        val owner = userRepository.findById(event.hostUserId)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Host not found")
+        val eventHost = userRepository.findById(event.hostUserId)
+            ?: throw ResponseStatusException(NOT_FOUND, "Host not found")
 
         val participants = eventParticipantRepository.findByEventIdOrderByCreatedAtAsc(eventId)
         val participantUsers = userRepository.findByIds(participants.map { it.userId })
 
-//        val participantView = participants.mapNotNull { participant ->
-//            participantUsers[participant.userId]?.let { user ->
-//                EventParticipantView(
-//                    acceptanceId = acceptanceKey(participant.eventId, participant.userId),
-//                    user = EventUserSummary(
-//                        userId = user.userId,
-//                        username = user.username,
-//                        avatarUrl = user.avatarUrl
-//                    ),
-//                    stance = participant.stance,
-//                    status = participant.status,
-//                    createdAt = participant.createdAt
-//                )
-//            }
-//        }
+        val allUserIdsForOnlineCheck = (participants.map { it.userId } + event.hostUserId).distinct()
+        val onlineMap = onlineUsersService.areUsersOnline(allUserIdsForOnlineCheck)
+
+        val activeParticipants = participants
+            .filter { it.status !in setOf(REMOVED, WITHDRAWN) }
+
+        val hostSummary = EventParticipantSummary(
+            userId = eventHost.userId,
+            username = eventHost.username,
+            online = onlineMap[eventHost.userId] == true
+        )
+
+        val participantSummaries = listOf(hostSummary) + activeParticipants
+            .filter { it.userId != event.hostUserId }
+            .sortedWith(
+                compareBy(
+                { onlineMap[it.userId] != true },
+                { it.status != SIGNED_UP },
+                { it.createdAt }
+            ))
+            .mapNotNull { participant ->
+                val user = participantUsers[participant.userId] ?: return@mapNotNull null
+                EventParticipantSummary(
+                    userId = user.userId,
+                    username = user.username,
+                    online = onlineMap[participant.userId] == true
+                )
+            }
+
+        val onlineSignedUpCount = participantSummaries.count { p -> p.online }
 
         val meSignedUp = userId?.let { userId ->
             eventParticipantRepository.findByEventIdAndUserId(eventId, userId)
-                ?.takeIf { it.status == EventAcceptanceStatus.SIGNED_UP } != null
+                ?.takeIf { it.status !in setOf(REMOVED, WITHDRAWN) } != null
         } ?: false
 
         val meReminded = userId?.let { reminderRepository.findByEventIdAndUserId(eventId, it) != null } ?: false
@@ -212,26 +235,28 @@ class EventService(
                 claimSlug = claim.slug,
                 title = claim.title
             ),
-            host = EventUserSummary(owner.userId, owner.username, owner.avatarUrl),
+            host = EventUserSummary(eventHost.userId, eventHost.username, eventHost.avatarUrl),
             hostStance = event.hostStance,
             description = event.description,
             bannerImageUrl = event.bannerImageUrl,
             startTime = event.startTime,
             status = event.status,
-            signedUpCount = event.signedUpCount,
+            signedUpCount = event.signedUpCount + 1,
             reminderCount = event.reminderCount,
             currentUserState = CurrentUserEventState(
                 signedUp = meSignedUp,
                 reminded = meReminded,
                 isHost = userId == event.hostUserId
-            )
+            ),
+            participants = participantSummaries,
+            onlineSignedUpCount = onlineSignedUpCount
         )
     }
 
     @Transactional
     fun create(hostUserId: String, request: CreateEventRequest): EventDetail {
         claimRepository.findById(request.claimId).orElseThrow {
-            ResponseStatusException(HttpStatus.NOT_FOUND, "Claim not found")
+            ResponseStatusException(NOT_FOUND, "Claim not found")
         }
 
         validateCreateRequest(request)
@@ -256,14 +281,48 @@ class EventService(
     }
 
     @Transactional
+    fun update(eventId: String, userId: String, request: UpdateEventRequest): EventDetail {
+        val event = getEventOrThrow(eventId)
+        enforceHost(event, userId)
+
+        request.startTime?.let { startTime ->
+            val now = Instant.now(clock)
+            if (!startTime.isAfter(now)) {
+                throw ResponseStatusException(BAD_REQUEST, "startTime must be in the future")
+            }
+        }
+
+        request.description?.trim()?.let { description ->
+            if (description.length > 2000) {
+                throw ResponseStatusException(BAD_REQUEST, "description must be <= 2000 characters")
+            }
+        }
+
+        val updated = eventCachedRepository.save(
+            event.copy(
+                hostStance = request.hostStance ?: event.hostStance,
+                startTime = request.startTime ?: event.startTime,
+                description = request.description ?: event.description,
+                bannerImageUrl = request.bannerImageUrl ?: event.bannerImageUrl,
+                updatedAt = Instant.now(clock)
+            )
+        )
+
+        return getEventDetail(updated.eventId, userId)
+    }
+
+    @Transactional
     fun signUp(eventId: String, userId: String, stance: ClaimStance): EventParticipantView {
         val event = getEventOrThrow(eventId)
         canEventBeJoined(event)
 
         val existing = eventParticipantRepository.findByEventIdAndUserId(eventId, userId)
-            ?.takeIf {  it.status !in setOf(EventAcceptanceStatus.WITHDRAWN, EventAcceptanceStatus.REMOVED) }
 
-        if (existing != null) {
+        if (existing?.status == REMOVED) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "You have been removed from this event")
+        }
+
+        if (existing != null && existing.status != WITHDRAWN) {
             return toEventParticipantView(existing)
         }
 
@@ -271,7 +330,7 @@ class EventService(
         val participant = EventParticipantEntity(
             eventId = eventId,
             userId = userId,
-            status = EventAcceptanceStatus.SIGNED_UP,
+            status = SIGNED_UP,
             stance = stance,
             createdAt = now,
             updatedAt = now
@@ -319,11 +378,11 @@ class EventService(
     fun cancelSignUp(eventId: String, userId: String) {
         val participant = eventParticipantRepository.findByEventIdAndUserId(eventId, userId)
             ?: return
-        if (participant.status != EventAcceptanceStatus.SIGNED_UP) return
+        if (participant.status != SIGNED_UP) return
 
         eventParticipantRepository.save(
             participant.copy(
-                status = EventAcceptanceStatus.WITHDRAWN,
+                status = WITHDRAWN,
                 updatedAt = Instant.now(clock)
             )
         )
@@ -347,7 +406,7 @@ class EventService(
         val nextStatus = when (event.status) {
             EventStatus.SCHEDULED -> EventStatus.LIVE
             EventStatus.LIVE -> EventStatus.LIVE
-            else -> throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Only scheduled events can be started")
+            else -> throw ResponseStatusException(BAD_REQUEST, "Only scheduled events can be started")
         }
 
         val updated = eventCachedRepository.save(event.copy(status = nextStatus, updatedAt = now))
@@ -364,7 +423,7 @@ class EventService(
         val nextStatus = when (event.status) {
             EventStatus.LIVE -> EventStatus.COMPLETED
             EventStatus.COMPLETED -> EventStatus.COMPLETED
-            else -> throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Only live events can be stopped")
+            else -> throw ResponseStatusException(BAD_REQUEST, "Only live events can be stopped")
         }
 
         val updated = eventCachedRepository.save(event.copy(status = nextStatus, updatedAt = now))
@@ -394,88 +453,94 @@ class EventService(
         return getEventDetail(updated.eventId, userId)
     }
 
-    @Transactional
     fun match(eventId: String, userId: String, withUserId: String? = null): MatchNextResponse {
         val event = getEventOrThrow(eventId)
         enforceHost(event, userId)
 
         if (event.status != EventStatus.LIVE) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Event must be live")
+            throw ResponseStatusException(BAD_REQUEST, "Event must be live")
         }
 
-        // Pick next online signed-up participant (FIFO within online set).
-        // Locking the selected row prevents two concurrent match calls from grabbing the same person.
-        val participant = if (withUserId.isNullOrBlank()) {
-            val signedUp = eventParticipantRepository.findByEventIdAndStatusOrderByCreatedAtAsc(
-                eventId, EventAcceptanceStatus.SIGNED_UP
-            )
-            val onlineUserIds = onlineUsersService.getOnlineUserIds()
-            val targetUserId = signedUp.firstOrNull { it.userId in onlineUserIds }?.userId
-                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "No online signed-up users available")
-            eventParticipantRepository.findSignedUpByEventAndUserForUpdate(eventId, targetUserId)
-        } else {
-            if (!onlineUsersService.isUserOnline(withUserId)) {
-                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "User is not online")
+        val now = Instant.now(clock)
+
+        val onlineUserIds = onlineUsersService.getOnlineUserIds()
+        if (!withUserId.isNullOrBlank()) {
+
+            if (withUserId !in onlineUserIds) {
+                throw ResponseStatusException(BAD_REQUEST, "User is not online")
             }
-            eventParticipantRepository.findSignedUpByEventAndUserForUpdate(eventId, withUserId)
-        } ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "No signed-up users available")
+            val participant = eventParticipantRepository.findByEventIdAndUserId(eventId, withUserId)
+                ?.takeIf { it.status !in setOf(REMOVED, WITHDRAWN) }
+                ?: throw ResponseStatusException(BAD_REQUEST, "User is not an eligible participant")
 
-        val host = userRepository.findById(event.hostUserId)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Host not found")
-        val opponent = userRepository.findById(participant.userId)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
-        val claim = claimRepository.findById(event.claimId).getOrElse {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Claim not found")
+            matchQueueRepository.save(
+                MatchRequest(
+                    userId = event.hostUserId,
+                    claims = listOf(ClaimWithStance(event.claimId, event.hostStance)),
+                    eventId = eventId,
+                    withUserId = withUserId,
+                    joinedAt = now,
+                )
+            )
+
+            matchQueueRepository.save(
+                MatchRequest(
+                    userId = participant.userId,
+                    claims = listOf(ClaimWithStance(event.claimId, participant.stance)),
+                    eventId = eventId,
+                    withUserId = event.hostUserId,
+                    joinedAt = now,
+                )
+            )
+
+            matchingJobService.runMatching()
+            return MatchNextResponse(eventId = eventId)
         }
 
-        // Mark participant immediately so they can't be picked again while the match is pending.
-        eventParticipantRepository.save(
-            participant.copy(status = EventAcceptanceStatus.MATCHED, updatedAt = Instant.now(clock))
-        )
-        eventRepository.decrementSignedUpCount(eventId)
+        val eligible = selectEligibleParticipants(eventId, onlineUserIds)
 
-        val matchId = idService.getId()
-        val match = Match(
-            matchId = matchId,
-            claim = Match.MatchClaim(claimId = claim.claimId, title = claim.title),
-            topicId = claim.topicId,
-            eventId = eventId,
-            matchReason = MatchReason.CLAIM_MATCH,
-            status = MatchStatus.PENDING,
-            opponents = listOf(
-                Match.MatchOpponent(
-                    userId = host.userId,
-                    username = host.username,
-                    avatarUrl = host.avatarUrl,
-                    stance = event.hostStance,
-                    status = MatchOpponentStatus.ACCEPTED,
-                    ignores = 0,
-                ),
-                Match.MatchOpponent(
-                    userId = opponent.userId,
-                    username = opponent.username,
-                    avatarUrl = opponent.avatarUrl,
-                    stance = participant.stance,
-                    status = MatchOpponentStatus.PENDING,
-                    ignores = 0,
-                ),
-            ),
-            ttl = settingsService.getMatchTtl(),
-            updatedAt = Instant.now(clock),
+        // Enqueue host
+        matchQueueRepository.save(
+            MatchRequest(
+                userId = event.hostUserId,
+                claims = listOf(ClaimWithStance(event.claimId, event.hostStance)),
+                eventId = eventId,
+                joinedAt = now,
+            )
         )
 
-        matchRepository.save(match)
-        eventPublisher.publishEvent(MatchFoundEvent(match))
-
-        val matchedAcceptanceId = acceptanceKey(participant.eventId, participant.userId)
-        pushEvent(eventId, PusherMessageType.EVENT_QUEUE_UPDATED, queueSnapshot(eventId))
+        // Enqueue eligible participants (preserve FIFO via their signup createdAt)
+        eligible.forEach { participant ->
+            matchQueueRepository.save(
+                MatchRequest(
+                    userId = participant.userId,
+                    claims = listOf(ClaimWithStance(event.claimId, participant.stance)),
+                    eventId = eventId,
+                    joinedAt = participant.createdAt,
+                )
+            )
+        }
 
         return MatchNextResponse(
             eventId = eventId,
-            matchId = matchId,
-            matchedUser = EventUserSummary(opponent.userId, opponent.username, opponent.avatarUrl),
-            matchedAcceptanceId = matchedAcceptanceId,
         )
+    }
+
+    private fun selectEligibleParticipants(
+        eventId: String,
+        onlineUserIds: Set<String>,
+    ): List<EventParticipantEntity> {
+        val candidates = eventParticipantRepository
+            .findByEventIdAndStatusInOrderByCreatedAtAsc(eventId, listOf(SIGNED_UP, MATCHED, NO_SHOW))
+            .filter { it.userId in onlineUserIds }
+
+        return candidates.filter { it.status == SIGNED_UP }.ifEmpty {
+            candidates.filter { it.status == MATCHED }.ifEmpty {
+                candidates.filter { it.status == NO_SHOW }.ifEmpty {
+                    throw ResponseStatusException(BAD_REQUEST, "No online participants available")
+                }
+            }
+        }
     }
 
     @Transactional
@@ -484,12 +549,12 @@ class EventService(
         enforceHost(event, userId)
 
         val participant = eventParticipantRepository.findByEventIdAndUserId(eventId, removeUserId)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "User is not in event queue")
+            ?: throw ResponseStatusException(NOT_FOUND, "User is not in event queue")
 
-        if (participant.status == EventAcceptanceStatus.SIGNED_UP) {
+        if (participant.status == SIGNED_UP) {
             eventParticipantRepository.save(
                 participant.copy(
-                    status = EventAcceptanceStatus.REMOVED,
+                    status = REMOVED,
                     updatedAt = Instant.now(clock)
                 )
             )
@@ -504,7 +569,7 @@ class EventService(
         getEventOrThrow(eventId)
         val cursorInstant = cursor?.let {
             runCatching { Instant.parse(it) }.getOrElse {
-                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid cursor")
+                throw ResponseStatusException(BAD_REQUEST, "Invalid cursor")
             }
         }
 
@@ -574,24 +639,24 @@ class EventService(
     private fun validateCreateRequest(request: CreateEventRequest) {
         val now = Instant.now(clock)
         if (!request.startTime.isAfter(now)) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "startTime must be in the future")
+            throw ResponseStatusException(BAD_REQUEST, "startTime must be in the future")
         }
 
         val descriptionLength = request.description?.trim()?.length ?: 0
         if (descriptionLength > 2000) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "description must be <= 2000 characters")
+            throw ResponseStatusException(BAD_REQUEST, "description must be <= 2000 characters")
         }
 
         request.bannerImageUrl?.let {
             runCatching { URI.create(it) }.getOrElse {
-                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "bannerImageUrl must be a valid URI")
+                throw ResponseStatusException(BAD_REQUEST, "bannerImageUrl must be a valid URI")
             }
         }
     }
 
     private fun canEventBeJoined(event: EventEntity) {
         if (event.status == EventStatus.CANCELLED || event.status == EventStatus.COMPLETED) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Event is not accepting participants")
+            throw ResponseStatusException(BAD_REQUEST, "Event is not accepting participants")
         }
     }
 
@@ -628,7 +693,7 @@ class EventService(
 
     private fun toEventParticipantView(participant: EventParticipantEntity): EventParticipantView {
         val user = userRepository.findById(participant.userId)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+            ?: throw ResponseStatusException(NOT_FOUND, "User not found")
 
         return EventParticipantView(
             acceptanceId = acceptanceKey(participant.eventId, participant.userId),
@@ -642,7 +707,7 @@ class EventService(
     private fun queueSnapshot(eventId: String): Map<String, Any> {
         val queue = eventParticipantRepository.findByEventIdAndStatusOrderByCreatedAtAsc(
             eventId,
-            EventAcceptanceStatus.SIGNED_UP
+            SIGNED_UP
         )
         return mapOf(
             "eventId" to eventId,
@@ -662,13 +727,13 @@ class EventService(
 
     private fun parseCursor(cursor: String): Instant {
         return runCatching { Instant.parse(cursor) }.getOrElse {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid cursor")
+            throw ResponseStatusException(BAD_REQUEST, "Invalid cursor")
         }
     }
 
     private fun getEventOrThrow(eventId: String): EventEntity {
         return eventCachedRepository.findById(eventId)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found")
+            ?: throw ResponseStatusException(NOT_FOUND, "Event not found")
     }
 
     private fun enforceHost(event: EventEntity, userId: String) {

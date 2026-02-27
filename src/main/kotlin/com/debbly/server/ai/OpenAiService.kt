@@ -1,6 +1,7 @@
 package com.debbly.server.ai
 
 import com.debbly.server.category.repository.CategoryCachedRepository
+import com.debbly.server.claim.exception.ClaimValidationException
 import com.debbly.server.claim.model.StanceToTopic
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper

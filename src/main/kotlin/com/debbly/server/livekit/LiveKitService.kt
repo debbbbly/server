@@ -37,26 +37,36 @@ class LiveKitService(
     fun getParticipants(stageId: String): List<LivekitModels.ParticipantInfo> {
         logger.debug("Attempting to get participants for room: $stageId")
 
-        repeat(3) { attempt ->
+        val maxAttempts = 3
+        val retryDelayMs = 500L
+
+        for (attempt in 0 until maxAttempts) {
             val call = livekitRoomService.listParticipants(stageId)
             val response = call.execute()
 
-            if (response.isSuccessful) {
-                val listParticipantsResponse = response.body()
-                val participantsList = listParticipantsResponse ?: emptyList()
-                logger.debug("Retrieved ${participantsList.size} participants for room $stageId")
-                return participantsList
-            } else if (response.code() == 404) {
-                if (attempt < 2) {
-                    logger.debug("Room $stageId not found (404) - retrying in 500ms (attempt ${attempt + 1}/3)")
-                    Thread.sleep(500)
-                } else {
-                    logger.warn("Room $stageId not found in LiveKit (404) after 3 attempts. Room exists for joining but listParticipants API fails. This may be a LiveKit API configuration issue.")
+            when {
+                response.isSuccessful -> {
+                    val participants = response.body() ?: emptyList()
+                    logger.debug("Retrieved ${participants.size} participants for room $stageId")
+                    return participants
+                }
+
+                response.code() == 404 -> {
+                    if (attempt < maxAttempts - 1) {
+                        logger.debug("Room $stageId not found (404) - retrying in ${retryDelayMs}ms (attempt ${attempt + 1}/$maxAttempts)")
+                        // Thread.sleep is safe here: virtual threads (enabled in application.yml) suspend
+                        // the virtual thread rather than blocking a carrier thread.
+                        Thread.sleep(retryDelayMs * (attempt + 1))
+                    } else {
+                        logger.warn("Room $stageId not found in LiveKit (404) after $maxAttempts attempts. This may be a LiveKit API configuration issue.")
+                        return emptyList()
+                    }
+                }
+
+                else -> {
+                    logger.error("Failed to get participants for room $stageId: ${response.code()} ${response.message()}")
                     return emptyList()
                 }
-            } else {
-                logger.error("Failed to get participants for room $stageId: ${response.code()} ${response.message()}")
-                return emptyList()
             }
         }
         return emptyList()

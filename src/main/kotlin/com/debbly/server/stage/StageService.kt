@@ -156,6 +156,7 @@ class StageService(
 
         return StageDetails(
             stageId = stage.stageId,
+            eventId = stage.eventId,
             claim = claim?.let { it ->
                 Claim(
                     claimId = it.claimId,
@@ -616,6 +617,7 @@ class StageService(
 
     data class StageDetails(
         val stageId: String,
+        val eventId: String?,
         val claim: Claim?,
         val isHost: Boolean,
         val hosts: List<Host>,

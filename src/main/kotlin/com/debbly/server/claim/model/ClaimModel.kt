@@ -60,6 +60,11 @@ fun ClaimModel.toEntity(): ClaimEntity =
         stanceToTopic = stanceToTopic,
     )
 
+@JsonTypeInfo(
+    use = JsonTypeInfo.Id.CLASS,
+    include = JsonTypeInfo.As.PROPERTY,
+    property = "@class",
+)
 data class UserClaimModel(
     val claim: ClaimModel,
     val userId: String,

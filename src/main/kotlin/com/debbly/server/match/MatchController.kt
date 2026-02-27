@@ -8,8 +8,10 @@ import com.debbly.server.match.MatchService.MatchingState
 import com.debbly.server.match.model.JoinMatchRequest
 import com.debbly.server.match.model.LeaveMatchRequest
 import com.debbly.server.match.model.Match
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.server.ResponseStatusException
 
 @RestController
 @RequestMapping("/match")
@@ -25,6 +27,12 @@ class MatchController(
     ): ResponseEntity<Void> {
         authService.authenticate(externalUserId).let { user ->
             if (user.banned) throw ForbiddenException("Your account is limited")
+            if (!MatchQueueRateLimiter.tryConsume(user.userId)) {
+                throw ResponseStatusException(
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "Too many queue join attempts. Please wait before trying again."
+                )
+            }
             matchService.join(user, request)
         }
         return ResponseEntity.ok().build()
@@ -48,10 +56,10 @@ class MatchController(
     }
 
     // TODO: remove ??? looks like a backdoor
-    @GetMapping("/all")
-    fun findAllMatches(): ResponseEntity<FindAllMatchesResponse> {
-        return ResponseEntity.ok(FindAllMatchesResponse(matchService.findAllMatches()))
-    }
+//    @GetMapping("/all")
+//    fun findAllMatches(): ResponseEntity<FindAllMatchesResponse> {
+//        return ResponseEntity.ok(FindAllMatchesResponse(matchService.findAllMatches()))
+//    }
 
     data class FindAllMatchesResponse(
         val users: List<Match>

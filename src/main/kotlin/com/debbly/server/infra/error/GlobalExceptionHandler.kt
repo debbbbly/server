@@ -2,6 +2,7 @@ package com.debbly.server.infra.error
 
 import com.debbly.server.claim.exception.ClaimValidationException
 import com.debbly.server.claim.exception.DuplicateClaimException
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.HttpStatus.*
 import org.springframework.http.ResponseEntity
@@ -11,6 +12,8 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException
 
 @ControllerAdvice
 class GlobalExceptionHandler {
+
+    private val logger = LoggerFactory.getLogger(javaClass)
 
     @ExceptionHandler(ForbiddenException::class)
     fun handleForbiddenException(ex: ForbiddenException): ResponseEntity<ErrorResponse> {
@@ -43,6 +46,12 @@ class GlobalExceptionHandler {
                 message = "File size exceeds maximum allowed size of 5MB"
             )
         )
+    }
+
+    @ExceptionHandler(Exception::class)
+    fun handleGenericException(ex: Exception): ResponseEntity<ErrorResponse> {
+        logger.error("Unhandled exception", ex)
+        return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(ErrorResponse("An unexpected error occurred"))
     }
 
     data class ErrorResponse(val message: String)

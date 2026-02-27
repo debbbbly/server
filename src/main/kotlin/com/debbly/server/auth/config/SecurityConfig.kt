@@ -1,5 +1,6 @@
 package com.debbly.server.auth.config
 
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod.OPTIONS
@@ -19,7 +20,8 @@ import java.beans.Customizer
 
 @Configuration
 @EnableWebSecurity
-class SecurityConfig {
+@EnableConfigurationProperties(CorsProperties::class)
+class SecurityConfig(private val corsProperties: CorsProperties) {
     @Bean
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
         http
@@ -29,7 +31,6 @@ class SecurityConfig {
                 it
                     .requestMatchers(OPTIONS, "/**").permitAll()
                     .requestMatchers("/actuator/health", "/actuator/prometheus", "/actuator/metrics/**").permitAll()
-                    .requestMatchers("/auth/logout").authenticated()
                     .anyRequest().permitAll()
             }
             .oauth2ResourceServer { oauth2 ->
@@ -59,7 +60,7 @@ class SecurityConfig {
         val config = CorsConfiguration()
         config.addAllowedOrigin("https://debbly.com")
         config.addAllowedOriginPattern("https://*.debbly.com")
-        config.addAllowedOriginPattern("http://localhost:*")
+        corsProperties.extraAllowedOriginPatterns.forEach { config.addAllowedOriginPattern(it) }
 
         config.allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS")
         config.allowedHeaders = listOf("*")
@@ -69,5 +70,4 @@ class SecurityConfig {
         source.registerCorsConfiguration("/**", config)
         return source
     }
-
 }

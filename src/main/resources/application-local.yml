@@ -1,0 +1,21 @@
+# Local development profile
+# Run with: ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+
+livekit:
+  egress:
+    layouts:
+      landscape: http://localhost:3000/egress/16-9.html
+      portrait: http://localhost:3000/egress/9-16.html
+
+cors:
+  extra-allowed-origin-patterns:
+    - "http://localhost:*"
+
+logging:
+  level:
+    com.debbly.server: DEBUG
+    # Keep framework noise at INFO/WARN
+    org.springframework: INFO
+    org.hibernate: WARN
+    org.apache: WARN
+    io.livekit: INFO

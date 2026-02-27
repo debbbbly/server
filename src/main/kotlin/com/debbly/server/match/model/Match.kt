@@ -38,6 +38,7 @@ enum class MatchOpponentStatus {
 }
 
 enum class MatchReason {
+    USER_MATCH,               // Phase 0: Direct user match via mutual targetUserId requests
     CLAIM_MATCH,              // Phase 1: Direct claim match with opposite stances
     TOPIC_MATCH_EXISTING_STANCE, // Phase 2A: Topic match where both users have opposite stances on a claim
     TOPIC_MATCH_DERIVED_STANCE   // Phase 2B: Topic match with stances derived from topic stance + claim's stanceToTopic

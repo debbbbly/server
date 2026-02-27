@@ -6,6 +6,9 @@ import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.event.model.EventListFilter
 import com.debbly.server.home.model.HomeStageResponse
 import com.debbly.server.storage.S3Service
+import com.debbly.server.viewer.ViewerScope
+import com.debbly.server.viewer.ViewerService
+import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
@@ -17,7 +20,8 @@ import java.time.Instant
 class EventController(
     private val eventService: EventService,
     private val authService: AuthService,
-    private val s3Service: S3Service
+    private val s3Service: S3Service,
+    private val viewerService: ViewerService
 ) {
 
     @GetMapping
@@ -98,6 +102,40 @@ class EventController(
                 user.userId,
                 EventService.CreateEventRequest(
                     claimId = request.claimId,
+                    hostStance = request.hostStance,
+                    startTime = request.startTime,
+                    description = request.description,
+                    bannerImageUrl = bannerImageUrl
+                )
+            )
+        )
+    }
+
+    data class UpdateEventHttpRequest(
+        val hostStance: ClaimStance? = null,
+        val startTime: Instant? = null,
+        val description: String? = null,
+        val bannerImageKey: String? = null
+    )
+
+    @PatchMapping("/{eventId}")
+    fun update(
+        @PathVariable eventId: String,
+        @ExternalUserId externalUserId: String?,
+        @RequestBody request: UpdateEventHttpRequest
+    ): ResponseEntity<EventService.EventDetail> {
+        val user = authService.authenticate(externalUserId)
+        val bannerImageUrl = request.bannerImageKey?.let { key ->
+            if (!s3Service.isEventBannerKeyOwnedByUser(user.userId, key)) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid banner image key")
+            }
+            s3Service.buildUsersPublicUrl(key)
+        }
+        return ResponseEntity.ok(
+            eventService.update(
+                eventId,
+                user.userId,
+                EventService.UpdateEventRequest(
                     hostStance = request.hostStance,
                     startTime = request.startTime,
                     description = request.description,
@@ -204,6 +242,25 @@ class EventController(
     ): ResponseEntity<List<HomeStageResponse>> {
         return ResponseEntity.ok(eventService.getEventLiveStages(eventId))
     }
+
+    @PostMapping("/{eventId}/view")
+    fun trackViewer(
+        @PathVariable eventId: String,
+        @ExternalUserId externalUserId: String?,
+        httpRequest: HttpServletRequest
+    ): ResponseEntity<Unit> {
+        val viewerId = externalUserId ?: httpRequest.remoteAddr
+        viewerService.trackViewer(ViewerScope.EVENT, eventId, viewerId)
+        return ResponseEntity.ok().build()
+    }
+
+    @GetMapping("/{eventId}/viewers")
+    fun getViewerCount(@PathVariable eventId: String): ResponseEntity<ViewerCountResponse> {
+        val count = viewerService.getViewerCount(ViewerScope.EVENT, eventId)
+        return ResponseEntity.ok(ViewerCountResponse(count))
+    }
+
+    data class ViewerCountResponse(val count: Long)
 
     @PostMapping("/{eventId}/cancel")
     fun cancel(

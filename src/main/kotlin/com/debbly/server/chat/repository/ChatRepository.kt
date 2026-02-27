@@ -29,6 +29,19 @@ class ChatRepository(
         redisTemplate.expire(key, MESSAGE_TTL_MINUTES, TimeUnit.MINUTES)
     }
 
+    private fun getMutedKey(chatId: String): String = "$KEY_PREFIX:$chatId:muted"
+
+    fun muteUser(chatId: String, userId: String) {
+        redisTemplate.opsForSet().add(getMutedKey(chatId), userId)
+    }
+
+    fun unmuteUser(chatId: String, userId: String) {
+        redisTemplate.opsForSet().remove(getMutedKey(chatId), userId)
+    }
+
+    fun isMuted(chatId: String, userId: String): Boolean =
+        redisTemplate.opsForSet().isMember(getMutedKey(chatId), userId) == true
+
     fun findByChannelIdOrderByTimestampDesc(channelId: String, limit: Int = 100): List<ChatMessage> {
         val key = getChatKey(channelId)
 
