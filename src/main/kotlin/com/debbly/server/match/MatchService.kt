@@ -383,6 +383,46 @@ class MatchService(
         )
     }
 
+    fun joinForChallenge(
+        hostUser: UserModel,
+        acceptorUser: UserModel,
+        claimId: String,
+        hostStance: ClaimStance,
+        acceptorStance: ClaimStance,
+        challengeId: String,
+    ) {
+        cancelExistingMatchIfPresent(hostUser.userId)
+        cancelExistingMatchIfPresent(acceptorUser.userId)
+
+        val now = Instant.now(clock)
+        val hostRequest = MatchRequest(
+            userId = hostUser.userId,
+            claims = listOf(ClaimWithStance(claimId, hostStance)),
+            withUserId = acceptorUser.userId,
+            challengeId = challengeId,
+            joinedAt = now,
+            updatedAt = now,
+        )
+        val acceptorRequest = MatchRequest(
+            userId = acceptorUser.userId,
+            claims = listOf(ClaimWithStance(claimId, acceptorStance)),
+            withUserId = hostUser.userId,
+            challengeId = challengeId,
+            joinedAt = now,
+            updatedAt = now,
+        )
+        matchQueueRepository.save(hostRequest)
+        matchQueueRepository.save(acceptorRequest)
+
+        logger.debug(
+            "Challenge {}: queued host {} and acceptor {} for claimId {}",
+            challengeId,
+            hostUser.userId,
+            acceptorUser.userId,
+            claimId,
+        )
+    }
+
     fun removeFromQueue(userId: String) {
         matchQueueRepository.remove(userId)
     }

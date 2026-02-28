@@ -32,7 +32,8 @@ import javax.sql.DataSource
         "com.debbly.server.backstage.repository",
         "com.debbly.server.settings.repository",
         "com.debbly.server.followers.repository",
-        "com.debbly.server.event.repository"
+        "com.debbly.server.event.repository",
+        "com.debbly.server.challenge.repository"
     ],
     entityManagerFactoryRef = "primaryEntityManagerFactory",
     transactionManagerRef = "primaryTransactionManager"
@@ -75,7 +76,8 @@ class PrimaryDataSourceConfig {
                 "com.debbly.server.backstage",
                 "com.debbly.server.settings",
                 "com.debbly.server.followers",
-                "com.debbly.server.event"
+                "com.debbly.server.event",
+                "com.debbly.server.challenge"
             )
             .persistenceUnit("primary")
             .properties(properties)

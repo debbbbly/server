@@ -156,6 +156,7 @@ class MatchingJobService(
                 stanceB = stanceB,
                 topicId = null,
                 eventId = requestA.eventId ?: requestB.eventId,
+                challengeId = requestA.challengeId ?: requestB.challengeId,
                 reason = MatchReason.USER_MATCH,
             )
 
@@ -523,6 +524,7 @@ class MatchingJobService(
         stanceB: ClaimStance,
         topicId: String?,
         eventId: String? = null,
+        challengeId: String? = null,
         reason: MatchReason,
     ) {
         val matchId = idService.getId()
@@ -553,6 +555,7 @@ class MatchingJobService(
                 claim = Match.MatchClaim(claim.claimId, claim.title),
                 topicId = topicId,
                 eventId = eventId,
+                challengeId = challengeId,
                 matchReason = reason,
                 status = MatchStatus.PENDING,
                 opponents =

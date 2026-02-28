@@ -1,0 +1,69 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1
+      author: claude
+      comment: Create challenges table
+      changes:
+        - createTable:
+            tableName: challenges
+            columns:
+              - column:
+                  name: challenge_id
+                  type: varchar(16)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: claim_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_challenges_claim_id
+                    references: claims(claim_id)
+              - column:
+                  name: host_user_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_challenges_host_user_id
+                    references: users(user_id)
+              - column:
+                  name: host_stance
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: expires_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 2
+      author: claude
+      comment: Add challenge_id to stages
+      changes:
+        - addColumn:
+            tableName: stages
+            columns:
+              - column:
+                  name: challenge_id
+                  type: varchar(16)
+                  constraints:
+                    nullable: true
+        - addForeignKeyConstraint:
+            baseColumnNames: challenge_id
+            baseTableName: stages
+            constraintName: fk_stages_challenge_id
+            referencedColumnNames: challenge_id
+            referencedTableName: challenges

@@ -27,6 +27,7 @@ data class StageEntity(
     val claimId: String?,
     val topicId: String? = null,
     val eventId: String? = null,
+    val challengeId: String? = null,
     @OneToMany(cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.EAGER)
     @JoinColumn(name = "stageId")
     val hosts: List<StageHostEntity>,

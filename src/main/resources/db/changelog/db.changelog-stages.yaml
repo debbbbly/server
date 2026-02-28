@@ -294,3 +294,4 @@ databaseChangeLog:
             columns:
               - column:
                   name: claim_id
+

@@ -228,6 +228,7 @@ class StageService(
                 claimId = claim.claimId,
                 topicId = claim.topicId,
                 eventId = match.eventId,
+                challengeId = match.challengeId,
                 title = claim.title,
                 hosts = hosts,
                 createdAt = Instant.now(clock),

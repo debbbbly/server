@@ -3,6 +3,7 @@ package com.debbly.server.stage
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.livekit.S3LiveKitProperties
 import com.debbly.server.livekit.egress.EgressService
+import com.debbly.server.challenge.ChallengeService
 import com.debbly.server.match.MatchService
 import com.debbly.server.match.QueueService
 import com.debbly.server.match.repository.MatchRepository
@@ -47,7 +48,8 @@ class StageEventListener(
     private val matchRepository: MatchRepository,
     private val stageMediaRepository: StageMediaJpaRepository,
     private val matchService: MatchService,
-    private val queueService: QueueService
+    private val queueService: QueueService,
+    private val challengeService: ChallengeService,
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -89,6 +91,14 @@ class StageEventListener(
 
             //move to a seperate listener later
             updateUserRanks(allHostUserIds)
+
+            updatedStage.challengeId?.let { challengeId ->
+                try {
+                    challengeService.markAccepted(challengeId)
+                } catch (e: Exception) {
+                    logger.error("Failed to mark challenge $challengeId as accepted for stage ${event.stageId}", e)
+                }
+            }
 
             createLiveStageWithEgress(updatedStage, openedAt)
             broadcastDebateStarted(event.stageId, updatedStage)
