@@ -215,7 +215,11 @@ class OpenAiService(
             - Does NOT contain hate speech
               (Targets immutable identity with exclusion or inferiority → invalid)
             - Does NOT promote committing illegal acts
-              (Debating laws/policy changes is allowed unless it legalizes violence/exploitation/rights denial)
+              (Debating laws, policy changes, or the justification of past/present government actions —
+               including military and foreign policy — is allowed.
+               Invalid only when the claim calls for violence against private individuals/groups,
+               or explicitly advocates exploitation or denial of basic rights.
+               Expressing an opinion on whether a government's action was right or wrong is always allowed.)
             - Does NOT include sexual organs/sexual activity/explicit anatomy
               unless clearly framed as serious educational/medical/policy debate
             - Does NOT contain spam, advertising, or promotional content
