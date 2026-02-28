@@ -6,7 +6,6 @@ import com.debbly.server.claim.GetTopClaimsResponse.UserClaimResponse
 import com.debbly.server.claim.model.ClaimModel
 import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.ClaimCachedRepository
-import com.debbly.server.infra.error.ForbiddenException
 import com.debbly.server.claim.top.TopClaimsService
 import com.debbly.server.claim.topic.repository.TopicRepository
 import com.debbly.server.claim.user.UserClaimService
@@ -15,6 +14,7 @@ import com.debbly.server.home.model.HomeHostResponse
 import com.debbly.server.home.model.HomeStageClaimResponse
 import com.debbly.server.home.model.HomeStageResponse
 import com.debbly.server.home.model.QueueUserResponse
+import com.debbly.server.infra.error.ForbiddenException
 import com.debbly.server.match.QueueService
 import com.debbly.server.stage.repository.StageJpaRepository
 import com.debbly.server.stage.repository.entities.StageStatus
@@ -24,7 +24,6 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
 import kotlin.jvm.optionals.getOrNull
 
 @RestController
@@ -121,6 +120,19 @@ class ClaimController(
         val claim = claimService.create(request.title, user.userId, request.stance)
 
         return ResponseEntity.ok(claim)
+    }
+
+    @PostMapping("/{claimId}/init-stance")
+    fun initializeFakeStances(
+        @PathVariable claimId: String
+    ): ResponseEntity<InitClaimStanceResponse> {
+        val userClaims = userClaimService.initializeFakeStances(claimId)
+
+        return ResponseEntity.ok(
+            InitClaimStanceResponse(
+                claimId = claimId
+            )
+        )
     }
 
     @GetMapping("/similar")
@@ -275,6 +287,10 @@ class ClaimController(
     data class FindSimilarClaimsResponse(
         val similarClaims: List<SimilarClaim>,
         val hasDuplicates: Boolean
+    )
+
+    data class InitClaimStanceResponse(
+        val claimId: String
     )
 }
 

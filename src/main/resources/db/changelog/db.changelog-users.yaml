@@ -309,3 +309,279 @@ databaseChangeLog:
             columns:
               - column:
                   name: reported_user_id
+
+  - changeSet:
+      id: 12
+      author: codex
+      comment: "Insert 30 fake users for local stance initialization"
+      changes:
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake1" }
+              - column: { name: external_user_id, value: "fake-external-1" }
+              - column: { name: email, value: "fake1@debbly.local" }
+              - column: { name: username, value: "fake-artichoke" }
+              - column: { name: username_normalized, value: "fake-artichoke" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake2" }
+              - column: { name: external_user_id, value: "fake-external-2" }
+              - column: { name: email, value: "fake2@debbly.local" }
+              - column: { name: username, value: "fake-broccoli" }
+              - column: { name: username_normalized, value: "fake-broccoli" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake3" }
+              - column: { name: external_user_id, value: "fake-external-3" }
+              - column: { name: email, value: "fake3@debbly.local" }
+              - column: { name: username, value: "fake-carrot" }
+              - column: { name: username_normalized, value: "fake-carrot" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake4" }
+              - column: { name: external_user_id, value: "fake-external-4" }
+              - column: { name: email, value: "fake4@debbly.local" }
+              - column: { name: username, value: "fake-daikon" }
+              - column: { name: username_normalized, value: "fake-daikon" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake5" }
+              - column: { name: external_user_id, value: "fake-external-5" }
+              - column: { name: email, value: "fake5@debbly.local" }
+              - column: { name: username, value: "fake-eggplant" }
+              - column: { name: username_normalized, value: "fake-eggplant" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake6" }
+              - column: { name: external_user_id, value: "fake-external-6" }
+              - column: { name: email, value: "fake6@debbly.local" }
+              - column: { name: username, value: "fake-fennel" }
+              - column: { name: username_normalized, value: "fake-fennel" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake7" }
+              - column: { name: external_user_id, value: "fake-external-7" }
+              - column: { name: email, value: "fake7@debbly.local" }
+              - column: { name: username, value: "fake-garlic" }
+              - column: { name: username_normalized, value: "fake-garlic" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake8" }
+              - column: { name: external_user_id, value: "fake-external-8" }
+              - column: { name: email, value: "fake8@debbly.local" }
+              - column: { name: username, value: "fake-horseradish" }
+              - column: { name: username_normalized, value: "fake-horseradish" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake9" }
+              - column: { name: external_user_id, value: "fake-external-9" }
+              - column: { name: email, value: "fake9@debbly.local" }
+              - column: { name: username, value: "fake-iceberg" }
+              - column: { name: username_normalized, value: "fake-iceberg" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake10" }
+              - column: { name: external_user_id, value: "fake-external-10" }
+              - column: { name: email, value: "fake10@debbly.local" }
+              - column: { name: username, value: "fake-jicama" }
+              - column: { name: username_normalized, value: "fake-jicama" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake11" }
+              - column: { name: external_user_id, value: "fake-external-11" }
+              - column: { name: email, value: "fake11@debbly.local" }
+              - column: { name: username, value: "fake-kale" }
+              - column: { name: username_normalized, value: "fake-kale" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake12" }
+              - column: { name: external_user_id, value: "fake-external-12" }
+              - column: { name: email, value: "fake12@debbly.local" }
+              - column: { name: username, value: "fake-leek" }
+              - column: { name: username_normalized, value: "fake-leek" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake13" }
+              - column: { name: external_user_id, value: "fake-external-13" }
+              - column: { name: email, value: "fake13@debbly.local" }
+              - column: { name: username, value: "fake-mushroom" }
+              - column: { name: username_normalized, value: "fake-mushroom" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake14" }
+              - column: { name: external_user_id, value: "fake-external-14" }
+              - column: { name: email, value: "fake14@debbly.local" }
+              - column: { name: username, value: "fake-napa" }
+              - column: { name: username_normalized, value: "fake-napa" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake15" }
+              - column: { name: external_user_id, value: "fake-external-15" }
+              - column: { name: email, value: "fake15@debbly.local" }
+              - column: { name: username, value: "fake-onion" }
+              - column: { name: username_normalized, value: "fake-onion" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake16" }
+              - column: { name: external_user_id, value: "fake-external-16" }
+              - column: { name: email, value: "fake16@debbly.local" }
+              - column: { name: username, value: "fake-apple" }
+              - column: { name: username_normalized, value: "fake-apple" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake17" }
+              - column: { name: external_user_id, value: "fake-external-17" }
+              - column: { name: email, value: "fake17@debbly.local" }
+              - column: { name: username, value: "fake-banana" }
+              - column: { name: username_normalized, value: "fake-banana" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake18" }
+              - column: { name: external_user_id, value: "fake-external-18" }
+              - column: { name: email, value: "fake18@debbly.local" }
+              - column: { name: username, value: "fake-cherry" }
+              - column: { name: username_normalized, value: "fake-cherry" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake19" }
+              - column: { name: external_user_id, value: "fake-external-19" }
+              - column: { name: email, value: "fake19@debbly.local" }
+              - column: { name: username, value: "fake-dragonfruit" }
+              - column: { name: username_normalized, value: "fake-dragonfruit" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake20" }
+              - column: { name: external_user_id, value: "fake-external-20" }
+              - column: { name: email, value: "fake20@debbly.local" }
+              - column: { name: username, value: "fake-elderberry" }
+              - column: { name: username_normalized, value: "fake-elderberry" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake21" }
+              - column: { name: external_user_id, value: "fake-external-21" }
+              - column: { name: email, value: "fake21@debbly.local" }
+              - column: { name: username, value: "fake-fig" }
+              - column: { name: username_normalized, value: "fake-fig" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake22" }
+              - column: { name: external_user_id, value: "fake-external-22" }
+              - column: { name: email, value: "fake22@debbly.local" }
+              - column: { name: username, value: "fake-grape" }
+              - column: { name: username_normalized, value: "fake-grape" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake23" }
+              - column: { name: external_user_id, value: "fake-external-23" }
+              - column: { name: email, value: "fake23@debbly.local" }
+              - column: { name: username, value: "fake-honeydew" }
+              - column: { name: username_normalized, value: "fake-honeydew" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake24" }
+              - column: { name: external_user_id, value: "fake-external-24" }
+              - column: { name: email, value: "fake24@debbly.local" }
+              - column: { name: username, value: "fake-kiwi" }
+              - column: { name: username_normalized, value: "fake-kiwi" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake25" }
+              - column: { name: external_user_id, value: "fake-external-25" }
+              - column: { name: email, value: "fake25@debbly.local" }
+              - column: { name: username, value: "fake-lime" }
+              - column: { name: username_normalized, value: "fake-lime" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake26" }
+              - column: { name: external_user_id, value: "fake-external-26" }
+              - column: { name: email, value: "fake26@debbly.local" }
+              - column: { name: username, value: "fake-mango" }
+              - column: { name: username_normalized, value: "fake-mango" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake27" }
+              - column: { name: external_user_id, value: "fake-external-27" }
+              - column: { name: email, value: "fake27@debbly.local" }
+              - column: { name: username, value: "fake-nectarine" }
+              - column: { name: username_normalized, value: "fake-nectarine" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake28" }
+              - column: { name: external_user_id, value: "fake-external-28" }
+              - column: { name: email, value: "fake28@debbly.local" }
+              - column: { name: username, value: "fake-orange" }
+              - column: { name: username_normalized, value: "fake-orange" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake29" }
+              - column: { name: external_user_id, value: "fake-external-29" }
+              - column: { name: email, value: "fake29@debbly.local" }
+              - column: { name: username, value: "fake-papaya" }
+              - column: { name: username_normalized, value: "fake-papaya" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "fake30" }
+              - column: { name: external_user_id, value: "fake-external-30" }
+              - column: { name: email, value: "fake30@debbly.local" }
+              - column: { name: username, value: "fake-quince" }
+              - column: { name: username_normalized, value: "fake-quince" }
+              - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
