@@ -60,6 +60,7 @@ spring:
       chat:
         options:
           model: ${OPENAI_API_MODEL}
+          temperature: 1
 
 server:
   port: ${PORT:8080}
