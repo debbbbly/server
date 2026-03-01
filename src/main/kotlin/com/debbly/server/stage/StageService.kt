@@ -343,7 +343,15 @@ class StageService(
             .filter { it in allHostUserIds }
 
         if (connectedHosts.isEmpty() && stage.status != CLOSED) {
-            closeStage(stage, HOST_LEFT)
+            // All hosts appear to be gone, but apply the same grace period as the single-host case.
+            // Handles reconnection loops (e.g. DUPLICATE_IDENTITY kicks) where the user is briefly
+            // invisible to getParticipants between sessions.
+            logger.debug("All hosts absent from stage $stageId, scheduling closure check in 5 seconds")
+            stageClosureScheduler.schedule(
+                { checkIfAllHostsStillAbsent(stageId) },
+                5,
+                TimeUnit.SECONDS
+            )
         } else if (!connectedHosts.contains(userId)) {
             // User left but others remain - schedule a check in 5 seconds
             // This gives a grace period for temporary disconnections (network hiccups, page reloads)
@@ -353,6 +361,29 @@ class StageService(
                 5,
                 TimeUnit.SECONDS
             )
+        }
+    }
+
+    private fun checkIfAllHostsStillAbsent(stageId: String) {
+        try {
+            val stage = stageRepository.findById(stageId)
+            if (stage == null || stage.status == CLOSED) {
+                logger.debug("Stage $stageId already gone or closed, skipping all-hosts check")
+                return
+            }
+
+            val allHostUserIds = stage.hosts.map { it.userId }
+            val participantIds = liveKitService.getParticipants(stageId).map { it.identity }
+            val connectedHosts = participantIds.filter { it in allHostUserIds }
+
+            if (connectedHosts.isEmpty()) {
+                logger.info("All hosts still absent after grace period, closing stage $stageId")
+                closeStage(stage, HOST_LEFT)
+            } else {
+                logger.debug("Host(s) rejoined stage $stageId: $connectedHosts, not closing")
+            }
+        } catch (e: Exception) {
+            logger.error("Error checking stage $stageId for all-hosts closure", e)
         }
     }
 
