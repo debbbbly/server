@@ -2,9 +2,11 @@ package com.debbly.server.stage
 
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.config.EgressLayout
+import com.debbly.server.livekit.LiveKitService
 import com.debbly.server.livekit.S3LiveKitProperties
 import com.debbly.server.livekit.egress.EgressService
 import com.debbly.server.challenge.ChallengeService
+import livekit.LivekitModels
 import com.debbly.server.match.MatchService
 import com.debbly.server.match.QueueService
 import com.debbly.server.match.repository.MatchRepository
@@ -39,6 +41,7 @@ class StageEventListener(
     private val stageRepository: StageCachedRepository,
     private val userCachedRepository: UserCachedRepository,
     private val egressService: EgressService,
+    private val liveKitService: LiveKitService,
     private val liveStageRedisRepository: LiveStageRedisRepository,
     private val claimCachedRepository: ClaimCachedRepository,
     private val userSettingsRepository: UserSettingsCachedRepository,
@@ -138,6 +141,11 @@ class StageEventListener(
         var portraitEgressId: String? = null
 
         if (shouldStartEgress) {
+            val allHostUserIds = stage.hosts.map { it.userId }
+            if (!waitForHostsPublishing(stage.stageId, allHostUserIds)) {
+                logger.warn("Hosts did not publish tracks in time for stage ${stage.stageId}, skipping egress")
+            }
+
             val landscapeInfo = try {
                 egressService.startCompositeEgress(stage.stageId, EgressLayout.LANDSCAPE)
             } catch (e: Exception) {
@@ -222,6 +230,30 @@ class StageEventListener(
 
     private fun buildThumbnailUrl(stageId: String): String {
         return "${s3Config.endpoint}/${s3Config.bucket.egress}/$stageId/thumbnails"
+    }
+
+    private fun waitForHostsPublishing(stageId: String, hostUserIds: List<String>): Boolean {
+        val maxAttempts = 5
+        val delayMs = 1000L
+
+        repeat(maxAttempts) { attempt ->
+            val participants = liveKitService.getParticipants(stageId)
+            val publishingHostIds = participants
+                .filter { it.identity in hostUserIds }
+                .filter { p -> p.tracksList.any { it.type == LivekitModels.TrackType.VIDEO } }
+                .map { it.identity }
+
+            if (publishingHostIds.containsAll(hostUserIds)) {
+                logger.debug("All hosts publishing in stage $stageId after ${attempt + 1} attempt(s)")
+                return true
+            }
+
+            logger.debug("Waiting for hosts to publish in stage $stageId (attempt ${attempt + 1}/$maxAttempts): publishing=$publishingHostIds, expected=$hostUserIds")
+            Thread.sleep(delayMs)
+        }
+
+        logger.warn("Hosts did not start publishing video in stage $stageId after $maxAttempts attempts, starting egress anyway")
+        return false
     }
 
     private fun shouldStartEgressForStage(stage: StageModel): Boolean {
