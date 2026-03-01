@@ -565,7 +565,7 @@ class MatchingJobService(
                             username = userAEntity.username,
                             avatarUrl = userAEntity.avatarUrl,
                             stance = finalA,
-                            status = if (eventId != null) MatchOpponentStatus.ACCEPTED else MatchOpponentStatus.PENDING,
+                            status = if (userA.autoAccept || eventId != null) MatchOpponentStatus.ACCEPTED else MatchOpponentStatus.PENDING,
                             userA.ignores,
                         ),
                         Match.MatchOpponent(
@@ -573,7 +573,7 @@ class MatchingJobService(
                             username = userBEntity.username,
                             avatarUrl = userBEntity.avatarUrl,
                             stance = finalB,
-                            status = MatchOpponentStatus.PENDING,
+                            status = if (userB.autoAccept) MatchOpponentStatus.ACCEPTED else MatchOpponentStatus.PENDING,
                             userB.ignores,
                         ),
                     ),

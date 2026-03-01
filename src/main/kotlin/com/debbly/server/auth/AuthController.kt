@@ -318,7 +318,7 @@ class AuthController(
             )
 
             logger.info("OAuth callback successful for user: ${userModel.email}")
-            ResponseEntity.ok(CallbackResponse(true, user = callbackUser))
+            ResponseEntity.ok(CallbackResponse(true, user = callbackUser, state = request.state))
 
         } catch (e: Exception) {
             logger.error("OAuth callback failed", e)
@@ -337,8 +337,10 @@ class AuthController(
         val accessToken: String,
         val refreshToken: String?,
         val expiresIn: Int?,
-        val provider: String? = null  // Optional: to track which OAuth provider was used
+        val provider: String? = null,
+        val state: String? = null
     )
+
 
     @PostMapping("/google/signin")
     fun googleSignIn(@RequestBody request: GoogleOAuthRequest): ResponseEntity<GoogleOAuthResponse> {
@@ -420,7 +422,8 @@ class AuthController(
     data class CallbackResponse(
         val success: Boolean,
         val user: CallbackUserInfo? = null,
-        val error: AuthErrorCode? = null
+        val error: AuthErrorCode? = null,
+        val state: String? = null
     )
 
     data class CallbackUserInfo(
@@ -431,7 +434,8 @@ class AuthController(
     )
 
     data class GoogleOAuthRequest(
-        val redirectUrl: String?
+        val redirectUrl: String?,
+        val state: String? = null
     )
 
     data class GoogleOAuthResponse(

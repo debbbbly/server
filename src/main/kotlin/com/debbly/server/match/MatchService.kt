@@ -150,27 +150,29 @@ class MatchService(
             existingRequest?.skipClaimIds ?: emptySet()
         }
 
-        if (existingRequest != null) {
-            val newSkipCount = existingRequest.skipCount + 1
-            if (newSkipCount >= 2) {
-                // Remove user from queue after 2 skips
-                matchQueueRepository.remove(existingRequest.userId)
-                val data = mapOf("reason" to "skip_limit_reached")
-                pusherService.sendUserNotification(user.userId, MATCH_EVENT, message(MATCH_QUEUE_REMOVED, data))
-                logger.info("User {} removed from queue after {} skips", user.userId, newSkipCount)
-            } else {
-                val updatedRequest = existingRequest.copy(
-                    skipUserIds = skipUserIds,
-                    skipClaimIds = skipClaimIds,
-                    updatedAt = Instant.now(clock),
-                    skipCount = newSkipCount
-                )
-                matchQueueRepository.save(updatedRequest)
+        if (match.matchReason != MatchReason.USER_MATCH) {
+            if (existingRequest != null) {
+                val newSkipCount = existingRequest.skipCount + 1
+                if (newSkipCount >= 2) {
+                    // Remove user from queue after 2 skips
+                    matchQueueRepository.remove(existingRequest.userId)
+                    val data = mapOf("reason" to "skip_limit_reached")
+                    pusherService.sendUserNotification(user.userId, MATCH_EVENT, message(MATCH_QUEUE_REMOVED, data))
+                    logger.info("User {} removed from queue after {} skips", user.userId, newSkipCount)
+                } else {
+                    val updatedRequest = existingRequest.copy(
+                        skipUserIds = skipUserIds,
+                        skipClaimIds = skipClaimIds,
+                        updatedAt = Instant.now(clock),
+                        skipCount = newSkipCount
+                    )
+                    matchQueueRepository.save(updatedRequest)
+                }
             }
-        }
 
-        // Re-queue opponents
-        reQueueOpponents(match, user.userId)
+            // Re-queue opponents
+            reQueueOpponents(match, user.userId)
+        }
     }
 
     /**
@@ -410,6 +412,7 @@ class MatchService(
             challengeId = challengeId,
             joinedAt = now,
             updatedAt = now,
+            autoAccept = true,
         )
         matchQueueRepository.save(hostRequest)
         matchQueueRepository.save(acceptorRequest)

@@ -1,6 +1,7 @@
 package com.debbly.server.stage
 
 import com.debbly.server.claim.repository.ClaimCachedRepository
+import com.debbly.server.config.EgressLayout
 import com.debbly.server.livekit.S3LiveKitProperties
 import com.debbly.server.livekit.egress.EgressService
 import com.debbly.server.challenge.ChallengeService
@@ -133,26 +134,43 @@ class StageEventListener(
 
         val shouldStartEgress = shouldStartEgressForStage(stage)
 
-        val egressId = if (shouldStartEgress) {
-            val egressInfo = try {
-                egressService.startCompositeEgress(stage.stageId)
+        var landscapeEgressId: String? = null
+        var portraitEgressId: String? = null
+
+        if (shouldStartEgress) {
+            val landscapeInfo = try {
+                egressService.startCompositeEgress(stage.stageId, EgressLayout.LANDSCAPE)
             } catch (e: Exception) {
-                logger.error("Failed to start egress for stage ${stage.stageId}", e)
+                logger.error("Failed to start landscape egress for stage ${stage.stageId}", e)
                 null
             }
 
-            if (egressInfo?.egressId != null) {
-                val basePath = buildHlsUrl(stage.stageId)
+            if (landscapeInfo?.egressId != null) {
+                landscapeEgressId = landscapeInfo.egressId
+
+                val portraitInfo = try {
+                    egressService.startCompositeEgress(stage.stageId, EgressLayout.PORTRAIT)
+                } catch (e: Exception) {
+                    logger.error("Failed to start portrait egress for stage ${stage.stageId}", e)
+                    null
+                }
+                portraitEgressId = portraitInfo?.egressId
+
+                val landscapeBasePath = buildHlsUrl(stage.stageId)
+                val portraitBasePath = buildPortraitHlsUrl(stage.stageId)
                 val thumbnailUrl = buildThumbnailUrl(stage.stageId)
 
                 stageMediaRepository.save(
                     StageMediaEntity(
                         stageId = stage.stageId,
-                        hlsLiveUrl = "$basePath/playlist-live.m3u8",
-                        hlsRecordingUrl = "$basePath/playlist.m3u8",
+                        hlsLiveUrl = "$landscapeBasePath/playlist-live.m3u8",
+                        hlsRecordingUrl = "$landscapeBasePath/playlist.m3u8",
                         thumbnailUrl = thumbnailUrl,
                         status = StageMediaStatus.IN_PROGRESS,
-                        compositeEgressId = egressInfo.egressId,
+                        compositeEgressId = landscapeInfo.egressId,
+                        portraitHlsLiveUrl = "$portraitBasePath/playlist-live.m3u8",
+                        portraitHlsRecordingUrl = "$portraitBasePath/playlist.m3u8",
+                        portraitCompositeEgressId = portraitEgressId,
                         createdAt = Instant.now(clock)
                     )
                 )
@@ -163,14 +181,10 @@ class StageEventListener(
                     logger.error("Failed to start thumbnail egress for stage ${stage.stageId}", e)
                 }
 
-                logger.debug("Started egress for stage ${stage.stageId}, egressId: ${egressInfo.egressId}")
-                egressInfo.egressId
+                logger.debug("Started landscape egress ${landscapeInfo.egressId} and portrait egress $portraitEgressId for stage ${stage.stageId}")
             } else {
-                logger.warn("Failed to start egress recording for stage ${stage.stageId}")
-                null
+                logger.warn("Failed to start landscape egress recording for stage ${stage.stageId}")
             }
-        } else {
-            null
         }
 
         liveStageRedisRepository.save(
@@ -192,14 +206,18 @@ class StageEventListener(
                 title = claim?.title,
                 openedAt = openedAt,
                 heartbeatAt = Instant.now(clock),
-                egressId = egressId
+                egressId = landscapeEgressId,
+                portraitEgressId = portraitEgressId
             )
         )
     }
 
     private fun buildHlsUrl(stageId: String): String {
-        // Store base path - actual playlist name will be determined by stage status
         return "${s3Config.endpoint}/${s3Config.bucket.egress}/$stageId"
+    }
+
+    private fun buildPortraitHlsUrl(stageId: String): String {
+        return "${s3Config.endpoint}/${s3Config.bucket.egress}/$stageId/portrait"
     }
 
     private fun buildThumbnailUrl(stageId: String): String {

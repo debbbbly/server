@@ -295,3 +295,27 @@ databaseChangeLog:
               - column:
                   name: claim_id
 
+  - changeSet:
+      id: 16
+      author: claude
+      comment: Add portrait egress columns to stage_media
+      changes:
+        - addColumn:
+            tableName: stage_media
+            columns:
+              - column:
+                  name: portrait_hls_live_url
+                  type: varchar(512)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: portrait_hls_recording_url
+                  type: varchar(512)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: portrait_composite_egress_id
+                  type: varchar(255)
+                  constraints:
+                    nullable: true
+

@@ -44,7 +44,7 @@ class SettingsService(
     }
 
     fun getMatchTtl(): Long {
-        return 20;
+        return 60;
     }
 
     fun getStageDuration(): Long {

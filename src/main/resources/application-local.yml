@@ -4,8 +4,8 @@
 livekit:
   egress:
     layouts:
-      landscape: http://localhost:3000/egress/16-9.html
-      portrait: http://localhost:3000/egress/9-16.html
+      landscape: https://debbly.com/egress/16-9.html
+      portrait: https://debbly.com/egress/9-16.html
 
 cors:
   extra-allowed-origin-patterns:
@@ -13,7 +13,7 @@ cors:
 
 logging:
   level:
-    com.debbly.server: DEBUG
+    com.debbly.server: INFO
     # Keep framework noise at INFO/WARN
     org.springframework: INFO
     org.hibernate: WARN

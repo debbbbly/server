@@ -44,9 +44,14 @@ class EgressService(
 
         val s3Upload = buildS3Upload()
 
+        val filenamePrefix = when (layout) {
+            EgressLayout.LANDSCAPE -> "$stageId/"
+            EgressLayout.PORTRAIT -> "$stageId/portrait/"
+        }
+
         // HLS Segment Output
         val segmentOutput = LivekitEgress.SegmentedFileOutput.newBuilder()
-            .setFilenamePrefix("$stageId/")
+            .setFilenamePrefix(filenamePrefix)
             .setPlaylistName("playlist.m3u8")
             .setLivePlaylistName("playlist-live.m3u8")
             .setSegmentDuration(settings.getHlsSegmentDuration())
@@ -212,7 +217,7 @@ class EgressService(
     }
 
     fun countActiveRoomCompositeEgresses(): Int {
-        return listActiveEgresses().count { it.isRoomComposite }
+        return listActiveEgresses().filter { it.isRoomComposite }.mapNotNull { it.roomName }.distinct().size
     }
 
     fun listAllEgresses(roomName: String? = null): List<EgressDetails> {

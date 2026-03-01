@@ -15,7 +15,9 @@ data class MatchNotificationDto(
     val status: MatchStatus,
     val opponents: List<MatchOpponentDto>,
     val ttl: Long,
-    val updatedAt: String  // ISO-8601 format
+    val updatedAt: String,  // ISO-8601 format
+    val eventId: String? = null,
+    val challengeId: String? = null,
 ) {
     data class MatchOpponentDto(
         val userId: String,
@@ -50,5 +52,7 @@ fun Match.toNotificationDto() = MatchNotificationDto(
         )
     },
     ttl = ttl,
-    updatedAt = updatedAt.toString()
+    updatedAt = updatedAt.toString(),
+    eventId = eventId,
+    challengeId = challengeId,
 )

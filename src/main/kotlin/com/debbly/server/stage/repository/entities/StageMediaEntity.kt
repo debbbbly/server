@@ -14,6 +14,9 @@ data class StageMediaEntity(
     val thumbnailUrl: String?,
     @Enumerated(EnumType.STRING) val status: StageMediaStatus,
     val compositeEgressId: String,
+    val portraitHlsLiveUrl: String? = null,
+    val portraitHlsRecordingUrl: String? = null,
+    val portraitCompositeEgressId: String? = null,
     @Enumerated(EnumType.STRING) val visibility: StageMediaVisibility = StageMediaVisibility.PUBLIC,
     val durationSeconds: Long? = null,
     val createdAt: Instant

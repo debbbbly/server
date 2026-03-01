@@ -45,15 +45,22 @@ class MatchNotificationService(
 
     fun notifyMatchTimeout(match: Match) {
         val userIds = match.opponents.map { it.userId }
-        val data = mapOf("matchId" to match.matchId)
+        val data = mapOf(
+            "matchId" to match.matchId,
+            "eventId" to match.eventId,
+            "challengeId" to match.challengeId
+        )
         pusherService.sendUserNotifications(userIds, MATCH_EVENT, message(MATCH_EXPIRED, data))
     }
 
     fun notifyMatchCancelled(match: Match, cancelledBy: String, reason: String) {
         val userIds = match.opponents.map { it.userId }
         val data = mapOf(
+            "matchId" to match.matchId,
             "reason" to reason,
-            "cancelledBy" to cancelledBy
+            "cancelledBy" to cancelledBy,
+            "eventId" to match.eventId,
+            "challengeId" to match.challengeId
         )
         val message = message(MATCH_EXPIRED, data)
         pusherService.sendUserNotifications(userIds, MATCH_EVENT, message)
