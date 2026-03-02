@@ -51,6 +51,7 @@ class ChallengeController(
     ): ResponseEntity<ChallengeResponse> {
         val user = authService.authenticate(externalUserId)
         if (user.banned) throw ForbiddenException("Your account is limited")
+
         return ResponseEntity.ok(challengeService.accept(user, challengeId))
     }
 }

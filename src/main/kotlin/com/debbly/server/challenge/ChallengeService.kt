@@ -79,8 +79,6 @@ class ChallengeService(
         val challenge = challengeJpaRepository.findById(challengeId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Challenge not found") }
 
-        if (challenge.hostUserId == user.userId) throw ForbiddenException("Host cannot accept their own challenge")
-
         if (challenge.status != ChallengeStatus.PENDING) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "Challenge is not pending")
         }
@@ -89,6 +87,16 @@ class ChallengeService(
             throw ResponseStatusException(HttpStatus.GONE, "Challenge has expired")
         }
 
+        // Host accepting = accepting the match created for this challenge
+        if (challenge.hostUserId == user.userId) {
+            val match = matchService.getMatch(user.userId)
+                ?.takeIf { it.challengeId == challengeId }
+                ?: throw ResponseStatusException(HttpStatus.CONFLICT, "No pending match for this challenge")
+            matchService.accept(match, user)
+            return toResponse(challenge)
+        }
+
+        // Participant accepting = joining the challenge and creating match queue entries
         val hostUser = userCachedRepository.getById(challenge.hostUserId)
         val acceptorStance = challenge.hostStance.opposite()
 

@@ -26,6 +26,8 @@ class UserClaimService(
 ) {
     companion object {
         val FAKE_USER_IDS: List<String> = (1..30).map { "fake$it" }
+        private const val MIN_FAKE_STANCES = 10
+        private const val MAX_FAKE_STANCES = 20
     }
 
     fun getClaims(userId: String) = userClaimRepository.findByUserId(userId)
@@ -60,23 +62,27 @@ class UserClaimService(
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Claim not found")
 
         val fakeUsersById = userCachedRepository.findByIds(FAKE_USER_IDS)
-        val missingUserIds = FAKE_USER_IDS.filterNot(fakeUsersById::containsKey)
-        if (missingUserIds.isNotEmpty()) {
+        val availableFakeUserIds = FAKE_USER_IDS.filter(fakeUsersById::containsKey)
+        if (availableFakeUserIds.size < MIN_FAKE_STANCES) {
             throw ResponseStatusException(
                 HttpStatus.CONFLICT,
-                "Missing fake users: ${missingUserIds.joinToString(", ")}"
+                "Need at least $MIN_FAKE_STANCES fake users, found ${availableFakeUserIds.size}"
             )
         }
 
-        val randomizedStances = buildList {
-            repeat(10) { add(ClaimStance.FOR) }
-            repeat(10) { add(ClaimStance.AGAINST) }
-            repeat(10) { add(if (Random.nextBoolean()) ClaimStance.FOR else ClaimStance.AGAINST) }
-        }.shuffled()
-
         val updatedAt = Instant.now(clock)
+        val fakeStanceCount = Random.nextInt(
+            from = MIN_FAKE_STANCES,
+            until = minOf(MAX_FAKE_STANCES, availableFakeUserIds.size) + 1
+        )
+        val selectedFakeUserIds = availableFakeUserIds.shuffled().take(fakeStanceCount)
+        val randomizedStances = buildRandomizedStances(fakeStanceCount)
 
-        return FAKE_USER_IDS.zip(randomizedStances).map { (userId, stance) ->
+        availableFakeUserIds.forEach { userId ->
+            userClaimRepository.deleteByUserIdAndClaimId(userId, claimId)
+        }
+
+        return selectedFakeUserIds.zip(randomizedStances).map { (userId, stance) ->
             val userClaim = UserClaimModel(
                 claim = claim,
                 userId = userId,
@@ -87,5 +93,18 @@ class UserClaimService(
             userClaimRepository.save(userClaim)
             userClaim
         }
+    }
+
+    private fun buildRandomizedStances(count: Int): List<ClaimStance> {
+        val baseCount = count / 3
+        val randomCount = count - (baseCount * 2)
+
+        return buildList {
+            repeat(baseCount) { add(ClaimStance.FOR) }
+            repeat(baseCount) { add(ClaimStance.AGAINST) }
+            repeat(randomCount) {
+                add(if (Random.nextBoolean()) ClaimStance.FOR else ClaimStance.AGAINST)
+            }
+        }.shuffled()
     }
 }
