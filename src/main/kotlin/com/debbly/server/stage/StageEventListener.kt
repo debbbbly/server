@@ -1,12 +1,11 @@
 package com.debbly.server.stage
 
+import com.debbly.server.challenge.ChallengeService
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.config.EgressLayout
 import com.debbly.server.livekit.LiveKitService
 import com.debbly.server.livekit.S3LiveKitProperties
 import com.debbly.server.livekit.egress.EgressService
-import com.debbly.server.challenge.ChallengeService
-import livekit.LivekitModels
 import com.debbly.server.match.MatchService
 import com.debbly.server.match.QueueService
 import com.debbly.server.match.repository.MatchRepository
@@ -24,16 +23,18 @@ import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageCachedRepository
 import com.debbly.server.stage.repository.StageMediaJpaRepository
 import com.debbly.server.stage.repository.entities.StageMediaEntity
-import com.debbly.server.stage.repository.entities.StageMediaStatus
+import com.debbly.server.stage.repository.entities.StageMediaStatus.IN_PROGRESS
 import com.debbly.server.stage.repository.entities.StageStatus.OPEN
 import com.debbly.server.stage.repository.entities.StageStatus.PENDING
 import com.debbly.server.user.repository.UserCachedRepository
+import livekit.LivekitModels
 import org.slf4j.LoggerFactory
 import org.springframework.context.event.EventListener
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Component
 import java.time.Clock
 import java.time.Instant
+import java.time.Instant.now
 import java.util.concurrent.ConcurrentHashMap
 
 @Component
@@ -80,7 +81,7 @@ class StageEventListener(
             // Delete the match now that stage is opening (stageId = matchId)
             matchRepository.delete(event.stageId)
 
-            val openedAt = Instant.now(clock)
+            val openedAt = now(clock)
             val updatedStage = stage.copy(
                 status = OPEN,
                 openedAt = openedAt
@@ -139,10 +140,7 @@ class StageEventListener(
 
         val shouldStartEgress = shouldStartEgressForStage(stage)
 
-        var landscapeEgressId: String? = null
-        var portraitEgressId: String? = null
-
-        if (shouldStartEgress) {
+        val (landscapeEgressId, portraitEgressId) = if (shouldStartEgress) {
             val allHostUserIds = stage.hosts.map { it.userId }
             if (!waitForHostsPublishing(stage.stageId, allHostUserIds)) {
                 logger.warn("Hosts did not publish tracks in time for stage ${stage.stageId}, skipping egress")
@@ -155,33 +153,29 @@ class StageEventListener(
                 null
             }
 
-            if (landscapeInfo?.egressId != null) {
-                landscapeEgressId = landscapeInfo.egressId
-
-                val portraitInfo = try {
-                    egressService.startCompositeEgress(stage.stageId, EgressLayout.PORTRAIT)
-                } catch (e: Exception) {
-                    logger.error("Failed to start portrait egress for stage ${stage.stageId}", e)
-                    null
-                }
-                portraitEgressId = portraitInfo?.egressId
-
-                stageMediaRepository.save(
-                    StageMediaEntity(
-                        stageId = stage.stageId,
-                        mediaPath = buildMediaPath(stage.stageId),
-                        status = StageMediaStatus.IN_PROGRESS,
-                        compositeEgressId = landscapeInfo.egressId,
-                        portraitCompositeEgressId = portraitEgressId,
-                        createdAt = Instant.now(clock)
-                    )
-                )
-
-                logger.debug("Started landscape egress ${landscapeInfo.egressId} and portrait egress $portraitEgressId for stage ${stage.stageId}")
-            } else {
-                logger.warn("Failed to start landscape egress recording for stage ${stage.stageId}")
+            val portraitInfo = try {
+                egressService.startCompositeEgress(stage.stageId, EgressLayout.PORTRAIT)
+            } catch (e: Exception) {
+                logger.error("Failed to start portrait egress for stage ${stage.stageId}", e)
+                null
             }
-        }
+
+            logger.debug("Started landscape egress ${landscapeInfo?.egressId} and portrait egress ${portraitInfo?.egressId} for stage ${stage.stageId}")
+
+            landscapeInfo?.egressId to portraitInfo?.egressId
+        } else
+            null to null
+
+        stageMediaRepository.save(
+            StageMediaEntity(
+                stageId = stage.stageId,
+                mediaPath = s3Config.buildMediaPath(stage.stageId),
+                status = IN_PROGRESS,
+                compositeEgressId = landscapeEgressId,
+                portraitCompositeEgressId = portraitEgressId,
+                createdAt = now(clock)
+            )
+        )
 
         try {
             egressService.startThumbnailEgress(stage.stageId)
@@ -207,19 +201,15 @@ class StageEventListener(
                 claimSlug = claim?.slug,
                 title = claim?.title,
                 openedAt = openedAt,
-                heartbeatAt = Instant.now(clock),
+                heartbeatAt = now(clock),
                 egressId = landscapeEgressId,
                 portraitEgressId = portraitEgressId
             )
         )
     }
 
-    private fun buildMediaPath(stageId: String): String {
-        return "${s3Config.endpoint}/${s3Config.bucket.egress}/$stageId"
-    }
-
     private fun waitForHostsPublishing(stageId: String, hostUserIds: List<String>): Boolean {
-        val maxAttempts = 5
+        val maxAttempts = 3
         val delayMs = 1000L
 
         repeat(maxAttempts) { attempt ->

@@ -22,6 +22,10 @@ data class S3LiveKitProperties(
     data class BucketConfig(
         val egress: String = "",
     )
+
+    fun buildMediaPath(stageId: String): String {
+        return "${endpoint}/${bucket.egress}/$stageId"
+    }
 }
 
 @Configuration

@@ -6,14 +6,17 @@ import com.debbly.server.livekit.S3LiveKitProperties
 import com.debbly.server.settings.SettingsService
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageMediaJpaRepository
+import com.debbly.server.stage.repository.entities.StageMediaEntity
+import com.debbly.server.stage.repository.entities.StageMediaStatus
 import io.livekit.server.EgressServiceClient
 import livekit.LivekitEgress
 import livekit.LivekitEgress.ImageFileSuffix.IMAGE_SUFFIX_INDEX
-import org.springframework.beans.factory.annotation.Qualifier
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Service
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request
+import java.time.Instant.now
 import java.util.concurrent.TimeUnit.SECONDS
 
 @Service
@@ -170,7 +173,17 @@ class EgressService(
             if (thumbnailKey != null) {
                 val thumbnailUrl = "${s3Config.endpoint}/${s3Config.bucket.egress}/$thumbnailKey"
 
-                val media = stageMediaRepository.findById(stageId).orElse(null)
+                val media = stageMediaRepository.findById(stageId).orElse(
+                    StageMediaEntity(
+                        stageId = stageId,
+                        mediaPath = s3Config.buildMediaPath(stageId),
+                        status = StageMediaStatus.COMPLETED,
+                        compositeEgressId = null,
+                        portraitCompositeEgressId = null,
+                        createdAt = now(clock)
+                    )
+                )
+
                 if (media != null) {
                     stageMediaRepository.save(media.copy(thumbnailUrl = thumbnailUrl))
                     logger.info("Resolved thumbnail for stage $stageId: $thumbnailUrl")
