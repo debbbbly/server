@@ -10,13 +10,18 @@ import com.debbly.server.stage.repository.entities.StageMediaEntity
 import com.debbly.server.stage.repository.entities.StageMediaStatus
 import io.livekit.server.EgressServiceClient
 import livekit.LivekitEgress
+import livekit.LivekitEgress.EncodingOptionsPreset
 import livekit.LivekitEgress.ImageFileSuffix.IMAGE_SUFFIX_INDEX
+import livekit.LivekitEgress.ImageOutput
+import livekit.LivekitEgress.SegmentedFileOutput
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Service
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request
+import java.time.Clock
 import java.time.Instant.now
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit.SECONDS
 
 @Service
@@ -24,14 +29,14 @@ class EgressService(
     private val s3Config: S3LiveKitProperties,
     private val livekitEgressService: EgressServiceClient,
     private val settings: SettingsService,
-    private val clock: java.time.Clock,
+    private val clock: Clock,
     private val liveKitConfig: LiveKitConfig,
     @Qualifier("s3LiveKitClient") private val s3Client: S3Client,
     private val stageMediaRepository: StageMediaJpaRepository,
     private val liveStageRedisRepository: LiveStageRedisRepository
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
-    private val thumbnailScheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor()
+    private val thumbnailScheduler = Executors.newSingleThreadScheduledExecutor()
 
     private fun getLayoutUrl(layout: EgressLayout): String {
         val layouts = liveKitConfig.egress.layouts
@@ -56,7 +61,7 @@ class EgressService(
         }
 
         // HLS Segment Output
-        val segmentOutput = LivekitEgress.SegmentedFileOutput.newBuilder()
+        val segmentOutput = SegmentedFileOutput.newBuilder()
             .setFilenamePrefix(filenamePrefix)
             .setPlaylistName("playlist.m3u8")
             .setLivePlaylistName("playlist-live.m3u8")
@@ -65,8 +70,8 @@ class EgressService(
             .build()
 
         val preset = when (layout) {
-            EgressLayout.LANDSCAPE -> LivekitEgress.EncodingOptionsPreset.H264_1080P_30
-            EgressLayout.PORTRAIT -> LivekitEgress.EncodingOptionsPreset.PORTRAIT_H264_1080P_30
+            EgressLayout.LANDSCAPE -> EncodingOptionsPreset.H264_1080P_30
+            EgressLayout.PORTRAIT -> EncodingOptionsPreset.PORTRAIT_H264_1080P_30
         }
 
         val call = livekitEgressService.startRoomCompositeEgress(
@@ -97,7 +102,7 @@ class EgressService(
         val s3Upload = buildS3Upload()
 
         try {
-            val imageOutput = LivekitEgress.ImageOutput.newBuilder()
+            val imageOutput = ImageOutput.newBuilder()
                 .setCaptureInterval(10)
                 .setWidth(width)
                 .setHeight(height)
@@ -245,7 +250,10 @@ class EgressService(
     }
 
     fun countActiveRoomCompositeEgresses(): Int {
-        return listActiveEgresses().filter { it.isRoomComposite }.mapNotNull { it.roomName }.distinct().size
+        val cutoff = clock.millis() - settings.getStageDuration() * 2 * 1000L
+        return listActiveEgresses()
+            .filter { it.isRoomComposite && it.startedAtMillis > cutoff }
+            .mapNotNull { it.roomName }.distinct().size
     }
 
     fun listAllEgresses(roomName: String? = null): List<EgressDetails> {

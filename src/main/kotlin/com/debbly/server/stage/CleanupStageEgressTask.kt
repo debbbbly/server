@@ -20,7 +20,7 @@ class CleanupStageEgressTask(
      * Check for old active egresses and stop them every 5 minutes
      * Stops egresses older than stage limit + 5 minutes
      */
-    @Scheduled(fixedRate = 60000) // 5 minutes
+    // @Scheduled(fixedRate = 60000) // 5 minutes
     fun cleanupEgresses() {
         try {
             if (!settingsService.isCleanupOldEgresses()) {
@@ -34,6 +34,8 @@ class CleanupStageEgressTask(
             val cutoffTime = now.minusSeconds(maxAgeSeconds).minusSeconds(15)
 
             val activeEgresses = egressService.listActiveEgresses()
+            // look for zombie egresses that no really working and failed to stop
+
             val oldEgresses = activeEgresses.filter { egress ->
                 val startedAt = Instant.ofEpochMilli(egress.startedAtMillis)
                 startedAt.isBefore(cutoffTime)
