@@ -16,7 +16,8 @@ data class LiveStageEntity(
     val openedAt: Instant,
     var heartbeatAt: Instant,
     val egressId: String? = null,
-    val portraitEgressId: String? = null
+    val portraitEgressId: String? = null,
+    val thumbnailUrl: String? = null
 )
 
 data class LiveStageHost(

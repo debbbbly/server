@@ -132,7 +132,9 @@ class StageEventListener(
     }
 
     private fun createLiveStageWithEgress(stage: StageModel, openedAt: Instant) {
-        val users = stage.hosts.mapNotNull { userCachedRepository.findById(it.userId) }.associateBy { it.userId }
+        val users = stage.hosts
+            .mapNotNull { userCachedRepository.findById(it.userId) }
+            .associateBy { it.userId }
         val claim = stage.claimId?.let { claimCachedRepository.getById(it) }
 
         val shouldStartEgress = shouldStartEgressForStage(stage)
@@ -164,35 +166,27 @@ class StageEventListener(
                 }
                 portraitEgressId = portraitInfo?.egressId
 
-                val landscapeBasePath = buildHlsUrl(stage.stageId)
-                val portraitBasePath = buildPortraitHlsUrl(stage.stageId)
-                val thumbnailUrl = buildThumbnailUrl(stage.stageId)
-
                 stageMediaRepository.save(
                     StageMediaEntity(
                         stageId = stage.stageId,
-                        hlsLiveUrl = "$landscapeBasePath/playlist-live.m3u8",
-                        hlsRecordingUrl = "$landscapeBasePath/playlist.m3u8",
-                        thumbnailUrl = thumbnailUrl,
+                        mediaPath = buildMediaPath(stage.stageId),
                         status = StageMediaStatus.IN_PROGRESS,
                         compositeEgressId = landscapeInfo.egressId,
-                        portraitHlsLiveUrl = "$portraitBasePath/playlist-live.m3u8",
-                        portraitHlsRecordingUrl = "$portraitBasePath/playlist.m3u8",
                         portraitCompositeEgressId = portraitEgressId,
                         createdAt = Instant.now(clock)
                     )
                 )
 
-                try {
-                    egressService.startThumbnailEgress(stage.stageId)
-                } catch (e: Exception) {
-                    logger.error("Failed to start thumbnail egress for stage ${stage.stageId}", e)
-                }
-
                 logger.debug("Started landscape egress ${landscapeInfo.egressId} and portrait egress $portraitEgressId for stage ${stage.stageId}")
             } else {
                 logger.warn("Failed to start landscape egress recording for stage ${stage.stageId}")
             }
+        }
+
+        try {
+            egressService.startThumbnailEgress(stage.stageId)
+        } catch (e: Exception) {
+            logger.error("Failed to start thumbnail egress for stage ${stage.stageId}", e)
         }
 
         liveStageRedisRepository.save(
@@ -220,16 +214,8 @@ class StageEventListener(
         )
     }
 
-    private fun buildHlsUrl(stageId: String): String {
+    private fun buildMediaPath(stageId: String): String {
         return "${s3Config.endpoint}/${s3Config.bucket.egress}/$stageId"
-    }
-
-    private fun buildPortraitHlsUrl(stageId: String): String {
-        return "${s3Config.endpoint}/${s3Config.bucket.egress}/$stageId/portrait"
-    }
-
-    private fun buildThumbnailUrl(stageId: String): String {
-        return "${s3Config.endpoint}/${s3Config.bucket.egress}/$stageId/thumbnails"
     }
 
     private fun waitForHostsPublishing(stageId: String, hostUserIds: List<String>): Boolean {

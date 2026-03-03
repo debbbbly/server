@@ -48,4 +48,7 @@ class StageCachedRepository(
             .map { it.toModel() }
     }
 
+    fun findStalePendingStages(cutoff: Instant): List<StageModel> =
+        stageJpaRepository.findPendingCreatedBefore(cutoff).map { it.toModel() }
+
 }

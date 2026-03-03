@@ -21,7 +21,7 @@ class LiveKitService(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    fun createRoom(stageId: String, emptyTimeoutSeconds: Int = 30, maxParticipants: Int = 30): LivekitModels.Room? {
+    fun createRoom(stageId: String, emptyTimeoutSeconds: Int = 120, maxParticipants: Int = 30): LivekitModels.Room? {
         val call = livekitRoomService.createRoom(stageId, emptyTimeoutSeconds, maxParticipants)
         val response = call.execute()
 

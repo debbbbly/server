@@ -156,4 +156,7 @@ interface StageJpaRepository : CrudRepository<StageEntity, String> {
         ORDER BY s.openedAt DESC
     """)
     fun findOpenByEventId(@Param("eventId") eventId: String): List<StageEntity>
+
+    @Query("SELECT DISTINCT s FROM stages s LEFT JOIN FETCH s.hosts WHERE s.status = 'PENDING' AND s.createdAt < :cutoff")
+    fun findPendingCreatedBefore(@Param("cutoff") cutoff: Instant): List<StageEntity>
 }

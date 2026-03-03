@@ -241,65 +241,6 @@ class StageService(
         }
     }
 
-    fun openStage(stageId: String, userId: String): StageModel {
-        val stage = if (stageId == userId) {
-            stageRepository.save(
-                StageModel(
-                    stageId = idService.getId(),
-                    type = StageType.SOLO,
-                    hosts = listOf(
-                        StageModel.StageHostModel(
-                            userId = userId,
-                            stance = null
-                        )
-                    ),
-                    title = null,
-                    claimId = null,
-                    topicId = null,
-                    createdAt = Instant.now(clock),
-                    status = PENDING,
-                    openedAt = null,
-                    closedAt = null
-                )
-            )
-        } else {
-            stageRepository.getById(stageId)
-
-                ?.also { stage ->
-                    if (stage.hosts.none { it.userId == userId }) {
-                        throw UnauthorizedException("User is not a host of this stage")
-                    }
-                } ?: throw UnauthorizedException("Stage not found")
-        }
-
-        val users = stage.hosts.mapNotNull { userCachedRepository.findById(it.userId) }.associateBy { it.userId }
-
-        val claim = stage.claimId?.let { claimCachedRepository.getById(it) }
-        liveStageRedisRepository.save(
-            LiveStageEntity(
-                stageId = stageId,
-                type = stage.type,
-                hosts = stage.hosts.mapNotNull { host ->
-                    users[host.userId]?.let { user ->
-                        LiveStageHost(
-                            userId = user.userId,
-                            username = user.username ?: "unknown",
-                            avatarUrl = user.avatarUrl,
-                            stance = host.stance
-                        )
-                    }
-                },
-                claimId = stage.claimId,
-                claimSlug = claim?.slug,
-                title = claim?.title,
-                openedAt = Instant.now(clock),
-                heartbeatAt = Instant.now(clock)
-            )
-        )
-
-        return stage
-    }
-
     fun heartbeat(stageId: String, userId: String) {
         val liveStage = liveStageRedisRepository.findById(stageId).orElseThrow()
         if (liveStage.hosts.none { it.userId == userId }) {
@@ -330,89 +271,40 @@ class StageService(
         logger.debug("User $userId left from stage $stageId")
 
         val stage = stageRepository.getById(stageId)
-        val allHostUserIds = stage.hosts.map { it.userId }
+        if (stage.status != OPEN) {
+            logger.debug("Ignoring participant_left for stage $stageId because stage is still ${stage.status}")
+            return
+        }
 
-        if (userId !in allHostUserIds)
+        if (stage.hosts.none { it.userId == userId })
             return
 
-        val liveKitParticipants = liveKitService.getParticipants(stageId)
-
-        // Check if any hosts are still connected
-        val connectedHosts = liveKitParticipants
-            .map { it.identity }
-            .filter { it in allHostUserIds }
-
-        if (connectedHosts.isEmpty() && stage.status != CLOSED) {
-            // All hosts appear to be gone, but apply the same grace period as the single-host case.
-            // Handles reconnection loops (e.g. DUPLICATE_IDENTITY kicks) where the user is briefly
-            // invisible to getParticipants between sessions.
-            logger.debug("All hosts absent from stage $stageId, scheduling closure check in 5 seconds")
-            stageClosureScheduler.schedule(
-                { checkIfAllHostsStillAbsent(stageId) },
-                5,
-                TimeUnit.SECONDS
-            )
-        } else if (!connectedHosts.contains(userId)) {
-            // User left but others remain - schedule a check in 5 seconds
-            // This gives a grace period for temporary disconnections (network hiccups, page reloads)
-            logger.debug("User $userId left but ${connectedHosts.size} host(s) remain. Scheduling check in 5 seconds")
-            stageClosureScheduler.schedule(
-                { checkIfHostStillAbsent(stageId, userId) },
-                5,
-                TimeUnit.SECONDS
-            )
-        }
+        logger.debug("Host $userId left stage $stageId, scheduling closure check in 10 seconds")
+        stageClosureScheduler.schedule(
+            { checkIfHostStillAbsent(stageId, userId) },
+            10,
+            TimeUnit.SECONDS
+        )
     }
 
-    private fun checkIfAllHostsStillAbsent(stageId: String) {
+    private fun checkIfHostStillAbsent(stageId: String, userId: String) {
         try {
             val stage = stageRepository.findById(stageId)
-            if (stage == null || stage.status == CLOSED) {
-                logger.debug("Stage $stageId already gone or closed, skipping all-hosts check")
+            if (stage == null || stage.status != OPEN) {
+                logger.debug("Stage $stageId already gone or closed, skipping host check")
                 return
             }
 
-            val allHostUserIds = stage.hosts.map { it.userId }
             val participantIds = liveKitService.getParticipants(stageId).map { it.identity }
-            val connectedHosts = participantIds.filter { it in allHostUserIds }
 
-            if (connectedHosts.isEmpty()) {
-                logger.info("All hosts still absent after grace period, closing stage $stageId")
+            if (userId !in participantIds) {
+                logger.info("Host $userId still absent after grace period, closing stage $stageId")
                 closeStage(stage, HOST_LEFT)
             } else {
-                logger.debug("Host(s) rejoined stage $stageId: $connectedHosts, not closing")
+                logger.debug("Host $userId rejoined stage $stageId, not closing")
             }
         } catch (e: Exception) {
-            logger.error("Error checking stage $stageId for all-hosts closure", e)
-        }
-    }
-
-    private fun checkIfHostStillAbsent(stageId: String, leftHostUserId: String) {
-        try {
-            val stage = stageRepository.findById(stageId)
-            if (stage == null) {
-                logger.debug("Stage $stageId no longer exists, skipping check")
-                return
-            }
-
-            if (stage.status == CLOSED) {
-                logger.debug("Stage $stageId already closed, skipping check")
-                return
-            }
-
-            val liveKitParticipants = liveKitService.getParticipants(stageId)
-            val participantIds = liveKitParticipants.map { it.identity }
-            logger.debug("LiveKit participants after grace period: $participantIds")
-
-            // Check if the user who left is still absent
-            if (!participantIds.contains(leftHostUserId)) {
-                logger.info("User $leftHostUserId still absent after grace period, closing stage $stageId")
-                closeStage(stage, ALL_HOSTS_LEFT)
-            } else {
-                logger.debug("User $leftHostUserId rejoined stage $stageId, not closing")
-            }
-        } catch (e: Exception) {
-            logger.error("Error checking stage $stageId for closure", e)
+            logger.error("Error checking stage $stageId for host $userId closure", e)
         }
     }
 
@@ -546,6 +438,22 @@ class StageService(
                 }
             } catch (e: Exception) {
                 logger.error("Error closing expired stage ${liveStage.stageId}", e)
+            }
+        }
+
+        val pendingCutoff = now.minusSeconds(120)
+        val stalePendingStages = stageRepository.findStalePendingStages(pendingCutoff)
+
+        if (stalePendingStages.isNotEmpty()) {
+            logger.debug("Found ${stalePendingStages.size} pending stages to close due to 2-minute timeout")
+        }
+
+        stalePendingStages.forEach { stage ->
+            try {
+                logger.info("Closing pending stage ${stage.stageId} due to 2-minute timeout")
+                closeStage(stage, TIMEOUT)
+            } catch (e: Exception) {
+                logger.error("Error closing stale pending stage ${stage.stageId}", e)
             }
         }
     }

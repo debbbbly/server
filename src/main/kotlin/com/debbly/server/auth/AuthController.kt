@@ -178,9 +178,13 @@ class AuthController(
 
     @PostMapping("/refresh")
     fun refreshToken(
-        @CookieValue("refreshToken") refreshToken: String,
+        @CookieValue("refreshToken", required = false) refreshToken: String?,
         httpResponse: HttpServletResponse
     ): ResponseEntity<TokenResponse> {
+        if (refreshToken.isNullOrBlank()) {
+            return ResponseEntity.status(UNAUTHORIZED).body(TokenResponse(error = AUTH_REFRESH_TOKEN_INVALID))
+        }
+
         return try {
             logger.info(
                 "Attempting to refresh token. Token length: ${refreshToken.length}, first 20 chars: ${

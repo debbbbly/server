@@ -382,7 +382,8 @@ class HomeService(
                 },
                 status = StageStatus.OPEN,
                 openedAt = liveStage.openedAt,
-                closedAt = null
+                closedAt = null,
+                thumbnailUrl = liveStage.thumbnailUrl
             )
         }
 

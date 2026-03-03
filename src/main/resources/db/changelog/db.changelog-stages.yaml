@@ -319,3 +319,40 @@ databaseChangeLog:
                   constraints:
                     nullable: true
 
+  - changeSet:
+      id: 17
+      author: claude
+      comment: Replace individual URL columns with media_path in stage_media
+      changes:
+        - addColumn:
+            tableName: stage_media
+            columns:
+              - column:
+                  name: media_path
+                  type: varchar(512)
+                  constraints:
+                    nullable: true
+        - sql:
+            sql: >
+              UPDATE stage_media SET media_path =
+                CASE
+                  WHEN hls_recording_url IS NOT NULL THEN REGEXP_REPLACE(hls_recording_url, '/playlist\.m3u8$', '')
+                  WHEN hls_live_url IS NOT NULL THEN REGEXP_REPLACE(hls_live_url, '/playlist-live\.m3u8$', '')
+                END
+        - addNotNullConstraint:
+            tableName: stage_media
+            columnName: media_path
+            defaultNullValue: ''
+        - dropColumn:
+            tableName: stage_media
+            columnName: hls_live_url
+        - dropColumn:
+            tableName: stage_media
+            columnName: hls_recording_url
+        - dropColumn:
+            tableName: stage_media
+            columnName: portrait_hls_live_url
+        - dropColumn:
+            tableName: stage_media
+            columnName: portrait_hls_recording_url
+

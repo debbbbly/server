@@ -19,7 +19,7 @@ class SettingsService(
         const val HLS_SEGMENT_DURATION_DEFAULT = 4;
         const val DEBATE_STAGE_DURATION_DEFAULT = 5 * 60L;
         const val DEBATE_STAGE_RECORDED_THRESHOLD_DEFAULT = 4 * 60L;
-        const val CLEANUP_OLD_EGRESSES_DEFAULT = false;
+        const val CLEANUP_OLD_EGRESSES_DEFAULT = true;
     }
 
     private val logger = LoggerFactory.getLogger(javaClass)
