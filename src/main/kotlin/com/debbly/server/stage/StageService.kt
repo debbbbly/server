@@ -7,14 +7,9 @@ import com.debbly.server.claim.repository.ClaimJpaRepository
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.livekit.LiveKitService
-import com.debbly.server.livekit.S3LiveKitProperties
 import com.debbly.server.livekit.egress.EgressService
 import com.debbly.server.match.model.Match
 import com.debbly.server.match.repository.MatchRepository
-import com.debbly.server.stage.repository.StageMediaJpaRepository
-import com.debbly.server.stage.repository.entities.StageMediaEntity
-import com.debbly.server.stage.repository.entities.StageMediaStatus
-import com.debbly.server.stage.repository.entities.StageMediaVisibility
 import com.debbly.server.pusher.model.PusherEventName.STAGE_EVENT
 import com.debbly.server.pusher.model.PusherMessage.Companion.message
 import com.debbly.server.pusher.model.PusherMessageType.STAGE_CLOSED
@@ -23,14 +18,16 @@ import com.debbly.server.settings.LivekitConfig
 import com.debbly.server.settings.SettingsService
 import com.debbly.server.settings.repository.UserSettingsCachedRepository
 import com.debbly.server.stage.event.AllHostsJoinedEvent
-import com.debbly.server.stage.model.LiveStageEntity
-import com.debbly.server.stage.model.LiveStageHost
 import com.debbly.server.stage.model.StageModel
 import com.debbly.server.stage.model.StageType
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageCachedRepository
+import com.debbly.server.stage.repository.StageMediaJpaRepository
 import com.debbly.server.stage.repository.entities.CloseReason
 import com.debbly.server.stage.repository.entities.CloseReason.*
+import com.debbly.server.stage.repository.entities.StageMediaEntity
+import com.debbly.server.stage.repository.entities.StageMediaStatus
+import com.debbly.server.stage.repository.entities.StageMediaVisibility
 import com.debbly.server.stage.repository.entities.StageStatus
 import com.debbly.server.stage.repository.entities.StageStatus.*
 import com.debbly.server.user.SocialType
@@ -57,113 +54,133 @@ class StageService(
     private val egressService: EgressService,
     private val userSettingsRepository: UserSettingsCachedRepository,
     private val settingsService: SettingsService,
-    private val s3Config: S3LiveKitProperties,
     private val clock: Clock,
     private val socialUsernameCachedRepository: com.debbly.server.user.repository.SocialUsernameCachedRepository,
     private val pusherService: PusherService,
     private val eventPublisher: ApplicationEventPublisher,
     private val matchRepository: MatchRepository,
-    private val stageMediaRepository: StageMediaJpaRepository
+    private val stageMediaRepository: StageMediaJpaRepository,
 ) {
-
     private val logger = LoggerFactory.getLogger(javaClass)
 
     // Scheduler with virtual threads for delayed stage closure checks
-    private val stageClosureScheduler = Executors.newScheduledThreadPool(1) { runnable ->
-        Thread.ofVirtual().name("stage-closure-check").unstarted(runnable)
-    }
+    private val stageClosureScheduler =
+        Executors.newScheduledThreadPool(1) { runnable ->
+            Thread.ofVirtual().name("stage-closure-check").unstarted(runnable)
+        }
 
     fun getUserHostedStages(userId: String): List<StageHistoryDetails> {
         val stages = stageRepository.findTop10ByHostUserId(userId)
-        val claims = claimRepository.findByClaimIds(stages.mapNotNull { it.claimId })
-            .associateBy { it.claimId }
-        val mediaMap = stageMediaRepository.findByStageIdIn(stages.map { it.stageId })
-            .associateBy { it.stageId }
+        val claims =
+            claimRepository
+                .findByClaimIds(stages.mapNotNull { it.claimId })
+                .associateBy { it.claimId }
+        val mediaMap =
+            stageMediaRepository
+                .findByStageIdIn(stages.map { it.stageId })
+                .associateBy { it.stageId }
 
         return stages.map { stage ->
             val claim = claims[stage.claimId]
             val media = mediaMap[stage.stageId]
-            val hosts = stage.hosts.map { host ->
-                val user = userCachedRepository.findById(host.userId) ?: throw Exception("User not found")
-                val socials = socialUsernameCachedRepository.findAllByUserId(user.userId)
-                    .associate { it.socialType to it.username }
-                Host(
-                    userId = user.userId,
-                    username = user.username ?: "unknown",
-                    avatarUrl = user.avatarUrl,
-                    stance = host.stance ?: ClaimStance.EITHER,
-                    bio = user.bio,
-                    socials = socials
-                )
-            }
+            val hosts =
+                stage.hosts.map { host ->
+                    val user = userCachedRepository.findById(host.userId) ?: throw Exception("User not found")
+                    val socials =
+                        socialUsernameCachedRepository
+                            .findAllByUserId(user.userId)
+                            .associate { it.socialType to it.username }
+                    Host(
+                        userId = user.userId,
+                        username = user.username ?: "unknown",
+                        avatarUrl = user.avatarUrl,
+                        stance = host.stance ?: ClaimStance.EITHER,
+                        bio = user.bio,
+                        socials = socials,
+                    )
+                }
 
             StageHistoryDetails(
                 stageId = stage.stageId,
-                claim = claim?.let {
-                    Claim(
-                        claimId = it.claimId,
-                        title = it.title,
-                        categoryId = it.categoryId
-                    )
-                },
+                claim =
+                    claim?.let {
+                        Claim(
+                            claimId = it.claimId,
+                            title = it.title,
+                            categoryId = it.categoryId,
+                        )
+                    },
                 hosts = hosts,
                 status = stage.status,
                 openedAt = stage.openedAt,
                 closedAt = stage.closedAt,
                 hlsUrl = getHlsUrlFromMedia(media, stage.status),
-                thumbnailUrl = media?.thumbnailUrl
+                thumbnailUrl = media?.thumbnailUrl,
             )
         }
     }
 
-    fun getStageDetails(stageId: String, userId: String?): StageDetails {
+    fun getStageDetails(
+        stageId: String,
+        userId: String?,
+    ): StageDetails {
         val stage = stageRepository.getById(stageId)
         val claim = stage.claimId?.let { claimCachedRepository.getById(it) }
         val media = stageMediaRepository.findById(stageId).orElse(null)
-        val hosts = stage.hosts.map { host ->
-            val user = userCachedRepository.findById(host.userId) ?: throw Exception("User not found")
-            val stance = host.stance
-            val socials = socialUsernameCachedRepository.findAllByUserId(user.userId)
-                .associate { it.socialType to it.username }
+        val hosts =
+            stage.hosts.map { host ->
+                val user = userCachedRepository.findById(host.userId) ?: throw Exception("User not found")
+                val stance = host.stance
+                val socials =
+                    socialUsernameCachedRepository
+                        .findAllByUserId(user.userId)
+                        .associate { it.socialType to it.username }
 
-            Host(
-                userId = user.userId,
-                username = user.username ?: "unknown",
-                avatarUrl = user.avatarUrl,
-                stance = stance ?: ClaimStance.EITHER,
-                bio = user.bio,
-                socials = socials
-            )
-        }
+                Host(
+                    userId = user.userId,
+                    username = user.username ?: "unknown",
+                    avatarUrl = user.avatarUrl,
+                    stance = stance ?: ClaimStance.EITHER,
+                    bio = user.bio,
+                    socials = socials,
+                )
+            }
 
-        val (isHost, livekitToken) = userId.let { tokenUserId ->
-            val isHost = stage.hosts.any { it.userId == userId }
-            val isOpenOrPending = stage.status in setOf(PENDING, OPEN)
+        val (isHost, livekitToken) =
+            userId.let { tokenUserId ->
+                val isHost = stage.hosts.any { it.userId == userId }
+                val isOpenOrPending = stage.status in setOf(PENDING, OPEN)
 
-            val userStance = stage.hosts.find { it.userId == userId }?.stance ?: ClaimStance.EITHER
-            val role = if (isHost) "HOST" else "VIEWER"
-            val metadata = """{"role":"$role","stance":"${userStance.name}"}"""
+                val userStance = stage.hosts.find { it.userId == userId }?.stance ?: ClaimStance.EITHER
+                val role = if (isHost) "HOST" else "VIEWER"
+                val metadata = """{"role":"$role","stance":"${userStance.name}"}"""
 
-            val token = if (isOpenOrPending) liveKitService.getToken(
-                userId = tokenUserId,
-                stageId = stageId,
-                canPublish = isHost,
-                metadata = metadata
-            ) else null
+                val token =
+                    if (isOpenOrPending) {
+                        liveKitService.getToken(
+                            userId = tokenUserId,
+                            stageId = stageId,
+                            canPublish = isHost,
+                            metadata = metadata,
+                        )
+                    } else {
+                        null
+                    }
 
-            isHost to token
-        }
+                isHost to token
+            }
 
         return StageDetails(
             stageId = stage.stageId,
             eventId = stage.eventId,
-            claim = claim?.let { it ->
-                Claim(
-                    claimId = it.claimId,
-                    title = claim.title,
-                    categoryId = claim.categoryId
-                )
-            },
+            claim =
+                claim?.let { it ->
+                    Claim(
+                        claimId = it.claimId,
+                        title = claim.title,
+                        categoryId = claim.categoryId,
+                    )
+                },
             isHost = isHost,
             hosts = hosts,
             token = livekitToken,
@@ -174,11 +191,14 @@ class StageService(
             limitMinutes = settingsService.getStageDuration() / 60,
             hlsUrl = getHlsUrlFromMedia(media, stage.status),
             thumbnailUrl = media?.thumbnailUrl,
-            livekitConfig = settingsService.getLivekitClientConfig()
+            livekitConfig = settingsService.getLivekitClientConfig(),
         )
     }
 
-    private fun getHlsUrlFromMedia(media: StageMediaEntity?, stageStatus: StageStatus): String? {
+    private fun getHlsUrlFromMedia(
+        media: StageMediaEntity?,
+        stageStatus: StageStatus,
+    ): String? {
         if (media == null) return null
         return when (stageStatus) {
             OPEN -> media.hlsLiveUrl
@@ -215,33 +235,38 @@ class StageService(
 
             val claim = claimCachedRepository.getById(match.claim.claimId)
 
-            val hosts = match.opponents.map {
-                StageModel.StageHostModel(
-                    userId = it.userId,
-                    stance = it.stance
-                )
-            }
+            val hosts =
+                match.opponents.map {
+                    StageModel.StageHostModel(
+                        userId = it.userId,
+                        stance = it.stance,
+                    )
+                }
 
-            val stage = StageModel(
-                stageId = stageId,
-                type = if (hosts.size == 1) StageType.SOLO else StageType.ONE_ON_ONE,
-                claimId = claim.claimId,
-                topicId = claim.topicId,
-                eventId = match.eventId,
-                challengeId = match.challengeId,
-                title = claim.title,
-                hosts = hosts,
-                createdAt = Instant.now(clock),
-                status = PENDING,
-                openedAt = null,
-                closedAt = null
-            )
+            val stage =
+                StageModel(
+                    stageId = stageId,
+                    type = if (hosts.size == 1) StageType.SOLO else StageType.ONE_ON_ONE,
+                    claimId = claim.claimId,
+                    topicId = claim.topicId,
+                    eventId = match.eventId,
+                    challengeId = match.challengeId,
+                    title = claim.title,
+                    hosts = hosts,
+                    createdAt = Instant.now(clock),
+                    status = PENDING,
+                    openedAt = null,
+                    closedAt = null,
+                )
 
             stageRepository.save(stage)
         }
     }
 
-    fun heartbeat(stageId: String, userId: String) {
+    fun heartbeat(
+        stageId: String,
+        userId: String,
+    ) {
         val liveStage = liveStageRedisRepository.findById(stageId).orElseThrow()
         if (liveStage.hosts.none { it.userId == userId }) {
             throw UnauthorizedException("User is not a host of this stage")
@@ -267,7 +292,10 @@ class StageService(
 //        }
 //    }
 
-    fun onUserLeft(userId: String, stageId: String) {
+    fun onUserLeft(
+        userId: String,
+        stageId: String,
+    ) {
         logger.debug("User $userId left from stage $stageId")
 
         val stage = stageRepository.getById(stageId)
@@ -276,18 +304,22 @@ class StageService(
             return
         }
 
-        if (stage.hosts.none { it.userId == userId })
+        if (stage.hosts.none { it.userId == userId }) {
             return
+        }
 
         logger.debug("Host $userId left stage $stageId, scheduling closure check in 10 seconds")
         stageClosureScheduler.schedule(
             { checkIfHostStillAbsent(stageId, userId) },
             10,
-            TimeUnit.SECONDS
+            TimeUnit.SECONDS,
         )
     }
 
-    private fun checkIfHostStillAbsent(stageId: String, userId: String) {
+    private fun checkIfHostStillAbsent(
+        stageId: String,
+        userId: String,
+    ) {
         try {
             val stage = stageRepository.findById(stageId)
             if (stage == null || stage.status != OPEN) {
@@ -308,7 +340,10 @@ class StageService(
         }
     }
 
-    fun onUserJoined(userId: String, stageId: String) {
+    fun onUserJoined(
+        userId: String,
+        stageId: String,
+    ) {
         logger.debug("User $userId joined stage $stageId")
 
         val stage = stageRepository.getById(stageId)
@@ -317,14 +352,20 @@ class StageService(
 
         removeDuplicateParticipants(stageId, liveKitParticipants)
 
-        if (liveKitParticipants.map { it.identity }.toSet()
-                .containsAll(allHostUserIds) && stage.status == PENDING
+        if (liveKitParticipants
+                .map { it.identity }
+                .toSet()
+                .containsAll(allHostUserIds) &&
+            stage.status == PENDING
         ) {
             eventPublisher.publishEvent(AllHostsJoinedEvent(stageId))
         }
     }
 
-    private fun removeDuplicateParticipants(stageId: String, participants: List<LivekitModels.ParticipantInfo>) {
+    private fun removeDuplicateParticipants(
+        stageId: String,
+        participants: List<LivekitModels.ParticipantInfo>,
+    ) {
         val participantsByIdentity = participants.groupBy { it.identity }
 
         participantsByIdentity.forEach { (identity, participantList) ->
@@ -360,8 +401,10 @@ class StageService(
                 return null
             }
 
-            val egress = egressService.listAllEgresses(stageId)
-                .firstOrNull { it.egressId == egressId }
+            val egress =
+                egressService
+                    .listAllEgresses(stageId)
+                    .firstOrNull { it.egressId == egressId }
 
             if (egress == null) {
                 return null
@@ -392,10 +435,15 @@ class StageService(
         }
     }
 
-    private fun stopRemainingEgresses(stageId: String, excludeEgressId: String) {
+    private fun stopRemainingEgresses(
+        stageId: String,
+        excludeEgressId: String,
+    ) {
         try {
-            val remaining = egressService.listActiveEgresses(stageId)
-                .filter { it.egressId != excludeEgressId }
+            val remaining =
+                egressService
+                    .listActiveEgresses(stageId)
+                    .filter { it.egressId != excludeEgressId }
 
             remaining.forEach { egress ->
                 try {
@@ -419,8 +467,10 @@ class StageService(
         val timeLimitSeconds = settingsService.getStageDuration()
         val cutoffTime = now.minusSeconds(timeLimitSeconds)
 
-        val expiredLiveStages = liveStageRedisRepository.findAll()
-            .filter { liveStage -> liveStage.openedAt.isBefore(cutoffTime) }
+        val expiredLiveStages =
+            liveStageRedisRepository
+                .findAll()
+                .filter { liveStage -> liveStage.openedAt.isBefore(cutoffTime) }
 
         if (expiredLiveStages.isNotEmpty()) {
             logger.debug("Found ${expiredLiveStages.size} live stages to close due to timeout")
@@ -458,18 +508,21 @@ class StageService(
         }
     }
 
-    private fun closeStage(stage: StageModel, reason: CloseReason) {
-
+    private fun closeStage(
+        stage: StageModel,
+        reason: CloseReason,
+    ) {
         val currentStage = stageRepository.findById(stage.stageId)
         if (currentStage == null || currentStage.status == CLOSED) {
             return
         }
 
-        val closedStage = currentStage.copy(
-            status = CLOSED,
-            closedAt = Instant.now(clock),
-            closeReason = reason
-        )
+        val closedStage =
+            currentStage.copy(
+                status = CLOSED,
+                closedAt = Instant.now(clock),
+                closeReason = reason,
+            )
         stageRepository.save(closedStage)
 
         val egressResult = stopEgressIfActive(stage.stageId)
@@ -483,14 +536,18 @@ class StageService(
         logger.info("Closed stage ${stage.stageId}, reason: $reason")
     }
 
-    private fun updateStageMedia(stageId: String, egressResult: EgressService.StopEgressResult?) {
+    private fun updateStageMedia(
+        stageId: String,
+        egressResult: EgressService.StopEgressResult?,
+    ) {
         val media = stageMediaRepository.findById(stageId).orElse(null) ?: return
 
-        val durationSeconds = egressResult?.let {
-            val startedAt = it.startedAt ?: return@let null
-            val endedAt = it.endedAt ?: return@let null
-            (endedAt - startedAt) / 1000
-        }
+        val durationSeconds =
+            egressResult?.let {
+                val startedAt = it.startedAt ?: return@let null
+                val endedAt = it.endedAt ?: return@let null
+                (endedAt - startedAt) / 1000
+            }
 
         val recorded = durationSeconds != null && durationSeconds > settingsService.getStageRecordedThreshold()
         val newStatus = if (recorded) StageMediaStatus.COMPLETED else StageMediaStatus.FAILED
@@ -498,16 +555,21 @@ class StageService(
         stageMediaRepository.save(media.copy(status = newStatus, durationSeconds = durationSeconds))
     }
 
-    fun makeStageMediaPrivate(stageId: String, userId: String) {
-        val stage = stageRepository.findById(stageId)
-            ?: throw IllegalArgumentException("Stage not found")
+    fun makeStageMediaPrivate(
+        stageId: String,
+        userId: String,
+    ) {
+        val stage =
+            stageRepository.findById(stageId)
+                ?: throw IllegalArgumentException("Stage not found")
 
         if (stage.hosts.none { it.userId == userId }) {
             throw UnauthorizedException("User is not a host of this stage")
         }
 
-        val media = stageMediaRepository.findById(stageId).orElse(null)
-            ?: throw IllegalArgumentException("Stage media not found")
+        val media =
+            stageMediaRepository.findById(stageId).orElse(null)
+                ?: throw IllegalArgumentException("Stage media not found")
 
         if (media.visibility == StageMediaVisibility.HOST_ONLY) {
             return
@@ -517,9 +579,13 @@ class StageService(
         logger.info("Stage $stageId media set to HOST_ONLY by host $userId")
     }
 
-    fun deleteRecordedStage(stageId: String, userId: String) {
-        val stage = stageRepository.findById(stageId)
-            ?: throw IllegalArgumentException("Stage not found")
+    fun deleteRecordedStage(
+        stageId: String,
+        userId: String,
+    ) {
+        val stage =
+            stageRepository.findById(stageId)
+                ?: throw IllegalArgumentException("Stage not found")
 
         if (stage.hosts.none { it.userId == userId }) {
             throw UnauthorizedException("User is not a host of this stage")
@@ -533,20 +599,25 @@ class StageService(
         stageMediaRepository.save(media.copy(visibility = StageMediaVisibility.HOST_ONLY))
 
         stageRepository.save(
-            stage.copy(closeReason = HOST_DELETED)
+            stage.copy(closeReason = HOST_DELETED),
         )
 
         logger.info("Stage $stageId deleted by host $userId")
     }
 
-    private fun notifyStageClosed(stageId: String, reason: CloseReason) {
+    private fun notifyStageClosed(
+        stageId: String,
+        reason: CloseReason,
+    ) {
         try {
-            val data = mapOf(
-                "data" to mapOf(
-                    "stageId" to stageId,
-                    "reason" to reason.name.lowercase()
+            val data =
+                mapOf(
+                    "data" to
+                        mapOf(
+                            "stageId" to stageId,
+                            "reason" to reason.name.lowercase(),
+                        ),
                 )
-            )
             val message = message(STAGE_CLOSED, data)
             pusherService.sendChannelMessage(stageId, STAGE_EVENT, message)
             logger.debug("Broadcast stage closed notification for stage $stageId")
@@ -569,7 +640,7 @@ class StageService(
         val limitMinutes: Long,
         val hlsUrl: String?,
         val thumbnailUrl: String?,
-        val livekitConfig: LivekitConfig
+        val livekitConfig: LivekitConfig,
     )
 
     data class StageHistoryDetails(
@@ -580,7 +651,7 @@ class StageService(
         val openedAt: Instant?,
         val closedAt: Instant?,
         val hlsUrl: String?,
-        val thumbnailUrl: String?
+        val thumbnailUrl: String?,
     )
 
     data class Host(
@@ -589,12 +660,12 @@ class StageService(
         val avatarUrl: String?,
         val stance: ClaimStance,
         val bio: String?,
-        val socials: Map<SocialType, String>?
+        val socials: Map<SocialType, String>?,
     )
 
     data class Claim(
         val claimId: String,
         val title: String,
-        val categoryId: String
+        val categoryId: String,
     )
 }

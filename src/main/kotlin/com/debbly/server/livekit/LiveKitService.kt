@@ -5,6 +5,7 @@ import com.debbly.server.config.LiveKitConfig
 import com.debbly.server.settings.SettingsService
 import io.livekit.server.*
 import livekit.LivekitModels
+import livekit.LivekitModels.TrackType
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
@@ -16,12 +17,16 @@ class LiveKitService(
     private val settings: SettingsService,
 ) {
     companion object {
-        private const val TOKEN_TTL_EXTRA_SECONDS: Long = 60;
+        private const val TOKEN_TTL_EXTRA_SECONDS: Long = 60
     }
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    fun createRoom(stageId: String, emptyTimeoutSeconds: Int = 120, maxParticipants: Int = 30): LivekitModels.Room? {
+    fun createRoom(
+        stageId: String,
+        emptyTimeoutSeconds: Int = 120,
+        maxParticipants: Int = 30,
+    ): LivekitModels.Room? {
         val call = livekitRoomService.createRoom(stageId, emptyTimeoutSeconds, maxParticipants)
         val response = call.execute()
 
@@ -58,7 +63,9 @@ class LiveKitService(
                         // the virtual thread rather than blocking a carrier thread.
                         Thread.sleep(retryDelayMs * (attempt + 1))
                     } else {
-                        logger.warn("Room $stageId not found in LiveKit (404) after $maxAttempts attempts. This may be a LiveKit API configuration issue.")
+                        logger.warn(
+                            "Room $stageId not found in LiveKit (404) after $maxAttempts attempts. This may be a LiveKit API configuration issue.",
+                        )
                         return emptyList()
                     }
                 }
@@ -72,23 +79,47 @@ class LiveKitService(
         return emptyList()
     }
 
-    fun getToken(userId: String?, stageId: String, canPublish: Boolean, metadata: String): String {
-        val token = AccessToken(liveKitConfig.apiKey, liveKitConfig.apiSecret).apply {
-            val tokenUserId = userId ?: "guest_${idService.getId()}"
+    fun getToken(
+        userId: String?,
+        stageId: String,
+        canPublish: Boolean,
+        metadata: String,
+    ): String {
+        val tokenUserId = userId ?: "guest_${idService.getId()}"
+        var effectiveCanPublish = canPublish
 
-            name = tokenUserId
-            identity = tokenUserId
-            ttl = settings.getStageDuration().toLong() + TOKEN_TTL_EXTRA_SECONDS
+        if (canPublish && userId != null) {
+            val participants = getParticipants(stageId)
 
-            this.metadata = metadata
+            val userIdPublishers = participants.filter { p ->
+                p.identity == tokenUserId && p.tracksList.any { track ->
+                    track.type == TrackType.AUDIO || track.type == TrackType.VIDEO
+                }
+            }
 
-            addGrants(
-                RoomJoin(true),
-                RoomName(stageId),
-                CanPublish(canPublish),
-                CanPublishData(canPublish),
-            )
+                userIdPublishers.forEach { participant ->
+                    val removed = removeParticipant(stageId, participant.identity)
+                    if (!removed) {
+                        effectiveCanPublish = false
+                        logger.warn("Failed to remove existing publisher for $tokenUserId in $stageId; issuing read-only token")
+                    }
+                }
         }
+
+        val token = AccessToken(liveKitConfig.apiKey, liveKitConfig.apiSecret).apply {
+                name = tokenUserId
+                identity = tokenUserId
+                ttl = settings.getStageDuration() + TOKEN_TTL_EXTRA_SECONDS
+
+                this.metadata = metadata
+
+                addGrants(
+                    RoomJoin(true),
+                    RoomName(stageId),
+                    CanPublish(effectiveCanPublish),
+                    CanPublishData(effectiveCanPublish),
+                )
+            }
 
         return token.toJwt()
     }
@@ -112,7 +143,10 @@ class LiveKitService(
     /**
      * Remove a specific participant from a room
      */
-    fun removeParticipant(stageId: String, participantIdentity: String): Boolean {
+    fun removeParticipant(
+        stageId: String,
+        participantIdentity: String,
+    ): Boolean {
         val call = livekitRoomService.removeParticipant(stageId, participantIdentity)
         val response = call.execute()
 
@@ -128,7 +162,11 @@ class LiveKitService(
     /**
      * Mute a participant (audio, video, or both)
      */
-    fun muteParticipant(stageId: String, participantIdentity: String, muted: Boolean): Boolean {
+    fun muteParticipant(
+        stageId: String,
+        participantIdentity: String,
+        muted: Boolean,
+    ): Boolean {
         val call = livekitRoomService.mutePublishedTrack(stageId, participantIdentity, "", muted)
         val response = call.execute()
 
@@ -136,7 +174,9 @@ class LiveKitService(
             logger.debug("${if (muted) "Muted" else "Unmuted"} participant $participantIdentity in room $stageId")
             return true
         } else {
-            logger.error("Failed to ${if (muted) "mute" else "unmute"} participant $participantIdentity in room $stageId: ${response.code()} ${response.message()}")
+            logger.error(
+                "Failed to ${if (muted) "mute" else "unmute"} participant $participantIdentity in room $stageId: ${response.code()} ${response.message()}",
+            )
             return false
         }
     }
@@ -157,5 +197,3 @@ class LiveKitService(
         }
     }
 }
-
-

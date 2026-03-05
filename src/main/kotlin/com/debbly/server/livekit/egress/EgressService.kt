@@ -2,7 +2,7 @@ package com.debbly.server.livekit.egress
 
 import com.debbly.server.config.EgressLayout
 import com.debbly.server.config.LiveKitConfig
-import com.debbly.server.livekit.S3LiveKitProperties
+import com.debbly.server.config.S3DefaultProperties
 import com.debbly.server.settings.SettingsService
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageMediaJpaRepository
@@ -26,14 +26,14 @@ import java.util.concurrent.TimeUnit.SECONDS
 
 @Service
 class EgressService(
-    private val s3Config: S3LiveKitProperties,
+    private val s3Config: S3DefaultProperties,
     private val livekitEgressService: EgressServiceClient,
     private val settings: SettingsService,
     private val clock: Clock,
     private val liveKitConfig: LiveKitConfig,
-    @Qualifier("s3LiveKitClient") private val s3Client: S3Client,
+    @Qualifier("s3DefaultClient") private val s3Client: S3Client,
     private val stageMediaRepository: StageMediaJpaRepository,
-    private val liveStageRedisRepository: LiveStageRedisRepository
+    private val liveStageRedisRepository: LiveStageRedisRepository,
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
     private val thumbnailScheduler = Executors.newSingleThreadScheduledExecutor()
@@ -48,39 +48,44 @@ class EgressService(
 
     fun startCompositeEgress(
         stageId: String,
-        layout: EgressLayout = EgressLayout.LANDSCAPE
+        layout: EgressLayout = EgressLayout.LANDSCAPE,
     ): LivekitEgress.EgressInfo? {
         val layoutUrl = getLayoutUrl(layout)
         logger.debug("Starting HLS egress for stage $stageId with layout: $layout")
 
         val s3Upload = buildS3Upload()
 
-        val filenamePrefix = when (layout) {
-            EgressLayout.LANDSCAPE -> "$stageId/landscape/"
-            EgressLayout.PORTRAIT -> "$stageId/portrait/"
-        }
+        val filenamePrefix =
+            when (layout) {
+                EgressLayout.LANDSCAPE -> "stages/$stageId/video/landscape/"
+                EgressLayout.PORTRAIT -> "stages/$stageId/video/portrait/"
+            }
 
         // HLS Segment Output
-        val segmentOutput = SegmentedFileOutput.newBuilder()
-            .setFilenamePrefix(filenamePrefix)
-            .setPlaylistName("playlist.m3u8")
-            .setLivePlaylistName("playlist-live.m3u8")
-            .setSegmentDuration(settings.getHlsSegmentDuration())
-            .setS3(s3Upload)
-            .build()
+        val segmentOutput =
+            SegmentedFileOutput
+                .newBuilder()
+                .setFilenamePrefix(filenamePrefix)
+                .setPlaylistName("playlist.m3u8")
+                .setLivePlaylistName("playlist-live.m3u8")
+                .setSegmentDuration(settings.getHlsSegmentDuration())
+                .setS3(s3Upload)
+                .build()
 
-        val preset = when (layout) {
-            EgressLayout.LANDSCAPE -> EncodingOptionsPreset.H264_1080P_30
-            EgressLayout.PORTRAIT -> EncodingOptionsPreset.PORTRAIT_H264_1080P_30
-        }
+        val preset =
+            when (layout) {
+                EgressLayout.LANDSCAPE -> EncodingOptionsPreset.H264_1080P_30
+                EgressLayout.PORTRAIT -> EncodingOptionsPreset.PORTRAIT_H264_1080P_30
+            }
 
-        val call = livekitEgressService.startRoomCompositeEgress(
-            roomName = stageId,
-            output = segmentOutput,
-            layout = "",
-            optionsPreset = preset,
-            customBaseUrl = layoutUrl
-        )
+        val call =
+            livekitEgressService.startRoomCompositeEgress(
+                roomName = stageId,
+                output = segmentOutput,
+                layout = "",
+                optionsPreset = preset,
+                customBaseUrl = layoutUrl,
+            )
         val response = call.execute()
 
         if (response.isSuccessful) {
@@ -93,31 +98,38 @@ class EgressService(
         }
     }
 
-    fun startThumbnailEgress(stageId: String, layout: EgressLayout = EgressLayout.LANDSCAPE) {
+    fun startThumbnailEgress(
+        stageId: String,
+        layout: EgressLayout = EgressLayout.LANDSCAPE,
+    ) {
         val layoutUrl = getLayoutUrl(layout)
-        val (width, height) = when (layout) {
-            EgressLayout.LANDSCAPE -> 480 to 270
-            EgressLayout.PORTRAIT -> 270 to 480
-        }
+        val (width, height) =
+            when (layout) {
+                EgressLayout.LANDSCAPE -> 480 to 270
+                EgressLayout.PORTRAIT -> 270 to 480
+            }
         val s3Upload = buildS3Upload()
 
         try {
-            val imageOutput = ImageOutput.newBuilder()
-                .setCaptureInterval(10)
-                .setWidth(width)
-                .setHeight(height)
-                .setFilenamePrefix("$stageId/thumbnails/")
-                .setFilenameSuffix(IMAGE_SUFFIX_INDEX)
-                .setDisableManifest(true)
-                .setS3(s3Upload)
-                .build()
+            val imageOutput =
+                ImageOutput
+                    .newBuilder()
+                    .setCaptureInterval(10)
+                    .setWidth(width)
+                    .setHeight(height)
+                    .setFilenamePrefix("stages/$stageId/thumbnail/")
+                    .setFilenameSuffix(IMAGE_SUFFIX_INDEX)
+                    .setDisableManifest(true)
+                    .setS3(s3Upload)
+                    .build()
 
-            val imageCall = livekitEgressService.startRoomCompositeEgress(
-                stageId,
-                imageOutput,
-                layout = "",
-                customBaseUrl = layoutUrl,
-            )
+            val imageCall =
+                livekitEgressService.startRoomCompositeEgress(
+                    stageId,
+                    imageOutput,
+                    layout = "",
+                    customBaseUrl = layoutUrl,
+                )
 
             val imageResponse = imageCall.execute()
 
@@ -125,7 +137,7 @@ class EgressService(
                 val egressId = imageResponse.body()?.egressId
                 logger.info("Started thumbnail egress for room $stageId, egressId: $egressId")
                 if (egressId != null) {
-                    //scheduleThumbnailResolve(stageId)
+                    // scheduleThumbnailResolve(stageId)
                     scheduleThumbnailStop(egressId, stageId)
                 }
             } else {
@@ -142,7 +154,10 @@ class EgressService(
         }, 15, SECONDS)
     }
 
-    private fun scheduleThumbnailStop(egressId: String, stageId: String) {
+    private fun scheduleThumbnailStop(
+        egressId: String,
+        stageId: String,
+    ) {
         thumbnailScheduler.schedule({
             try {
                 val call = livekitEgressService.stopEgress(egressId)
@@ -161,33 +176,38 @@ class EgressService(
 
     private fun resolveThumbnailUrl(stageId: String) {
         try {
-            val prefix = "$stageId/thumbnails/"
-            val request = ListObjectsV2Request.builder()
-                .bucket(s3Config.bucket.egress)
-                .prefix(prefix)
-                .build()
+            val prefix = "stages/$stageId/thumbnail/"
+            val request =
+                ListObjectsV2Request
+                    .builder()
+                    .bucket(s3Config.bucket)
+                    .prefix(prefix)
+                    .build()
 
             val response = s3Client.listObjectsV2(request)
-            val jpegKeys = response.contents()
-                .map { it.key() }
-                .filter { it.endsWith(".jpeg") || it.endsWith(".jpg") }
-                .sorted()
+            val jpegKeys =
+                response
+                    .contents()
+                    .map { it.key() }
+                    .filter { it.endsWith(".jpeg") || it.endsWith(".jpg") }
+                    .sorted()
 
             val thumbnailKey = if (jpegKeys.size >= 2) jpegKeys[1] else jpegKeys.firstOrNull()
 
             if (thumbnailKey != null) {
-                val thumbnailUrl = "${s3Config.endpoint}/${s3Config.bucket.egress}/$thumbnailKey"
+                val thumbnailUrl = s3Config.buildPublicUrl(thumbnailKey)
 
-                val media = stageMediaRepository.findById(stageId).orElse(
-                    StageMediaEntity(
-                        stageId = stageId,
-                        mediaPath = s3Config.buildMediaPath(stageId),
-                        status = StageMediaStatus.COMPLETED,
-                        compositeEgressId = null,
-                        portraitCompositeEgressId = null,
-                        createdAt = now(clock)
+                val media =
+                    stageMediaRepository.findById(stageId).orElse(
+                        StageMediaEntity(
+                            stageId = stageId,
+                            mediaPath = s3Config.buildStageMediaPath(stageId),
+                            status = StageMediaStatus.COMPLETED,
+                            compositeEgressId = null,
+                            portraitCompositeEgressId = null,
+                            createdAt = now(clock),
+                        ),
                     )
-                )
 
                 if (media != null) {
                     stageMediaRepository.save(media.copy(thumbnailUrl = thumbnailUrl))
@@ -208,7 +228,7 @@ class EgressService(
     data class StopEgressResult(
         val success: Boolean,
         val startedAt: Long?,
-        val endedAt: Long?
+        val endedAt: Long?,
     )
 
     fun stopCompositeEgress(egressId: String): StopEgressResult {
@@ -238,22 +258,23 @@ class EgressService(
         val startedAtMillis: Long,
         val endedAtMillis: Long?,
         val roomName: String?,
-        val isRoomComposite: Boolean
+        val isRoomComposite: Boolean,
     ) {
         val isActive: Boolean
-            get() = status == LivekitEgress.EgressStatus.EGRESS_ACTIVE ||
+            get() =
+                status == LivekitEgress.EgressStatus.EGRESS_ACTIVE ||
                     status == LivekitEgress.EgressStatus.EGRESS_STARTING
     }
 
-    fun listActiveEgresses(roomName: String? = null): List<EgressDetails> {
-        return listAllEgresses(roomName).filter { it.isActive }
-    }
+    fun listActiveEgresses(roomName: String? = null): List<EgressDetails> = listAllEgresses(roomName).filter { it.isActive }
 
     fun countActiveRoomCompositeEgresses(): Int {
         val cutoff = clock.millis() - settings.getStageDuration() * 2 * 1000L
         return listActiveEgresses()
             .filter { it.isRoomComposite && it.startedAtMillis > cutoff }
-            .mapNotNull { it.roomName }.distinct().size
+            .mapNotNull { it.roomName }
+            .distinct()
+            .size
     }
 
     fun listAllEgresses(roomName: String? = null): List<EgressDetails> {
@@ -270,23 +291,24 @@ class EgressService(
         }
     }
 
-    private fun LivekitEgress.EgressInfo.toEgressDetails() = EgressDetails(
-        egressId = egressId,
-        status = status,
-        startedAtMillis = startedAt / 1_000_000,
-        endedAtMillis = endedAt.takeIf { it > 0 }?.let { it / 1_000_000 },
-        roomName = roomName,
-        isRoomComposite = hasRoomComposite()
-    )
+    private fun LivekitEgress.EgressInfo.toEgressDetails() =
+        EgressDetails(
+            egressId = egressId,
+            status = status,
+            startedAtMillis = startedAt / 1_000_000,
+            endedAtMillis = endedAt.takeIf { it > 0 }?.let { it / 1_000_000 },
+            roomName = roomName,
+            isRoomComposite = hasRoomComposite(),
+        )
 
-    private fun buildS3Upload(): LivekitEgress.S3Upload {
-        return LivekitEgress.S3Upload.newBuilder()
+    private fun buildS3Upload(): LivekitEgress.S3Upload =
+        LivekitEgress.S3Upload
+            .newBuilder()
             .setEndpoint(s3Config.endpoint)
-            .setBucket(s3Config.bucket.egress)
+            .setBucket(s3Config.bucket)
             .setRegion(s3Config.region)
             .setAccessKey(s3Config.accessKey)
             .setSecret(s3Config.secret)
             .setForcePathStyle(s3Config.forcePathStyle)
             .build()
-    }
 }

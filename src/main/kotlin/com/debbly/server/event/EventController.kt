@@ -9,10 +9,10 @@ import com.debbly.server.storage.S3Service
 import com.debbly.server.viewer.ViewerScope
 import com.debbly.server.viewer.ViewerService
 import jakarta.servlet.http.HttpServletRequest
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import org.springframework.http.HttpStatus
 import java.time.Instant
 
 @RestController
@@ -21,20 +21,20 @@ class EventController(
     private val eventService: EventService,
     private val authService: AuthService,
     private val s3Service: S3Service,
-    private val viewerService: ViewerService
+    private val viewerService: ViewerService,
 ) {
-
     @GetMapping
     fun listEvents(
         @RequestParam(required = false, defaultValue = "upcoming") filter: EventListFilter,
         @RequestParam(required = false) cursor: String?,
-        @RequestParam(required = false, defaultValue = "20") limit: Int
+        @RequestParam(required = false, defaultValue = "20") limit: Int,
     ): ResponseEntity<EventService.EventListResponse> {
-        val response = eventService.listEvents(
-            filter = filter,
-            limit = limit.coerceIn(1, 100),
-            cursor = cursor
-        )
+        val response =
+            eventService.listEvents(
+                filter = filter,
+                limit = limit.coerceIn(1, 100),
+                cursor = cursor,
+            )
 
         return ResponseEntity.ok(response)
     }
@@ -42,37 +42,43 @@ class EventController(
     @GetMapping("/{eventId}")
     fun getEvent(
         @PathVariable eventId: String,
-        @ExternalUserId externalUserId: String?
+        @ExternalUserId externalUserId: String?,
     ): ResponseEntity<EventService.EventDetail> {
         val userId = externalUserId?.let { authService.authenticateOptional(it)?.userId }
         return ResponseEntity.ok(eventService.getEventDetail(eventId, userId))
     }
 
     data class CreateBannerUploadUrlRequest(
-        val contentType: String
+        val contentType: String,
     )
 
     data class CreateBannerUploadUrlResponse(
         val key: String,
         val uploadUrl: String,
         val publicUrl: String,
-        val expiresInSeconds: Long
+        val expiresInSeconds: Long,
     )
 
-    @PostMapping("/banner/upload-url")
+    @PostMapping("/{eventId}/banner/upload-url")
     fun createBannerUploadUrl(
+        @PathVariable eventId: String,
         @ExternalUserId externalUserId: String?,
-        @RequestBody request: CreateBannerUploadUrlRequest
+        @RequestBody request: CreateBannerUploadUrlRequest,
     ): ResponseEntity<CreateBannerUploadUrlResponse> {
         val user = authService.authenticate(externalUserId)
-        val upload = s3Service.generateEventBannerUpload(user.userId, request.contentType)
+        val event = eventService.getEventDetail(eventId, user.userId)
+        if (event.host.userId != user.userId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Only the host can upload a banner")
+        }
+
+        val upload = s3Service.generateEventBannerUpload(user.userId, eventId, request.contentType)
         return ResponseEntity.ok(
             CreateBannerUploadUrlResponse(
                 key = upload.key,
                 uploadUrl = upload.uploadUrl,
                 publicUrl = upload.publicUrl,
-                expiresInSeconds = upload.expiresInSeconds
-            )
+                expiresInSeconds = upload.expiresInSeconds,
+            ),
         )
     }
 
@@ -81,21 +87,22 @@ class EventController(
         val hostStance: ClaimStance,
         val startTime: Instant,
         val description: String?,
-        val bannerImageKey: String? = null
+        val bannerImageKey: String? = null,
     )
 
     @PostMapping
     fun create(
         @ExternalUserId externalUserId: String?,
-        @RequestBody request: CreateEventHttpRequest
+        @RequestBody request: CreateEventHttpRequest,
     ): ResponseEntity<EventService.EventDetail> {
         val user = authService.authenticate(externalUserId)
-        val bannerImageUrl = request.bannerImageKey?.let { key ->
-            if (!s3Service.isEventBannerKeyOwnedByUser(user.userId, key)) {
-                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid banner image key")
+        val bannerImageUrl =
+            request.bannerImageKey?.let { key ->
+                if (!s3Service.isEventBannerKeyOwnedByUser(user.userId, key)) {
+                    throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid banner image key")
+                }
+                s3Service.buildUsersPublicUrl(key)
             }
-            s3Service.buildUsersPublicUrl(key)
-        }
 
         return ResponseEntity.ok(
             eventService.create(
@@ -105,9 +112,9 @@ class EventController(
                     hostStance = request.hostStance,
                     startTime = request.startTime,
                     description = request.description,
-                    bannerImageUrl = bannerImageUrl
-                )
-            )
+                    bannerImageUrl = bannerImageUrl,
+                ),
+            ),
         )
     }
 
@@ -115,22 +122,23 @@ class EventController(
         val hostStance: ClaimStance? = null,
         val startTime: Instant? = null,
         val description: String? = null,
-        val bannerImageKey: String? = null
+        val bannerImageKey: String? = null,
     )
 
     @PatchMapping("/{eventId}")
     fun update(
         @PathVariable eventId: String,
         @ExternalUserId externalUserId: String?,
-        @RequestBody request: UpdateEventHttpRequest
+        @RequestBody request: UpdateEventHttpRequest,
     ): ResponseEntity<EventService.EventDetail> {
         val user = authService.authenticate(externalUserId)
-        val bannerImageUrl = request.bannerImageKey?.let { key ->
-            if (!s3Service.isEventBannerKeyOwnedByUser(user.userId, key)) {
-                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid banner image key")
+        val bannerImageUrl =
+            request.bannerImageKey?.let { key ->
+                if (!s3Service.isEventBannerKeyOwnedByUser(user.userId, eventId, key)) {
+                    throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid banner image key")
+                }
+                s3Service.buildUsersPublicUrl(key)
             }
-            s3Service.buildUsersPublicUrl(key)
-        }
         return ResponseEntity.ok(
             eventService.update(
                 eventId,
@@ -139,19 +147,21 @@ class EventController(
                     hostStance = request.hostStance,
                     startTime = request.startTime,
                     description = request.description,
-                    bannerImageUrl = bannerImageUrl
-                )
-            )
+                    bannerImageUrl = bannerImageUrl,
+                ),
+            ),
         )
     }
 
-    data class SignUpEventRequest(val stance: ClaimStance)
+    data class SignUpEventRequest(
+        val stance: ClaimStance,
+    )
 
     @PostMapping("/{eventId}/signup")
     fun signUp(
         @PathVariable eventId: String,
         @ExternalUserId externalUserId: String?,
-        @RequestBody request: SignUpEventRequest
+        @RequestBody request: SignUpEventRequest,
     ): ResponseEntity<EventService.EventParticipantView> {
         val user = authService.authenticate(externalUserId)
         return ResponseEntity.ok(eventService.signUp(eventId, user.userId, request.stance))
@@ -160,7 +170,7 @@ class EventController(
     @PostMapping("/{eventId}/remind")
     fun remind(
         @PathVariable eventId: String,
-        @ExternalUserId externalUserId: String?
+        @ExternalUserId externalUserId: String?,
     ): ResponseEntity<Map<String, Any>> {
         val user = authService.authenticate(externalUserId)
         val reminderCount = eventService.remind(eventId, user.userId)
@@ -170,7 +180,7 @@ class EventController(
     @DeleteMapping("/{eventId}/signup")
     fun cancelSignUp(
         @PathVariable eventId: String,
-        @ExternalUserId externalUserId: String?
+        @ExternalUserId externalUserId: String?,
     ): ResponseEntity<Void> {
         val user = authService.authenticate(externalUserId)
         eventService.cancelSignUp(eventId, user.userId)
@@ -180,7 +190,7 @@ class EventController(
     @DeleteMapping("/{eventId}/remind")
     fun cancelRemind(
         @PathVariable eventId: String,
-        @ExternalUserId externalUserId: String?
+        @ExternalUserId externalUserId: String?,
     ): ResponseEntity<Void> {
         val user = authService.authenticate(externalUserId)
         eventService.cancelRemind(eventId, user.userId)
@@ -190,7 +200,7 @@ class EventController(
     @PostMapping("/{eventId}/start")
     fun start(
         @PathVariable eventId: String,
-        @ExternalUserId externalUserId: String?
+        @ExternalUserId externalUserId: String?,
     ): ResponseEntity<EventService.EventDetail> {
         val user = authService.authenticate(externalUserId)
         return ResponseEntity.ok(eventService.start(eventId, user.userId))
@@ -199,19 +209,21 @@ class EventController(
     @PostMapping("/{eventId}/complete")
     fun stop(
         @PathVariable eventId: String,
-        @ExternalUserId externalUserId: String?
+        @ExternalUserId externalUserId: String?,
     ): ResponseEntity<EventService.EventDetail> {
         val user = authService.authenticate(externalUserId)
         return ResponseEntity.ok(eventService.complete(eventId, user.userId))
     }
 
-    data class MatchRequest(val userId: String)
+    data class MatchRequest(
+        val userId: String,
+    )
 
     @PostMapping("/{eventId}/match")
     fun matchNext(
         @PathVariable eventId: String,
         @ExternalUserId externalUserId: String?,
-        @RequestBody request: MatchRequest? // nullable, match with user if present
+        @RequestBody request: MatchRequest?, // nullable, match with user if present
     ): ResponseEntity<EventService.MatchNextResponse> {
         val user = authService.authenticate(externalUserId)
         return ResponseEntity.ok(eventService.match(eventId, user.userId, request?.userId))
@@ -231,23 +243,20 @@ class EventController(
     fun listEventStages(
         @PathVariable eventId: String,
         @RequestParam(required = false, defaultValue = "20") limit: Int,
-        @RequestParam(required = false) cursor: String?
-    ): ResponseEntity<EventService.EventStagesListResponse> {
-        return ResponseEntity.ok(eventService.getEventStages(eventId, limit.coerceIn(1, 100), cursor))
-    }
+        @RequestParam(required = false) cursor: String?,
+    ): ResponseEntity<EventService.EventStagesListResponse> =
+        ResponseEntity.ok(eventService.getEventStages(eventId, limit.coerceIn(1, 100), cursor))
 
     @GetMapping("/{eventId}/stages/live")
     fun listLiveEventStages(
-        @PathVariable eventId: String
-    ): ResponseEntity<List<HomeStageResponse>> {
-        return ResponseEntity.ok(eventService.getEventLiveStages(eventId))
-    }
+        @PathVariable eventId: String,
+    ): ResponseEntity<List<HomeStageResponse>> = ResponseEntity.ok(eventService.getEventLiveStages(eventId))
 
     @PostMapping("/{eventId}/view")
     fun trackViewer(
         @PathVariable eventId: String,
         @ExternalUserId externalUserId: String?,
-        httpRequest: HttpServletRequest
+        httpRequest: HttpServletRequest,
     ): ResponseEntity<Unit> {
         val viewerId = externalUserId ?: httpRequest.remoteAddr
         viewerService.trackViewer(ViewerScope.EVENT, eventId, viewerId)
@@ -255,17 +264,21 @@ class EventController(
     }
 
     @GetMapping("/{eventId}/viewers")
-    fun getViewerCount(@PathVariable eventId: String): ResponseEntity<ViewerCountResponse> {
+    fun getViewerCount(
+        @PathVariable eventId: String,
+    ): ResponseEntity<ViewerCountResponse> {
         val count = viewerService.getViewerCount(ViewerScope.EVENT, eventId)
         return ResponseEntity.ok(ViewerCountResponse(count))
     }
 
-    data class ViewerCountResponse(val count: Long)
+    data class ViewerCountResponse(
+        val count: Long,
+    )
 
     @PostMapping("/{eventId}/cancel")
     fun cancel(
         @PathVariable eventId: String,
-        @ExternalUserId externalUserId: String?
+        @ExternalUserId externalUserId: String?,
     ): ResponseEntity<EventService.EventDetail> {
         val user = authService.authenticate(externalUserId)
         return ResponseEntity.ok(eventService.cancel(eventId, user.userId))

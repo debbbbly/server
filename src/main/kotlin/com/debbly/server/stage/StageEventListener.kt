@@ -3,8 +3,8 @@ package com.debbly.server.stage
 import com.debbly.server.challenge.ChallengeService
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.config.EgressLayout
+import com.debbly.server.config.S3DefaultProperties
 import com.debbly.server.livekit.LiveKitService
-import com.debbly.server.livekit.S3LiveKitProperties
 import com.debbly.server.livekit.egress.EgressService
 import com.debbly.server.match.MatchService
 import com.debbly.server.match.QueueService
@@ -47,7 +47,7 @@ class StageEventListener(
     private val claimCachedRepository: ClaimCachedRepository,
     private val userSettingsRepository: UserSettingsCachedRepository,
     private val settingsService: SettingsService,
-    private val s3Config: S3LiveKitProperties,
+    private val s3Config: S3DefaultProperties,
     private val clock: Clock,
     private val pusherService: PusherService,
     private val matchRepository: MatchRepository,
@@ -56,7 +56,6 @@ class StageEventListener(
     private val queueService: QueueService,
     private val challengeService: ChallengeService,
 ) {
-
     private val logger = LoggerFactory.getLogger(javaClass)
 
     private val stagesBeingOpened = ConcurrentHashMap.newKeySet<String>()
@@ -82,10 +81,11 @@ class StageEventListener(
             matchRepository.delete(event.stageId)
 
             val openedAt = now(clock)
-            val updatedStage = stage.copy(
-                status = OPEN,
-                openedAt = openedAt
-            )
+            val updatedStage =
+                stage.copy(
+                    status = OPEN,
+                    openedAt = openedAt,
+                )
             stageRepository.save(updatedStage)
 
             val allHostUserIds = updatedStage.hosts.map { it.userId }
@@ -94,7 +94,7 @@ class StageEventListener(
             allHostUserIds.forEach { matchService.removeFromQueue(it) }
             queueService.broadcastQueueUpdate()
 
-            //move to a seperate listener later
+            // move to a seperate listener later
             updateUserRanks(allHostUserIds)
 
             updatedStage.challengeId?.let { challengeId ->
@@ -132,49 +132,59 @@ class StageEventListener(
         }
     }
 
-    private fun createLiveStageWithEgress(stage: StageModel, openedAt: Instant) {
-        val users = stage.hosts
-            .mapNotNull { userCachedRepository.findById(it.userId) }
-            .associateBy { it.userId }
+    private fun createLiveStageWithEgress(
+        stage: StageModel,
+        openedAt: Instant,
+    ) {
+        val users =
+            stage.hosts
+                .mapNotNull { userCachedRepository.findById(it.userId) }
+                .associateBy { it.userId }
         val claim = stage.claimId?.let { claimCachedRepository.getById(it) }
 
         val shouldStartEgress = shouldStartEgressForStage(stage)
 
-        val (landscapeEgressId, portraitEgressId) = if (shouldStartEgress) {
-            val allHostUserIds = stage.hosts.map { it.userId }
-            if (!waitForHostsPublishing(stage.stageId, allHostUserIds)) {
-                logger.warn("Hosts did not publish tracks in time for stage ${stage.stageId}, skipping egress")
+        val (landscapeEgressId, portraitEgressId) =
+            if (shouldStartEgress) {
+                val allHostUserIds = stage.hosts.map { it.userId }
+                if (!waitForHostsPublishing(stage.stageId, allHostUserIds)) {
+                    logger.warn("Hosts did not publish tracks in time for stage ${stage.stageId}, skipping egress")
+                }
+
+                val landscapeInfo =
+                    try {
+                        egressService.startCompositeEgress(stage.stageId, EgressLayout.LANDSCAPE)
+                    } catch (e: Exception) {
+                        logger.error("Failed to start landscape egress for stage ${stage.stageId}", e)
+                        null
+                    }
+
+                val portraitInfo =
+                    try {
+                        egressService.startCompositeEgress(stage.stageId, EgressLayout.PORTRAIT)
+                    } catch (e: Exception) {
+                        logger.error("Failed to start portrait egress for stage ${stage.stageId}", e)
+                        null
+                    }
+
+                logger.debug(
+                    "Started landscape egress ${landscapeInfo?.egressId} and portrait egress ${portraitInfo?.egressId} for stage ${stage.stageId}",
+                )
+
+                landscapeInfo?.egressId to portraitInfo?.egressId
+            } else {
+                null to null
             }
-
-            val landscapeInfo = try {
-                egressService.startCompositeEgress(stage.stageId, EgressLayout.LANDSCAPE)
-            } catch (e: Exception) {
-                logger.error("Failed to start landscape egress for stage ${stage.stageId}", e)
-                null
-            }
-
-            val portraitInfo = try {
-                egressService.startCompositeEgress(stage.stageId, EgressLayout.PORTRAIT)
-            } catch (e: Exception) {
-                logger.error("Failed to start portrait egress for stage ${stage.stageId}", e)
-                null
-            }
-
-            logger.debug("Started landscape egress ${landscapeInfo?.egressId} and portrait egress ${portraitInfo?.egressId} for stage ${stage.stageId}")
-
-            landscapeInfo?.egressId to portraitInfo?.egressId
-        } else
-            null to null
 
         stageMediaRepository.save(
             StageMediaEntity(
                 stageId = stage.stageId,
-                mediaPath = s3Config.buildMediaPath(stage.stageId),
+                mediaPath = s3Config.buildStageMediaPath(stage.stageId),
                 status = IN_PROGRESS,
                 compositeEgressId = landscapeEgressId,
                 portraitCompositeEgressId = portraitEgressId,
-                createdAt = now(clock)
-            )
+                createdAt = now(clock),
+            ),
         )
 
         try {
@@ -187,44 +197,51 @@ class StageEventListener(
             LiveStageEntity(
                 stageId = stage.stageId,
                 type = stage.type,
-                hosts = stage.hosts.mapNotNull { host ->
-                    users[host.userId]?.let { user ->
-                        LiveStageHost(
-                            userId = user.userId,
-                            username = user.username ?: "unknown",
-                            avatarUrl = user.avatarUrl,
-                            stance = host.stance
-                        )
-                    }
-                },
+                hosts =
+                    stage.hosts.mapNotNull { host ->
+                        users[host.userId]?.let { user ->
+                            LiveStageHost(
+                                userId = user.userId,
+                                username = user.username ?: "unknown",
+                                avatarUrl = user.avatarUrl,
+                                stance = host.stance,
+                            )
+                        }
+                    },
                 claimId = stage.claimId,
                 claimSlug = claim?.slug,
                 title = claim?.title,
                 openedAt = openedAt,
                 heartbeatAt = now(clock),
                 egressId = landscapeEgressId,
-                portraitEgressId = portraitEgressId
-            )
+                portraitEgressId = portraitEgressId,
+            ),
         )
     }
 
-    private fun waitForHostsPublishing(stageId: String, hostUserIds: List<String>): Boolean {
+    private fun waitForHostsPublishing(
+        stageId: String,
+        hostUserIds: List<String>,
+    ): Boolean {
         val maxAttempts = 3
         val delayMs = 1000L
 
         repeat(maxAttempts) { attempt ->
             val participants = liveKitService.getParticipants(stageId)
-            val publishingHostIds = participants
-                .filter { it.identity in hostUserIds }
-                .filter { p -> p.tracksList.any { it.type == LivekitModels.TrackType.VIDEO } }
-                .map { it.identity }
+            val publishingHostIds =
+                participants
+                    .filter { it.identity in hostUserIds }
+                    .filter { p -> p.tracksList.any { it.type == LivekitModels.TrackType.VIDEO } }
+                    .map { it.identity }
 
             if (publishingHostIds.containsAll(hostUserIds)) {
                 logger.debug("All hosts publishing in stage $stageId after ${attempt + 1} attempt(s)")
                 return true
             }
 
-            logger.debug("Waiting for hosts to publish in stage $stageId (attempt ${attempt + 1}/$maxAttempts): publishing=$publishingHostIds, expected=$hostUserIds")
+            logger.debug(
+                "Waiting for hosts to publish in stage $stageId (attempt ${attempt + 1}/$maxAttempts): publishing=$publishingHostIds, expected=$hostUserIds",
+            )
             Thread.sleep(delayMs)
         }
 
@@ -237,18 +254,24 @@ class StageEventListener(
         val currentActiveEgressCount = egressService.countActiveRoomCompositeEgresses()
 
         if (currentActiveEgressCount >= maxEgressCount) {
-            logger.warn("Max egress limit reached ($currentActiveEgressCount/$maxEgressCount), cannot start egress for stage ${stage.stageId}")
+            logger.warn(
+                "Max egress limit reached ($currentActiveEgressCount/$maxEgressCount), cannot start egress for stage ${stage.stageId}",
+            )
             return false
         }
 
         return true
     }
 
-    private fun broadcastDebateStarted(stageId: String, stage: StageModel) {
+    private fun broadcastDebateStarted(
+        stageId: String,
+        stage: StageModel,
+    ) {
         try {
-            val data = mapOf(
-                "stageId" to stageId
-            )
+            val data =
+                mapOf(
+                    "stageId" to stageId,
+                )
             val message = message(STAGE_OPEN, data)
             pusherService.sendChannelMessage(stageId, STAGE_EVENT, message)
             logger.debug("Broadcast debate started notification for stage $stageId")

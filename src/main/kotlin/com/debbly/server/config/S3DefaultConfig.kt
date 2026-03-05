@@ -15,30 +15,44 @@ import java.net.URI
 data class S3DefaultProperties(
     val endpoint: String = "",
     val publicEndpoint: String = "",
-    val bucket: BucketConfig = BucketConfig(),
+    val bucket: String = "",
     val region: String = "",
     val accessKey: String = "",
     val secret: String = "",
-    val forcePathStyle: Boolean = true,
+    val forcePathStyle: Boolean = false,
 ) {
-    data class BucketConfig(
-        val users: String = ""
-    )
+    private fun publicBaseUrl(bucketName: String): String {
+        val publicBase = publicEndpoint.trim()
+        return if (publicBase.isNotEmpty()) {
+            publicBase.trimEnd('/')
+        } else {
+            "${endpoint.trimEnd('/')}/$bucketName"
+        }
+    }
+
+    fun buildPublicUrl(
+        key: String,
+        bucketName: String = bucket,
+    ): String = "${publicBaseUrl(bucketName)}/${key.trimStart('/')}"
+
+    fun buildStageMediaPath(stageId: String): String = buildPublicUrl("stages/$stageId")
 }
 
 @Configuration
 @EnableConfigurationProperties(S3DefaultProperties::class)
-class S3DefaultConfig(private val properties: S3DefaultProperties) {
-
+class S3DefaultConfig(
+    private val properties: S3DefaultProperties,
+) {
     @Bean("s3DefaultClient")
     fun s3DefaultClient(): S3Client {
+        val credentials =
+            AwsBasicCredentials.create(
+                properties.accessKey,
+                properties.secret,
+            )
 
-        val credentials = AwsBasicCredentials.create(
-            properties.accessKey,
-            properties.secret
-        )
-
-        return S3Client.builder()
+        return S3Client
+            .builder()
             .region(Region.of(properties.region))
             .endpointOverride(URI.create(properties.endpoint))
             .credentialsProvider(StaticCredentialsProvider.create(credentials))
@@ -48,12 +62,14 @@ class S3DefaultConfig(private val properties: S3DefaultProperties) {
 
     @Bean("s3DefaultPresigner")
     fun s3DefaultPresigner(): S3Presigner {
-        val credentials = AwsBasicCredentials.create(
-            properties.accessKey,
-            properties.secret
-        )
+        val credentials =
+            AwsBasicCredentials.create(
+                properties.accessKey,
+                properties.secret,
+            )
 
-        return S3Presigner.builder()
+        return S3Presigner
+            .builder()
             .region(Region.of(properties.region))
             .endpointOverride(URI.create(properties.endpoint))
             .credentialsProvider(StaticCredentialsProvider.create(credentials))
