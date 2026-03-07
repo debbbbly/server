@@ -22,7 +22,7 @@ class LiveKitWebhookService(
                 stageService.onUserJoined(event.participant.identity, event.room.name)
             }
             "participant_left" -> {
-                stageService.onUserLeft(event.participant.identity, event.room.name)
+                stageService.onParticipantLeft(event.participant.identity, event.room.name)
             }
             "egress_started" -> {
                 logger.debug("Egress started: ${event.egressInfo.egressId}, room: ${event.egressInfo.roomName}")

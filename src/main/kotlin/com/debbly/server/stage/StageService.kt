@@ -292,23 +292,24 @@ class StageService(
 //        }
 //    }
 
-    fun onUserLeft(
+    fun onParticipantLeft(
         userId: String,
         stageId: String,
     ) {
-        logger.debug("User $userId left from stage $stageId")
+        logger.info("participant_left: user=$userId stage=$stageId")
 
         val stage = stageRepository.getById(stageId)
         if (stage.status != OPEN) {
-            logger.debug("Ignoring participant_left for stage $stageId because stage is still ${stage.status}")
+            logger.info("participant_left ignored: stage=$stageId status=${stage.status}")
             return
         }
 
         if (stage.hosts.none { it.userId == userId }) {
+            logger.debug("participant_left: user=$userId is not a host of stage=$stageId, ignoring")
             return
         }
 
-        logger.debug("Host $userId left stage $stageId, scheduling closure check in 10 seconds")
+        logger.info("Host $userId left stage $stageId, scheduling closure check in 10 seconds")
         stageClosureScheduler.schedule(
             { checkIfHostStillAbsent(stageId, userId) },
             10,
@@ -323,17 +324,19 @@ class StageService(
         try {
             val stage = stageRepository.findById(stageId)
             if (stage == null || stage.status != OPEN) {
-                logger.debug("Stage $stageId already gone or closed, skipping host check")
+                logger.info("checkIfHostStillAbsent: stage=$stageId already gone or closed (status=${stage?.status}), skipping")
                 return
             }
 
-            val participantIds = liveKitService.getParticipants(stageId).map { it.identity }
+            val participants = liveKitService.getParticipants(stageId)
+            val participantIds = participants.map { it.identity }
+            logger.info("checkIfHostStillAbsent: stage=$stageId participants=${participantIds}")
 
             if (userId !in participantIds) {
                 logger.info("Host $userId still absent after grace period, closing stage $stageId")
                 closeStage(stage, HOST_LEFT)
             } else {
-                logger.debug("Host $userId rejoined stage $stageId, not closing")
+                logger.info("Host $userId rejoined stage $stageId, not closing")
             }
         } catch (e: Exception) {
             logger.error("Error checking stage $stageId for host $userId closure", e)
@@ -344,20 +347,23 @@ class StageService(
         userId: String,
         stageId: String,
     ) {
-        logger.debug("User $userId joined stage $stageId")
+        logger.info("participant_joined: user=$userId stage=$stageId")
 
         val stage = stageRepository.getById(stageId)
         val allHostUserIds = stage.hosts.map { it.userId }
         val liveKitParticipants = liveKitService.getParticipants(stageId)
+        val participantIds = liveKitParticipants.map { it.identity }
+
+        logger.info("participant_joined: stage=$stageId status=${stage.status} currentParticipants=$participantIds expectedHosts=$allHostUserIds")
 
         removeDuplicateParticipants(stageId, liveKitParticipants)
 
-        if (liveKitParticipants
-                .map { it.identity }
+        if (participantIds
                 .toSet()
                 .containsAll(allHostUserIds) &&
             stage.status == PENDING
         ) {
+            logger.info("All hosts joined stage $stageId, publishing AllHostsJoinedEvent")
             eventPublisher.publishEvent(AllHostsJoinedEvent(stageId))
         }
     }
@@ -375,9 +381,10 @@ class StageService(
                 val duplicatesToRemove = participantList.sortedBy { it.joinedAt }.dropLast(1)
                 duplicatesToRemove.forEach { duplicate ->
                     try {
-                        liveKitService.removeParticipant(stageId, duplicate.sid)
+                        logger.info("Removing duplicate participant identity=${duplicate.identity} sid=${duplicate.sid} from stage=$stageId")
+                        liveKitService.removeParticipant(stageId, duplicate.identity)
                     } catch (e: Exception) {
-                        logger.error("Failed to remove duplicate participant ${duplicate.sid}", e)
+                        logger.error("Failed to remove duplicate participant ${duplicate.identity}", e)
                     }
                 }
             }
@@ -514,8 +521,11 @@ class StageService(
     ) {
         val currentStage = stageRepository.findById(stage.stageId)
         if (currentStage == null || currentStage.status == CLOSED) {
+            logger.info("closeStage: stage=${stage.stageId} already closed or missing, cleaning up Redis")
+            liveStageRedisRepository.deleteById(stage.stageId)
             return
         }
+        logger.info("closeStage: closing stage=${stage.stageId} reason=$reason")
 
         val closedStage =
             currentStage.copy(

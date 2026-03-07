@@ -97,13 +97,18 @@ class LiveKitService(
                 }
             }
 
-                userIdPublishers.forEach { participant ->
-                    val removed = removeParticipant(stageId, participant.identity)
-                    if (!removed) {
-                        effectiveCanPublish = false
-                        logger.warn("Failed to remove existing publisher for $tokenUserId in $stageId; issuing read-only token")
-                    }
+            if (userIdPublishers.isNotEmpty()) {
+                logger.info("getToken: found ${userIdPublishers.size} existing publisher session(s) for $tokenUserId in $stageId — removing to allow reconnect (this will fire participant_left webhook)")
+            }
+
+            userIdPublishers.forEach { participant ->
+                logger.info("getToken: removing existing publisher sid=${participant.sid} identity=${participant.identity} from $stageId")
+                val removed = removeParticipant(stageId, participant.identity)
+                if (!removed) {
+                    effectiveCanPublish = false
+                    logger.warn("Failed to remove existing publisher for $tokenUserId in $stageId; issuing read-only token")
                 }
+            }
         }
 
         val token = AccessToken(liveKitConfig.apiKey, liveKitConfig.apiSecret).apply {
