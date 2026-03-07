@@ -5,7 +5,6 @@ import com.debbly.server.config.LiveKitConfig
 import com.debbly.server.settings.SettingsService
 import io.livekit.server.*
 import livekit.LivekitModels
-import livekit.LivekitModels.TrackType
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
@@ -86,30 +85,6 @@ class LiveKitService(
         metadata: String,
     ): String {
         val tokenUserId = userId ?: "guest_${idService.getId()}"
-        var effectiveCanPublish = canPublish
-
-        if (canPublish && userId != null) {
-            val participants = getParticipants(stageId)
-
-            val userIdPublishers = participants.filter { p ->
-                p.identity == tokenUserId && p.tracksList.any { track ->
-                    track.type == TrackType.AUDIO || track.type == TrackType.VIDEO
-                }
-            }
-
-            if (userIdPublishers.isNotEmpty()) {
-                logger.info("getToken: found ${userIdPublishers.size} existing publisher session(s) for $tokenUserId in $stageId — removing to allow reconnect (this will fire participant_left webhook)")
-            }
-
-            userIdPublishers.forEach { participant ->
-                logger.info("getToken: removing existing publisher sid=${participant.sid} identity=${participant.identity} from $stageId")
-                val removed = removeParticipant(stageId, participant.identity)
-                if (!removed) {
-                    effectiveCanPublish = false
-                    logger.warn("Failed to remove existing publisher for $tokenUserId in $stageId; issuing read-only token")
-                }
-            }
-        }
 
         val token = AccessToken(liveKitConfig.apiKey, liveKitConfig.apiSecret).apply {
                 name = tokenUserId
@@ -121,8 +96,8 @@ class LiveKitService(
                 addGrants(
                     RoomJoin(true),
                     RoomName(stageId),
-                    CanPublish(effectiveCanPublish),
-                    CanPublishData(effectiveCanPublish),
+                    CanPublish(canPublish),
+                    CanPublishData(canPublish),
                 )
             }
 
