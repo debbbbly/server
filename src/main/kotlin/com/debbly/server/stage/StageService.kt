@@ -27,7 +27,7 @@ import com.debbly.server.stage.repository.entities.CloseReason
 import com.debbly.server.stage.repository.entities.CloseReason.*
 import com.debbly.server.stage.repository.entities.StageMediaEntity
 import com.debbly.server.stage.repository.entities.StageMediaStatus
-import com.debbly.server.stage.repository.entities.StageMediaVisibility
+import com.debbly.server.stage.repository.entities.StageVisibility
 import com.debbly.server.stage.repository.entities.StageStatus
 import com.debbly.server.stage.repository.entities.StageStatus.*
 import com.debbly.server.user.SocialType
@@ -201,8 +201,8 @@ class StageService(
     ): String? {
         if (media == null) return null
         return when (stageStatus) {
-            OPEN -> media.hlsLiveUrl
-            CLOSED -> media.hlsRecordingUrl
+            OPEN -> media.hlsLiveLandscapeUrl
+            CLOSED -> media.hlsLandscapeUrl
             else -> null
         }
     }
@@ -526,7 +526,7 @@ class StageService(
         stageRepository.save(closedStage)
 
         val egressResult = stopEgressIfActive(stage.stageId)
-        updateStageMedia(stage.stageId, egressResult)
+        updateStageMedia(closedStage, egressResult)
 
         liveStageRedisRepository.deleteById(stage.stageId)
 
@@ -537,25 +537,64 @@ class StageService(
     }
 
     private fun updateStageMedia(
-        stageId: String,
+        stage: StageModel,
         egressResult: EgressService.StopEgressResult?,
     ) {
-        val media = stageMediaRepository.findById(stageId).orElse(null) ?: return
+        val media = stageMediaRepository.findById(stage.stageId).orElse(null) ?: return
 
-        val durationSeconds =
+        if (media.status == StageMediaStatus.NOT_RECORDED) return
+
+        val egressDuration =
             egressResult?.let {
                 val startedAt = it.startedAt ?: return@let null
                 val endedAt = it.endedAt ?: return@let null
                 (endedAt - startedAt) / 1000
             }
 
-        val recorded = durationSeconds != null && durationSeconds > settingsService.getStageRecordedThreshold()
-        val newStatus = if (recorded) StageMediaStatus.COMPLETED else StageMediaStatus.FAILED
+        val durationSeconds = egressDuration
+            ?: run {
+                val openedAt = stage.openedAt
+                val closedAt = stage.closedAt
+                if (openedAt != null && closedAt != null) closedAt.epochSecond - openedAt.epochSecond else null
+            }
+
+        val newStatus = when {
+            egressResult?.success != true || egressDuration == null -> StageMediaStatus.FAILED
+            egressDuration > 180 -> StageMediaStatus.RECORDED
+            else -> StageMediaStatus.NOT_RECORDED
+        }
 
         stageMediaRepository.save(media.copy(status = newStatus, durationSeconds = durationSeconds))
+
+        val isRecorded = newStatus == StageMediaStatus.RECORDED
+        stageRepository.save(stage.copy(isRecorded = isRecorded))
     }
 
-    fun makeStageMediaPrivate(
+    fun setStageVisibility(
+        stageId: String,
+        userId: String,
+        visibility: StageVisibility,
+    ) {
+        val stage =
+            stageRepository.findById(stageId)
+                ?: throw IllegalArgumentException("Stage not found")
+
+        if (stage.hosts.none { it.userId == userId }) {
+            throw UnauthorizedException("User is not a host of this stage")
+        }
+
+        val updatedHosts = stage.hosts.map { host ->
+            if (host.userId == userId) host.copy(visibility = visibility) else host
+        }
+
+        val computedVisibility = if (updatedHosts.any { it.visibility == StageVisibility.HOST_ONLY })
+            StageVisibility.HOST_ONLY else StageVisibility.PUBLIC
+
+        stageRepository.save(stage.copy(hosts = updatedHosts, visibility = computedVisibility))
+        logger.info("Stage $stageId visibility set to $computedVisibility by host $userId (host preference: $visibility)")
+    }
+
+    fun deleteStage(
         stageId: String,
         userId: String,
     ) {
@@ -567,40 +606,12 @@ class StageService(
             throw UnauthorizedException("User is not a host of this stage")
         }
 
-        val media =
-            stageMediaRepository.findById(stageId).orElse(null)
-                ?: throw IllegalArgumentException("Stage media not found")
-
-        if (media.visibility == StageMediaVisibility.HOST_ONLY) {
-            return
+        if (stage.status == OPEN) {
+            closeStage(stage, HOST_DELETED)
         }
 
-        stageMediaRepository.save(media.copy(visibility = StageMediaVisibility.HOST_ONLY))
-        logger.info("Stage $stageId media set to HOST_ONLY by host $userId")
-    }
-
-    fun deleteRecordedStage(
-        stageId: String,
-        userId: String,
-    ) {
-        val stage =
-            stageRepository.findById(stageId)
-                ?: throw IllegalArgumentException("Stage not found")
-
-        if (stage.hosts.none { it.userId == userId }) {
-            throw UnauthorizedException("User is not a host of this stage")
-        }
-
-        val media = stageMediaRepository.findById(stageId).orElse(null)
-        if (media == null || media.status != StageMediaStatus.COMPLETED) {
-            throw IllegalArgumentException("Only recorded stages can be deleted")
-        }
-
-        stageMediaRepository.save(media.copy(visibility = StageMediaVisibility.HOST_ONLY))
-
-        stageRepository.save(
-            stage.copy(closeReason = HOST_DELETED),
-        )
+        val currentStage = stageRepository.findById(stageId) ?: return
+        stageRepository.save(currentStage.copy(visibility = StageVisibility.HOST_ONLY))
 
         logger.info("Stage $stageId deleted by host $userId")
     }

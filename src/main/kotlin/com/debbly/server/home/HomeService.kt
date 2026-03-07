@@ -17,6 +17,7 @@ import com.debbly.server.stage.repository.StageJpaRepository
 import com.debbly.server.stage.repository.StageMediaJpaRepository
 import com.debbly.server.stage.repository.entities.StageEntity
 import com.debbly.server.stage.repository.entities.StageMediaEntity
+import com.debbly.server.stage.repository.entities.StageMediaStatus
 import com.debbly.server.stage.repository.entities.StageStatus
 import com.debbly.server.user.model.UserModel
 import com.debbly.server.user.repository.UserCachedRepository
@@ -338,6 +339,12 @@ class HomeService(
             )
         }
 
+        val liveHlsUrl = if (stage.status == StageStatus.OPEN && media?.status == StageMediaStatus.IN_PROGRESS)
+            media.hlsLiveLandscapeUrl else null
+        val recording = if (stage.status == StageStatus.CLOSED && stage.isRecorded == true && media != null)
+            StageRecordingResponse(media.hlsLandscapeUrl, media.hlsPortraitUrl, media.durationSeconds)
+            else null
+
         return HomeStageResponse(
             stageId = stage.stageId,
             claim = HomeStageClaimResponse(claim.claimId, claim.slug, claim.categoryId, claim.title),
@@ -346,7 +353,8 @@ class HomeService(
             openedAt = stage.openedAt,
             closedAt = stage.closedAt,
             thumbnailUrl = media?.thumbnailUrl,
-            mediaStatus = media?.status
+            liveHlsUrl = liveHlsUrl,
+            recording = recording
         )
     }
 

@@ -38,10 +38,9 @@ class S3Service(
 
     fun generateEventBannerUpload(
         userId: String,
-        eventId: String,
         contentType: String,
     ): PresignedUpload {
-        val key = "users/$userId/events/$eventId/${UUID.randomUUID()}.${extensionFromContentType(contentType)}"
+        val key = "events/$userId-${UUID.randomUUID()}.${extensionFromContentType(contentType)}"
         return generatePresignedUpload(
             key = key,
             contentType = contentType,
@@ -61,13 +60,7 @@ class S3Service(
     fun isEventBannerKeyOwnedByUser(
         userId: String,
         key: String,
-    ): Boolean = key.startsWith("users/$userId/events/") && key.removePrefix("users/$userId/events/").contains("/")
-
-    fun isEventBannerKeyOwnedByUser(
-        userId: String,
-        eventId: String,
-        key: String,
-    ): Boolean = key.startsWith("users/$userId/events/$eventId/")
+    ): Boolean = key.startsWith("events/$userId-")
 
     fun deleteAvatar(avatarUrl: String) {
         val key = extractKeyFromUrl(avatarUrl, s3ConfigProperties.bucket)

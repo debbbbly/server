@@ -7,6 +7,7 @@ import com.debbly.server.stage.repository.entities.StageHostEntity
 import com.debbly.server.stage.repository.entities.StageHostId
 import com.debbly.server.stage.repository.entities.CloseReason
 import com.debbly.server.stage.repository.entities.StageStatus
+import com.debbly.server.stage.repository.entities.StageVisibility
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import java.time.Instant
 
@@ -28,11 +29,14 @@ data class StageModel(
     val createdAt: Instant,
     val openedAt: Instant?,
     val closedAt: Instant?,
-    val closeReason: CloseReason? = null
+    val closeReason: CloseReason? = null,
+    val isRecorded: Boolean? = null,
+    val visibility: StageVisibility = StageVisibility.PUBLIC
 ) {
     data class StageHostModel(
         val userId: String,
-        val stance: ClaimStance?
+        val stance: ClaimStance?,
+        val visibility: StageVisibility? = null
     )
 }
 
@@ -55,14 +59,17 @@ fun StageModel.toEntity() = StageEntity(
                 userId = model.userId,
                 stageId = this.stageId
             ),
-            stance = model.stance
+            stance = model.stance,
+            visibility = model.visibility
         )
     },
     createdAt = this.createdAt,
     status = this.status,
     openedAt = this.openedAt,
     closedAt = this.closedAt,
-    closeReason = this.closeReason
+    closeReason = this.closeReason,
+    isRecorded = this.isRecorded,
+    visibility = this.visibility
 )
 
 fun StageEntity.toModel() = StageModel(
@@ -76,12 +83,15 @@ fun StageEntity.toModel() = StageModel(
     hosts = this.hosts.map { entity ->
         StageHostModel(
             userId = entity.id.userId,
-            stance = entity.stance
+            stance = entity.stance,
+            visibility = entity.visibility
         )
     },
     createdAt = this.createdAt,
     status = this.status,
     openedAt = this.openedAt,
     closedAt = this.closedAt,
-    closeReason = this.closeReason
+    closeReason = this.closeReason,
+    isRecorded = this.isRecorded,
+    visibility = this.visibility
 )

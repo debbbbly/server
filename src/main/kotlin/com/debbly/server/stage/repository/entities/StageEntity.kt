@@ -10,6 +10,8 @@ enum class StageStatus {
     CLOSED    // Stage ended
 }
 
+enum class StageVisibility { PUBLIC, HOST_ONLY }
+
 enum class CloseReason {
     TIMEOUT,        // Stage closed due to time limit
     HOST_LEFT,      // A host left the stage
@@ -37,5 +39,8 @@ data class StageEntity(
     val openedAt: Instant?,
     val closedAt: Instant?,
     @Enumerated(EnumType.STRING)
-    val closeReason: CloseReason? = null
+    val closeReason: CloseReason? = null,
+    val isRecorded: Boolean? = null,
+    @Enumerated(EnumType.STRING)
+    val visibility: StageVisibility = StageVisibility.PUBLIC
 )

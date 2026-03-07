@@ -201,10 +201,8 @@ class EgressService(
                     stageMediaRepository.findById(stageId).orElse(
                         StageMediaEntity(
                             stageId = stageId,
-                            mediaPath = s3Config.buildStageMediaPath(stageId),
-                            status = StageMediaStatus.COMPLETED,
-                            compositeEgressId = null,
-                            portraitCompositeEgressId = null,
+                            path = s3Config.buildStageMediaPath(stageId),
+                            status = StageMediaStatus.RECORDED,
                             createdAt = now(clock),
                         ),
                     )

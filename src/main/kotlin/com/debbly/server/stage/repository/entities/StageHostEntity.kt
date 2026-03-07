@@ -9,7 +9,9 @@ data class StageHostEntity(
     @EmbeddedId
     val id: StageHostId,
     @Enumerated(EnumType.STRING)
-    val stance: ClaimStance?
+    val stance: ClaimStance?,
+    @Enumerated(EnumType.STRING)
+    val visibility: StageVisibility? = null
 )
 
 @Embeddable

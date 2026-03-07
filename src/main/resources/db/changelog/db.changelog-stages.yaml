@@ -356,3 +356,58 @@ databaseChangeLog:
             tableName: stage_media
             columnName: portrait_hls_recording_url
 
+  - changeSet:
+      id: 18
+      author: claude
+      comment: Move visibility to stages/stage_hosts, add is_recorded to stages, rename stage_media columns
+      changes:
+        - addColumn:
+            tableName: stages
+            columns:
+              - column:
+                  name: is_recorded
+                  type: boolean
+                  constraints:
+                    nullable: true
+        - addColumn:
+            tableName: stages
+            columns:
+              - column:
+                  name: visibility
+                  type: varchar(32)
+                  defaultValue: "PUBLIC"
+                  constraints:
+                    nullable: false
+        - addColumn:
+            tableName: stage_hosts
+            columns:
+              - column:
+                  name: visibility
+                  type: varchar(32)
+                  constraints:
+                    nullable: true
+        - sql:
+            sql: >
+              UPDATE stages SET is_recorded = true
+              WHERE stage_id IN (SELECT stage_id FROM stage_media WHERE status = 'RECORDED')
+        - sql:
+            sql: >
+              UPDATE stages s SET visibility = sm.visibility
+              FROM stage_media sm
+              WHERE sm.stage_id = s.stage_id
+        - dropColumn:
+            tableName: stage_media
+            columnName: visibility
+        - renameColumn:
+            tableName: stage_media
+            oldColumnName: media_path
+            newColumnName: path
+        - renameColumn:
+            tableName: stage_media
+            oldColumnName: composite_egress_id
+            newColumnName: hls_landscape_egress_id
+        - renameColumn:
+            tableName: stage_media
+            oldColumnName: portrait_composite_egress_id
+            newColumnName: hls_portrait_egress_id
+

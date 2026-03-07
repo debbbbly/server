@@ -1,7 +1,6 @@
 package com.debbly.server.stage.repository
 
 import com.debbly.server.stage.repository.entities.StageEntity
-import com.debbly.server.stage.repository.entities.StageStatus
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.CrudRepository
 import org.springframework.data.repository.query.Param
@@ -35,46 +34,31 @@ interface StageJpaRepository : CrudRepository<StageEntity, String> {
     @Query("SELECT s.claimId FROM stages s WHERE s.openedAt >= :since AND s.claimId IS NOT NULL")
     fun findClaimIdsByOpenedAtAfter(@Param("since") since: Instant): List<String>
 
-    // Homepage API queries - fetch stages that are OPEN or have public media (IN_PROGRESS/COMPLETED)
     @Query("""
         SELECT DISTINCT s FROM stages s
         LEFT JOIN FETCH s.hosts
         WHERE s.topicId IN :topicIds
-        AND (s.status = 'OPEN' OR s.stageId IN (
-            SELECT sm.stageId FROM stage_media sm
-            WHERE sm.status IN ('IN_PROGRESS', 'COMPLETED')
-            AND sm.visibility = 'PUBLIC'
-        ))
+        AND (s.status = 'OPEN' OR (s.status = 'CLOSED' AND s.isRecorded = true AND s.visibility = 'PUBLIC'))
         ORDER BY s.topicId, s.openedAt DESC NULLS LAST
     """)
     fun findStagesByTopicIds(
         @Param("topicIds") topicIds: List<String>
     ): List<StageEntity>
 
-    // Count stages for a topic that are visible (OPEN or have public media)
     @Query("""
         SELECT COUNT(s) FROM stages s
         WHERE s.topicId = :topicId
-        AND (s.status = 'OPEN' OR s.stageId IN (
-            SELECT sm.stageId FROM stage_media sm
-            WHERE sm.status IN ('IN_PROGRESS', 'COMPLETED')
-            AND sm.visibility = 'PUBLIC'
-        ))
+        AND (s.status = 'OPEN' OR (s.status = 'CLOSED' AND s.isRecorded = true AND s.visibility = 'PUBLIC'))
     """)
     fun countStagesByTopicId(
         @Param("topicId") topicId: String
     ): Int
 
-    // Paginated stages for a single topic with cursor support
     @Query("""
         SELECT DISTINCT s FROM stages s
         LEFT JOIN FETCH s.hosts
         WHERE s.topicId = :topicId
-        AND (s.status = 'OPEN' OR s.stageId IN (
-            SELECT sm.stageId FROM stage_media sm
-            WHERE sm.status IN ('IN_PROGRESS', 'COMPLETED')
-            AND sm.visibility = 'PUBLIC'
-        ))
+        AND (s.status = 'OPEN' OR (s.status = 'CLOSED' AND s.isRecorded = true AND s.visibility = 'PUBLIC'))
         AND (:cursorOpenedAt IS NULL OR s.openedAt < :cursorOpenedAt)
         ORDER BY s.openedAt DESC NULLS LAST
     """)
@@ -83,28 +67,18 @@ interface StageJpaRepository : CrudRepository<StageEntity, String> {
         @Param("cursorOpenedAt") cursorOpenedAt: Instant?
     ): List<StageEntity>
 
-    // Recent stages with public media or OPEN, ordered by openedAt DESC (first page)
     @Query("""
         SELECT DISTINCT s FROM stages s
         LEFT JOIN FETCH s.hosts
-        WHERE s.status = 'OPEN' OR s.stageId IN (
-            SELECT sm.stageId FROM stage_media sm
-            WHERE sm.status IN ('IN_PROGRESS', 'COMPLETED')
-            AND sm.visibility = 'PUBLIC'
-        )
+        WHERE s.status = 'OPEN' OR (s.status = 'CLOSED' AND s.isRecorded = true AND s.visibility = 'PUBLIC')
         ORDER BY s.openedAt DESC NULLS LAST
     """)
     fun findRecentStages(): List<StageEntity>
 
-    // Recent stages with cursor, ordered by openedAt DESC
     @Query("""
         SELECT DISTINCT s FROM stages s
         LEFT JOIN FETCH s.hosts
-        WHERE (s.status = 'OPEN' OR s.stageId IN (
-            SELECT sm.stageId FROM stage_media sm
-            WHERE sm.status IN ('IN_PROGRESS', 'COMPLETED')
-            AND sm.visibility = 'PUBLIC'
-        ))
+        WHERE (s.status = 'OPEN' OR (s.status = 'CLOSED' AND s.isRecorded = true AND s.visibility = 'PUBLIC'))
         AND s.openedAt < :cursorOpenedAt
         ORDER BY s.openedAt DESC NULLS LAST
     """)
@@ -112,20 +86,17 @@ interface StageJpaRepository : CrudRepository<StageEntity, String> {
         @Param("cursorOpenedAt") cursorOpenedAt: Instant
     ): List<StageEntity>
 
-    // Fetch stages by claimId ordered by openedAt DESC
     @Query("""
         SELECT DISTINCT s FROM stages s
         LEFT JOIN FETCH s.hosts
         WHERE s.claimId = :claimId
-        AND s.status IN :statuses
+        AND (s.status = 'OPEN' OR (s.status = 'CLOSED' AND s.isRecorded = true AND s.visibility = 'PUBLIC'))
         ORDER BY s.openedAt DESC NULLS LAST
     """)
     fun findStagesByClaimId(
-        @Param("claimId") claimId: String,
-        @Param("statuses") statuses: List<StageStatus>
+        @Param("claimId") claimId: String
     ): List<StageEntity>
 
-    // First page of stages for an event (no cursor), ordered by createdAt DESC
     @Query("""
         SELECT DISTINCT s FROM stages s
         LEFT JOIN FETCH s.hosts
@@ -134,7 +105,6 @@ interface StageJpaRepository : CrudRepository<StageEntity, String> {
     """)
     fun findByEventId(@Param("eventId") eventId: String): List<StageEntity>
 
-    // Subsequent pages of stages for an event (with cursor), ordered by createdAt DESC
     @Query("""
         SELECT DISTINCT s FROM stages s
         LEFT JOIN FETCH s.hosts
@@ -147,7 +117,6 @@ interface StageJpaRepository : CrudRepository<StageEntity, String> {
         @Param("cursor") cursor: Instant
     ): List<StageEntity>
 
-    // Only OPEN (live) stages for an event
     @Query("""
         SELECT DISTINCT s FROM stages s
         LEFT JOIN FETCH s.hosts

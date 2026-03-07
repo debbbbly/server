@@ -26,8 +26,8 @@ class UserClaimService(
 ) {
     companion object {
         val FAKE_USER_IDS: List<String> = (1..30).map { "fake$it" }
-        private const val MIN_FAKE_STANCES = 10
-        private const val MAX_FAKE_STANCES = 20
+        private const val MIN_FAKE_STANCES = 5
+        private const val MAX_FAKE_STANCES = 10
     }
 
     fun getClaims(userId: String) = userClaimRepository.findByUserId(userId)

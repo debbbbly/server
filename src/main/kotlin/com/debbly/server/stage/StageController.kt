@@ -2,9 +2,9 @@ package com.debbly.server.stage
 
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.infra.error.UnauthorizedException
-import com.debbly.server.stage.model.LiveStageEntity
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageCachedRepository
+import com.debbly.server.stage.repository.entities.StageVisibility
 import com.debbly.server.user.repository.UserCachedRepository
 import com.debbly.server.viewer.ViewerScope
 import com.debbly.server.viewer.ViewerService
@@ -62,7 +62,8 @@ class StageController(
     @PutMapping("/{stageId}/visibility")
     fun updateVisibility(
         @PathVariable stageId: String,
-        @ExternalUserId externalUserId: String?
+        @ExternalUserId externalUserId: String?,
+        @RequestBody body: UpdateVisibilityRequest
     ): ResponseEntity<Unit> {
         if (externalUserId == null) {
             throw UnauthorizedException()
@@ -71,10 +72,12 @@ class StageController(
         val user = userCachedRepository.findByExternalUserId(externalUserId)
             ?: throw UnauthorizedException()
 
-        stageService.makeStageMediaPrivate(stageId, user.userId)
+        stageService.setStageVisibility(stageId, user.userId, body.visibility)
 
         return ResponseEntity.ok().build()
     }
+
+    data class UpdateVisibilityRequest(val visibility: StageVisibility)
 
     @PostMapping("/{stageId}/view")
     fun trackViewer(
@@ -110,7 +113,7 @@ class StageController(
         val user = userCachedRepository.findByExternalUserId(externalUserId)
             ?: throw UnauthorizedException()
 
-        stageService.deleteRecordedStage(stageId, user.userId)
+        stageService.deleteStage(stageId, user.userId)
 
         return ResponseEntity.ok().build()
     }

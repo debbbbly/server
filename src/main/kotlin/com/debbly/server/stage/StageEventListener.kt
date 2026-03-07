@@ -23,7 +23,7 @@ import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageCachedRepository
 import com.debbly.server.stage.repository.StageMediaJpaRepository
 import com.debbly.server.stage.repository.entities.StageMediaEntity
-import com.debbly.server.stage.repository.entities.StageMediaStatus.IN_PROGRESS
+import com.debbly.server.stage.repository.entities.StageMediaStatus
 import com.debbly.server.stage.repository.entities.StageStatus.OPEN
 import com.debbly.server.stage.repository.entities.StageStatus.PENDING
 import com.debbly.server.user.repository.UserCachedRepository
@@ -176,13 +176,16 @@ class StageEventListener(
                 null to null
             }
 
+        val initialStatus = if (landscapeEgressId == null && portraitEgressId == null)
+            StageMediaStatus.NOT_RECORDED else StageMediaStatus.IN_PROGRESS
+
         stageMediaRepository.save(
             StageMediaEntity(
                 stageId = stage.stageId,
-                mediaPath = s3Config.buildStageMediaPath(stage.stageId),
-                status = IN_PROGRESS,
-                compositeEgressId = landscapeEgressId,
-                portraitCompositeEgressId = portraitEgressId,
+                path = s3Config.buildStageMediaPath(stage.stageId),
+                status = initialStatus,
+                hlsLandscapeEgressId = landscapeEgressId,
+                hlsPortraitEgressId = portraitEgressId,
                 createdAt = now(clock),
             ),
         )

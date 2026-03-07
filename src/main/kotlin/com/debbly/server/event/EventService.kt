@@ -16,6 +16,9 @@ import com.debbly.server.event.repository.*
 import com.debbly.server.home.model.HomeHostResponse
 import com.debbly.server.home.model.HomeStageClaimResponse
 import com.debbly.server.home.model.HomeStageResponse
+import com.debbly.server.home.model.StageRecordingResponse
+import com.debbly.server.stage.repository.entities.StageMediaStatus
+import com.debbly.server.stage.repository.entities.StageStatus
 import com.debbly.server.infra.error.ForbiddenException
 import com.debbly.server.match.MatchingJobService
 import com.debbly.server.match.model.ClaimWithStance
@@ -589,6 +592,12 @@ class EventService(
 
         val stageResponses = page.mapNotNull { stage ->
             val claim = claimsMap[stage.claimId] ?: return@mapNotNull null
+            val media = mediaMap[stage.stageId]
+            val liveHlsUrl = if (stage.status == StageStatus.OPEN && media?.status == StageMediaStatus.IN_PROGRESS)
+                media.hlsLiveLandscapeUrl else null
+            val recording = if (stage.status == StageStatus.CLOSED && stage.isRecorded == true && media != null)
+                StageRecordingResponse(media.hlsLandscapeUrl, media.hlsPortraitUrl, media.durationSeconds)
+                else null
             HomeStageResponse(
                 stageId = stage.stageId,
                 claim = HomeStageClaimResponse(claim.claimId, claim.slug, claim.categoryId, claim.title),
@@ -599,8 +608,9 @@ class EventService(
                 status = stage.status,
                 openedAt = stage.openedAt,
                 closedAt = stage.closedAt,
-                thumbnailUrl = mediaMap[stage.stageId]?.thumbnailUrl,
-                mediaStatus = mediaMap[stage.stageId]?.status
+                thumbnailUrl = media?.thumbnailUrl,
+                liveHlsUrl = liveHlsUrl,
+                recording = recording
             )
         }
 
@@ -620,6 +630,12 @@ class EventService(
 
         return stages.mapNotNull { stage ->
             val claim = claimsMap[stage.claimId] ?: return@mapNotNull null
+            val media = mediaMap[stage.stageId]
+            val liveHlsUrl = if (stage.status == StageStatus.OPEN && media?.status == StageMediaStatus.IN_PROGRESS)
+                media.hlsLiveLandscapeUrl else null
+            val recording = if (stage.status == StageStatus.CLOSED && stage.isRecorded == true && media != null)
+                StageRecordingResponse(media.hlsLandscapeUrl, media.hlsPortraitUrl, media.durationSeconds)
+                else null
             HomeStageResponse(
                 stageId = stage.stageId,
                 claim = HomeStageClaimResponse(claim.claimId, claim.slug, claim.categoryId, claim.title),
@@ -630,8 +646,9 @@ class EventService(
                 status = stage.status,
                 openedAt = stage.openedAt,
                 closedAt = stage.closedAt,
-                thumbnailUrl = mediaMap[stage.stageId]?.thumbnailUrl,
-                mediaStatus = mediaMap[stage.stageId]?.status
+                thumbnailUrl = media?.thumbnailUrl,
+                liveHlsUrl = liveHlsUrl,
+                recording = recording
             )
         }
     }

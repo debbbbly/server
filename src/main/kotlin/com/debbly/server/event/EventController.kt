@@ -59,19 +59,13 @@ class EventController(
         val expiresInSeconds: Long,
     )
 
-    @PostMapping("/{eventId}/banner/upload-url")
+    @PostMapping("/banner/upload-url")
     fun createBannerUploadUrl(
-        @PathVariable eventId: String,
         @ExternalUserId externalUserId: String?,
         @RequestBody request: CreateBannerUploadUrlRequest,
     ): ResponseEntity<CreateBannerUploadUrlResponse> {
         val user = authService.authenticate(externalUserId)
-        val event = eventService.getEventDetail(eventId, user.userId)
-        if (event.host.userId != user.userId) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Only the host can upload a banner")
-        }
-
-        val upload = s3Service.generateEventBannerUpload(user.userId, eventId, request.contentType)
+        val upload = s3Service.generateEventBannerUpload(user.userId, request.contentType)
         return ResponseEntity.ok(
             CreateBannerUploadUrlResponse(
                 key = upload.key,
@@ -134,7 +128,7 @@ class EventController(
         val user = authService.authenticate(externalUserId)
         val bannerImageUrl =
             request.bannerImageKey?.let { key ->
-                if (!s3Service.isEventBannerKeyOwnedByUser(user.userId, eventId, key)) {
+                if (!s3Service.isEventBannerKeyOwnedByUser(user.userId, key)) {
                     throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid banner image key")
                 }
                 s3Service.buildUsersPublicUrl(key)

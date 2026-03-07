@@ -14,10 +14,13 @@ import com.debbly.server.home.model.HomeHostResponse
 import com.debbly.server.home.model.HomeStageClaimResponse
 import com.debbly.server.home.model.HomeStageResponse
 import com.debbly.server.home.model.QueueUserResponse
+import com.debbly.server.home.model.StageRecordingResponse
+import com.debbly.server.stage.repository.StageMediaJpaRepository
+import com.debbly.server.stage.repository.entities.StageMediaStatus
+import com.debbly.server.stage.repository.entities.StageStatus
 import com.debbly.server.infra.error.ForbiddenException
 import com.debbly.server.match.QueueService
 import com.debbly.server.stage.repository.StageJpaRepository
-import com.debbly.server.stage.repository.entities.StageStatus
 import com.debbly.server.user.repository.UserCachedRepository
 import jakarta.validation.constraints.Size
 import org.springframework.http.HttpStatus
@@ -37,6 +40,7 @@ class ClaimController(
     private val authService: AuthService,
     private val claimSimilarityService: ClaimSimilarityService,
     private val stageJpaRepository: StageJpaRepository,
+    private val stageMediaRepository: StageMediaJpaRepository,
     private val userCachedRepository: UserCachedRepository,
     private val topicRepository: TopicRepository,
     private val queueService: QueueService
@@ -183,18 +187,24 @@ class ClaimController(
             userClaimCachedRepository.findByUserIdClaimId(it, claim.claimId)
         }
 
-        // Fetch stages for this claim
+        // Fetch stages for this claim (OPEN or with qualifying public media)
         val stages = stageJpaRepository.findStagesByClaimId(
-            claimId = claim.claimId,
-            statuses = listOf(StageStatus.OPEN, StageStatus.CLOSED)
+            claimId = claim.claimId
         ).take(stageLimit.coerceIn(1, 50))
 
         val userIds = stages.flatMap { it.hosts.map { host -> host.id.userId } }.distinct()
         val usersMap = userCachedRepository.findByIds(userIds)
+        val mediaMap = stageMediaRepository.findByStageIdIn(stages.map { it.stageId }).associateBy { it.stageId }
 
         val claimQueue = queueService.getQueueByClaimIds(setOf(claim.claimId))[claim.claimId] ?: emptyList()
 
         val stageResponses = stages.map { stage ->
+            val media = mediaMap[stage.stageId]
+            val liveHlsUrl = if (stage.status == StageStatus.OPEN && media?.status == StageMediaStatus.IN_PROGRESS)
+                media.hlsLiveLandscapeUrl else null
+            val recording = if (stage.status == StageStatus.CLOSED && stage.isRecorded == true && media != null)
+                StageRecordingResponse(media.hlsLandscapeUrl, media.hlsPortraitUrl, media.durationSeconds)
+                else null
             HomeStageResponse(
                 stageId = stage.stageId,
                 claim = HomeStageClaimResponse(
@@ -214,7 +224,9 @@ class ClaimController(
                 },
                 status = stage.status,
                 openedAt = stage.openedAt,
-                closedAt = stage.closedAt
+                closedAt = stage.closedAt,
+                liveHlsUrl = liveHlsUrl,
+                recording = recording
             )
         }
 
