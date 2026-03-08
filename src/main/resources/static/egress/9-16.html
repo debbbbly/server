@@ -76,7 +76,12 @@
         const room = new Room();
 
         room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-            if (track.kind !== Track.Kind.Video) return;
+            if (track.kind === Track.Kind.Audio) {
+                const audioElement = track.attach();
+                audioElement.style.display = 'none';
+                document.body.appendChild(audioElement);
+                return;
+            }
             if (topParticipant?.identity === participant.identity) {
                 attachVideo(topContainer, topParticipant);
             } else if (bottomParticipant?.identity === participant.identity) {
@@ -87,9 +92,7 @@
         });
 
         room.on(RoomEvent.TrackUnsubscribed, (track) => {
-            if (track.kind === Track.Kind.Video) {
-                track.detach().forEach(el => el.remove());
-            }
+            track.detach().forEach(el => el.remove());
         });
 
         room.on(RoomEvent.ParticipantConnected, (participant) => {
