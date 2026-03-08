@@ -585,8 +585,7 @@ class StageService(
         userId: String,
         visibility: StageVisibility,
     ) {
-        val stage =
-            stageRepository.findById(stageId)
+        val stage = stageRepository.findById(stageId)
                 ?: throw IllegalArgumentException("Stage not found")
 
         if (stage.hosts.none { it.userId == userId }) {
