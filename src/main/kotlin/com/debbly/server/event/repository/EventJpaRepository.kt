@@ -48,19 +48,19 @@ interface EventJpaRepository : JpaRepository<EventEntity, String> {
         @Param("cursor") cursor: Instant
     ): List<EventEntity>
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE events e SET e.signedUpCount = e.signedUpCount + 1 WHERE e.eventId = :eventId")
     fun incrementSignedUpCount(@Param("eventId") eventId: String)
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE events e SET e.signedUpCount = e.signedUpCount - 1 WHERE e.eventId = :eventId AND e.signedUpCount > 1")
     fun decrementSignedUpCount(@Param("eventId") eventId: String)
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE events e SET e.reminderCount = e.reminderCount + 1 WHERE e.eventId = :eventId")
     fun incrementReminderCount(@Param("eventId") eventId: String)
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE events e SET e.reminderCount = e.reminderCount - 1 WHERE e.eventId = :eventId AND e.reminderCount > 1")
     fun decrementReminderCount(@Param("eventId") eventId: String)
 }

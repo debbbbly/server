@@ -128,8 +128,12 @@ class ClaimController(
 
     @PostMapping("/{claimId}/init-stance")
     fun initializeFakeStances(
-        @PathVariable claimId: String
+        @PathVariable claimId: String,
+        @ExternalUserId externalUserId: String?
     ): ResponseEntity<InitClaimStanceResponse> {
+        val user = authService.authenticate(externalUserId)
+        if (user.banned) throw ForbiddenException("Your account is limited")
+
         val userClaims = userClaimService.initializeFakeStances(claimId)
 
         return ResponseEntity.ok(
@@ -256,8 +260,12 @@ class ClaimController(
      */
     @PostMapping("/{claimId}/reclassify")
     fun reclassifyClaim(
-        @PathVariable claimId: String
+        @PathVariable claimId: String,
+        @ExternalUserId externalUserId: String?
     ): ResponseEntity<ReclassifyClaimResponse> {
+        val user = authService.authenticate(externalUserId)
+        if (user.banned) throw ForbiddenException("Your account is limited")
+
         val claim = claimCachedRepository.findById(claimId)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Claim not found")
 

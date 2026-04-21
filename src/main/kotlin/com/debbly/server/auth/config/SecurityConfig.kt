@@ -58,7 +58,7 @@ class SecurityConfig(private val corsProperties: CorsConfig) {
         corsProperties.extraAllowedOriginPatterns.forEach { config.addAllowedOriginPattern(it) }
 
         config.allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS")
-        config.allowedHeaders = listOf("*")
+        config.allowedHeaders = listOf("Authorization", "Content-Type", "Accept", "X-Requested-With")
         config.allowCredentials = true
 
         val source = UrlBasedCorsConfigurationSource()

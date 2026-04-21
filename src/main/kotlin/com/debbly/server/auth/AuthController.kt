@@ -186,13 +186,7 @@ class AuthController(
         }
 
         return try {
-            logger.info(
-                "Attempting to refresh token. Token length: ${refreshToken.length}, first 20 chars: ${
-                    refreshToken.take(
-                        20
-                    )
-                }..."
-            )
+            logger.debug("Attempting to refresh token. Token length: {}", refreshToken.length)
             val response = authService.refreshToken(refreshToken)
 
             if (response.error != null) {
