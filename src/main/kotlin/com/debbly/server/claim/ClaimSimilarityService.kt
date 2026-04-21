@@ -1,6 +1,6 @@
 package com.debbly.server.claim
 
-import com.debbly.server.ai.OpenAiService
+import com.debbly.server.embedding.EmbeddingService
 import com.debbly.server.embedding.claim.ClaimEmbeddingRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service
 @Service
 class ClaimSimilarityService(
     private val embeddingRepository: ClaimEmbeddingRepository,
-    private val openAIService: OpenAiService
+    private val embeddingService: EmbeddingService
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -29,7 +29,7 @@ class ClaimSimilarityService(
         limit: Int = 5,
         minSimilarity: Double = DEFAULT_SIMILARITY_THRESHOLD
     ): List<SimilarClaim> {
-        val inputEmbedding = openAIService.generateEmbedding(text)
+        val inputEmbedding = embeddingService.generateEmbedding(text)
 
         if (inputEmbedding == null) {
             logger.error("Failed to generate embedding for text: $text")

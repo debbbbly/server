@@ -1,10 +1,10 @@
 package com.debbly.server.claim
 
 import com.debbly.server.IdService
-import com.debbly.server.ai.OpenAiService
 import com.debbly.server.category.repository.CategoryCachedRepository
 import com.debbly.server.claim.exception.ClaimValidationException
 import com.debbly.server.claim.exception.DuplicateClaimException
+import com.debbly.server.embedding.EmbeddingService
 import com.debbly.server.claim.model.ClaimModel
 import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.model.StanceToTopic
@@ -25,7 +25,8 @@ import java.time.Instant.now
 class ClaimService(
     private val claimCachedRepository: ClaimCachedRepository,
     private val categoryCachedRepository: CategoryCachedRepository,
-    private val openAIService: OpenAiService,
+    private val claimModerationService: ClaimModerationService,
+    private val embeddingService: EmbeddingService,
     private val userClaimCachedRepository: UserClaimCachedRepository,
     private val claimSimilarityService: ClaimSimilarityService,
     private val embeddingRepository: ClaimEmbeddingRepository,
@@ -73,7 +74,7 @@ class ClaimService(
         logger.info("Processing claim proposal: '$title' by user: $userId")
 
         // Step 1: Validate and normalize claim
-        val validationResult = openAIService.moderateClaim(title)
+        val validationResult = claimModerationService.moderateClaim(title)
 
         if (!validationResult.valid) {
             logger.warn("Claim rejected for user $userId: ${validationResult.violations}")
@@ -83,7 +84,7 @@ class ClaimService(
         val normalizedTitle = validationResult.normalized ?: title
 
         // Step 2: Generate embedding immediately for duplicate detection
-        val embedding = openAIService.generateEmbedding(normalizedTitle)
+        val embedding = embeddingService.generateEmbedding(normalizedTitle)
         if (embedding == null) {
             logger.error("Failed to generate embedding for claim: $normalizedTitle")
             throw ClaimValidationException(
@@ -167,7 +168,7 @@ class ClaimService(
 
             logger.info("Starting async topic extraction for claim $claimId: '${claim.title}'")
 
-            val extraction = openAIService.extractTopicAndCategory(claim.title)
+            val extraction = claimModerationService.extractTopicAndCategory(claim.title)
             logger.info("Extraction result for claim $claimId: category=${extraction.categoryId}, topic='${extraction.topic}', stance=${extraction.stanceToTopic}")
 
             // Validate category exists
@@ -208,7 +209,7 @@ class ClaimService(
     fun reclassifyClaim(claim: ClaimModel): ReclassifyResult {
         logger.info("Reclassifying claim ${claim.claimId}: '${claim.title}'")
 
-        val extraction = openAIService.extractTopicAndCategory(claim.title)
+        val extraction = claimModerationService.extractTopicAndCategory(claim.title)
         logger.info("Extraction result for claim ${claim.claimId}: category=${extraction.categoryId}, topic='${extraction.topic}', stance=${extraction.stanceToTopic}")
 
         // Validate category exists

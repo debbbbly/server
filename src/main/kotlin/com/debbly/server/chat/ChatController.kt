@@ -1,8 +1,8 @@
 package com.debbly.server.chat
 
-import com.debbly.server.ai.OpenAiService
 import com.debbly.server.auth.ExternalUserId
 import com.debbly.server.auth.service.AuthService
+import com.debbly.server.moderation.ModerationApiService
 import com.debbly.server.chat.repository.ChatRepository
 import com.debbly.server.event.repository.EventCachedRepository
 import com.debbly.server.infra.error.ForbiddenException
@@ -27,7 +27,7 @@ class ChatController(
     private val chatService: ChatService,
     private val chatRepository: ChatRepository,
     private val authService: AuthService,
-    private val openAIService: OpenAiService,
+    private val moderationApiService: ModerationApiService,
     private val stageCachedRepository: StageCachedRepository,
     private val eventCachedRepository: EventCachedRepository
 ) {
@@ -50,7 +50,7 @@ class ChatController(
                 return ResponseEntity.status(429).build()
             }
 
-            val moderationResult = openAIService.moderateChatMessage(request.message)
+            val moderationResult = moderationApiService.moderateChatMessage(request.message)
 
             val channelMessage = chatService.saveMessage(
                 channelId = chatId,

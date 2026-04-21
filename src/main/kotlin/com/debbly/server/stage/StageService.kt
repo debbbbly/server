@@ -5,6 +5,7 @@ import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.claim.repository.ClaimCachedRepository
 import com.debbly.server.claim.repository.ClaimJpaRepository
 import com.debbly.server.claim.user.repository.UserClaimCachedRepository
+import com.debbly.server.infra.error.ForbiddenException
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.livekit.LiveKitService
 import com.debbly.server.livekit.egress.EgressService
@@ -125,6 +126,12 @@ class StageService(
         userId: String?,
     ): StageDetails {
         val stage = stageRepository.getById(stageId)
+        val isHost = stage.hosts.any { it.userId == userId }
+
+        if (stage.visibility == StageVisibility.HOST_ONLY && !isHost) {
+            throw ForbiddenException()
+        }
+
         val claim = stage.claimId?.let { claimCachedRepository.getById(it) }
         val media = stageMediaRepository.findById(stageId).orElse(null)
         val hosts =
@@ -146,28 +153,24 @@ class StageService(
                 )
             }
 
-        val (isHost, livekitToken) =
+        val livekitToken =
             userId.let { tokenUserId ->
-                val isHost = stage.hosts.any { it.userId == userId }
                 val isOpenOrPending = stage.status in setOf(PENDING, OPEN)
 
                 val userStance = stage.hosts.find { it.userId == userId }?.stance ?: ClaimStance.EITHER
                 val role = if (isHost) "HOST" else "VIEWER"
                 val metadata = """{"role":"$role","stance":"${userStance.name}"}"""
 
-                val token =
-                    if (isOpenOrPending) {
-                        liveKitService.getToken(
-                            userId = tokenUserId,
-                            stageId = stageId,
-                            canPublish = isHost,
-                            metadata = metadata,
-                        )
-                    } else {
-                        null
-                    }
-
-                isHost to token
+                if (isOpenOrPending) {
+                    liveKitService.getToken(
+                        userId = tokenUserId,
+                        stageId = stageId,
+                        canPublish = isHost,
+                        metadata = metadata,
+                    )
+                } else {
+                    null
+                }
             }
 
         return StageDetails(

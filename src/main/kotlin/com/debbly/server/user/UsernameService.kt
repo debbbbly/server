@@ -1,7 +1,7 @@
 package com.debbly.server.user
 
-import com.debbly.server.ai.OpenAiService
-import com.debbly.server.ai.UsernameValidationResult
+import com.debbly.server.moderation.ModerationApiService
+import com.debbly.server.moderation.UsernameValidationResult
 import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.stereotype.Service
 import kotlin.random.Random
@@ -9,7 +9,7 @@ import kotlin.random.Random
 @Service
 class UsernameService(
     private val userCachedRepository: UserCachedRepository,
-    private val openAIService: OpenAiService
+    private val moderationApiService: ModerationApiService
 ) {
     private val adjectives = listOf(
         // original kept
@@ -138,6 +138,6 @@ class UsernameService(
             )
         }
 
-        return openAIService.validateUsername(normalized)
+        return moderationApiService.validateUsername(normalized)
     }
 }

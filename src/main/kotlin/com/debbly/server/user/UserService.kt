@@ -1,8 +1,8 @@
 package com.debbly.server.user
 
 import com.debbly.server.IdService
-import com.debbly.server.ai.OpenAiService
 import com.debbly.server.auth.service.AuthService
+import com.debbly.server.moderation.ModerationApiService
 import com.debbly.server.storage.S3Service
 import com.debbly.server.user.model.SocialUsernameModel
 import com.debbly.server.user.model.UserModel
@@ -19,7 +19,7 @@ class UserService(
     private val userCachedRepository: UserCachedRepository,
     private val socialUsernameCachedRepository: SocialUsernameCachedRepository,
     private val idService: IdService,
-    private val openAIService: OpenAiService,
+    private val moderationApiService: ModerationApiService,
     private val s3Service: S3Service,
     private val cacheManager: CacheManager,
     private val authService: AuthService,
@@ -120,7 +120,7 @@ class UserService(
         }
 
         // Validate with AI
-        val aiValidation = openAIService.validateBio(newBio.trim())
+        val aiValidation = moderationApiService.validateBio(newBio.trim())
         if (!aiValidation.valid) {
             return UpdateBioResult(
                 success = false,

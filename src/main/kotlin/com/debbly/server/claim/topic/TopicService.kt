@@ -1,7 +1,7 @@
 package com.debbly.server.claim.topic
 
 import com.debbly.server.IdService
-import com.debbly.server.ai.OpenAiService
+import com.debbly.server.embedding.EmbeddingService
 import com.debbly.server.embedding.topic.TopicEmbeddingEntity
 import com.debbly.server.embedding.topic.TopicEmbeddingRepository
 import com.debbly.server.claim.topic.model.TopicModel
@@ -23,7 +23,7 @@ class TopicService(
     private val topicRepository: TopicRepository,
     private val topicEmbeddingRepository: TopicEmbeddingRepository,
     private val topicSimilarityRepository: TopicSimilarityRepository,
-    private val openAiService: OpenAiService,
+    private val embeddingService: EmbeddingService,
     private val slugService: SlugService,
     private val idService: IdService,
     private val clock: Clock
@@ -45,7 +45,7 @@ class TopicService(
     fun findOrCreateTopic(title: String, categoryId: String): TopicModel {
         logger.info("Finding or creating topic: '$title' with suggested categoryId: $categoryId")
 
-        val embedding = openAiService.generateEmbedding(title)
+        val embedding = embeddingService.generateEmbedding(title)
             ?: throw IllegalStateException("Failed to generate embedding for topic: $title")
 
         val vectorLiteral = embedding.map { it.toFloat() }

@@ -6,10 +6,11 @@ import org.springframework.stereotype.Service
 class IdService () {
 
     companion object {
-        private const val BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+        private const val ID_BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+        private const val ID_LENGTH = 8
     }
 
-    fun getId(): String = (1..8)
-        .map { BASE58.random() }
+    fun getId(): String = (1..ID_LENGTH)
+        .map { ID_BASE58.random() }
         .joinToString("")
 }
