@@ -1,6 +1,6 @@
 package com.debbly.server.match
 
-import com.debbly.server.auth.ExternalUserId
+import com.debbly.server.auth.resolvers.ExternalUserId
 import com.debbly.server.auth.service.AuthService
 import com.debbly.server.home.model.QueueResponse
 import com.debbly.server.infra.error.ForbiddenException

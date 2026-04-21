@@ -15,7 +15,7 @@ class ChatService(
 ) {
 
     companion object {
-        private const val MAX_MESSAGES_PER_CHANNEL = 100
+        private const val LIMIT_MESSAGES_PER_CHANNEL = 100
     }
 
     fun saveMessage(
@@ -38,7 +38,7 @@ class ChatService(
         return chatMessage
     }
 
-    fun getMessages(channelId: String, limit: Int = MAX_MESSAGES_PER_CHANNEL): List<ChatMessage> {
+    fun getMessages(channelId: String, limit: Int = LIMIT_MESSAGES_PER_CHANNEL): List<ChatMessage> {
         return chatRepository.findByChannelIdOrderByTimestampDesc(channelId, limit)
             .reversed()
     }

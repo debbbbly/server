@@ -1,4 +1,4 @@
-package com.debbly.server.auth
+package com.debbly.server.auth.resolvers
 
 import org.slf4j.LoggerFactory
 import org.springframework.core.MethodParameter

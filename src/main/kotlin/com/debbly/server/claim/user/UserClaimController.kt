@@ -1,6 +1,6 @@
 package com.debbly.server.claim.user
 
-import com.debbly.server.auth.ExternalUserId
+import com.debbly.server.auth.resolvers.ExternalUserId
 import com.debbly.server.auth.service.AuthService
 import com.debbly.server.claim.ClaimService
 import com.debbly.server.claim.model.ClaimStance

@@ -1,8 +1,8 @@
 package com.debbly.server.user
 
 import com.debbly.server.IdService
-import com.debbly.server.auth.ExternalUserId
-import com.debbly.server.auth.UserEmail
+import com.debbly.server.auth.resolvers.ExternalUserId
+import com.debbly.server.auth.resolvers.UserEmail
 import com.debbly.server.storage.S3Service
 import com.debbly.server.user.repository.SocialUsernameCachedRepository
 import com.debbly.server.user.repository.UserCachedRepository

@@ -1,6 +1,6 @@
 package com.debbly.server.followers
 
-import com.debbly.server.auth.ExternalUserId
+import com.debbly.server.auth.resolvers.ExternalUserId
 import com.debbly.server.user.repository.UserCachedRepository
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity

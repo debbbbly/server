@@ -1,6 +1,6 @@
 package com.debbly.server.home
 
-import com.debbly.server.auth.ExternalUserId
+import com.debbly.server.auth.resolvers.ExternalUserId
 import com.debbly.server.auth.service.AuthService
 import com.debbly.server.home.model.*
 import org.springframework.http.ResponseEntity

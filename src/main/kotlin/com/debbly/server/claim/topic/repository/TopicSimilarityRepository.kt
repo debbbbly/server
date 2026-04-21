@@ -7,9 +7,6 @@ import org.springframework.stereotype.Repository
 @Repository
 interface TopicSimilarityRepository : JpaRepository<TopicSimilarityEntity, TopicSimilarityId> {
 
-    /**
-     * Find all topics similar to the given topic
-     */
     @Query("""
         SELECT ts FROM topic_similarities ts
         WHERE ts.topicId1 = :topicId
@@ -17,8 +14,5 @@ interface TopicSimilarityRepository : JpaRepository<TopicSimilarityEntity, Topic
     """)
     fun findSimilarTopics(topicId: String): List<TopicSimilarityEntity>
 
-    /**
-     * Check if similarity relationship already exists
-     */
     fun existsByTopicId1AndTopicId2(topicId1: String, topicId2: String): Boolean
 }

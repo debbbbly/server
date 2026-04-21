@@ -1,4 +1,4 @@
-package com.debbly.server.auth
+package com.debbly.server.auth.resolvers
 
 import org.slf4j.LoggerFactory
 import org.springframework.core.MethodParameter
@@ -11,7 +11,7 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver
 import org.springframework.web.method.support.ModelAndViewContainer
 
 @Component
-class UserIdArgumentResolver : HandlerMethodArgumentResolver {
+class ExternalUserIdArgumentResolver : HandlerMethodArgumentResolver {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 

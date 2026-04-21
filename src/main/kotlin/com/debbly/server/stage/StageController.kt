@@ -1,6 +1,6 @@
 package com.debbly.server.stage
 
-import com.debbly.server.auth.ExternalUserId
+import com.debbly.server.auth.resolvers.ExternalUserId
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.stage.repository.LiveStageRedisRepository
 import com.debbly.server.stage.repository.StageCachedRepository

@@ -1,15 +1,14 @@
 package com.debbly.server.config
 
-import com.debbly.server.auth.UserIdArgumentResolver
-import com.debbly.server.auth.UserEmailArgumentResolver
+import com.debbly.server.auth.resolvers.ExternalUserIdArgumentResolver
+import com.debbly.server.auth.resolvers.UserEmailArgumentResolver
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.method.support.HandlerMethodArgumentResolver
-import org.springframework.web.servlet.config.annotation.InterceptorRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
 
 @Configuration
 class WebConfig(
-    private val userIdArgumentResolver: UserIdArgumentResolver,
+    private val userIdArgumentResolver: ExternalUserIdArgumentResolver,
     private val userEmailArgumentResolver: UserEmailArgumentResolver
 ) : WebMvcConfigurer {
 

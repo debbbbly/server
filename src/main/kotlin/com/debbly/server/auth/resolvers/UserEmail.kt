@@ -1,4 +1,4 @@
-package com.debbly.server.auth
+package com.debbly.server.auth.resolvers
 
 @Target(AnnotationTarget.VALUE_PARAMETER)
 @Retention(AnnotationRetention.RUNTIME)

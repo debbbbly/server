@@ -12,7 +12,6 @@ import kotlin.jvm.optionals.getOrNull
 class CategoryCachedRepository(
     private val categoryJpaRepository: CategoryJpaRepository,
 ) {
-
     @Cacheable(value = ["categoriesByCategoryId"], key = "#categoryId")
     fun getById(categoryId: String): CategoryModel =
         categoryJpaRepository.findById(categoryId).getOrNull()?.toModel()
@@ -28,15 +27,4 @@ class CategoryCachedRepository(
 
     @CacheEvict(value = ["categoriesByCategoryId"], key = "#category.categoryId")
     fun save(category: CategoryModel) = categoryJpaRepository.save(category.toEntity()).toModel()
-
-    @CacheEvict(value = ["categoriesByCategoryId"], key = "#categoryId")
-    fun evictById(categoryId: String) {
-        // This method only evicts the cache entry
-    }
-
-    @CacheEvict(value = ["categoriesByCategoryId", "allCategories"], allEntries = true)
-    fun evictAll() {
-        // This method evicts all cache entries for categories
-    }
-
 }

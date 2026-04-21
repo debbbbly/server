@@ -1,6 +1,6 @@
 package com.debbly.server.event
 
-import com.debbly.server.auth.ExternalUserId
+import com.debbly.server.auth.resolvers.ExternalUserId
 import com.debbly.server.auth.service.AuthService
 import com.debbly.server.claim.model.ClaimStance
 import com.debbly.server.event.model.EventListFilter

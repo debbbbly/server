@@ -7,21 +7,16 @@ import org.springframework.http.HttpMethod.OPTIONS
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.core.authority.SimpleGrantedAuthority
-import org.springframework.security.oauth2.jwt.Jwt
-import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
-import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
-import java.beans.Customizer
 
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties(CorsProperties::class)
-class SecurityConfig(private val corsProperties: CorsProperties) {
+@EnableConfigurationProperties(CorsConfig::class)
+class SecurityConfig(private val corsProperties: CorsConfig) {
     @Bean
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
         http

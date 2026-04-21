@@ -1,6 +1,6 @@
 package com.debbly.server.chat
 
-import com.debbly.server.auth.ExternalUserId
+import com.debbly.server.auth.resolvers.ExternalUserId
 import com.debbly.server.auth.service.AuthService
 import com.debbly.server.moderation.ModerationApiService
 import com.debbly.server.chat.repository.ChatRepository
