@@ -67,3 +67,4 @@ prompt.md
 ### Claude Code ###
 .claude/settings.local.json
 .claude/skills/use-railway
+.agents/

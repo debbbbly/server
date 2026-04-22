@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.HttpStatus.*
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ControllerAdvice
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.multipart.MaxUploadSizeExceededException
@@ -40,6 +41,14 @@ class GlobalExceptionHandler {
         return ResponseEntity.status(CONFLICT).body(errorResponse)
     }
 
+    @ExceptionHandler(MethodArgumentNotValidException::class)
+    fun handleValidationException(ex: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> {
+        val message = ex.bindingResult.fieldErrors
+            .joinToString("; ") { "${it.field}: ${it.defaultMessage ?: "invalid"}" }
+            .ifBlank { "Validation failed" }
+        return ResponseEntity.status(BAD_REQUEST).body(ErrorResponse(message))
+    }
+
     @ExceptionHandler(MaxUploadSizeExceededException::class)
     fun handleMaxSizeException(ex: MaxUploadSizeExceededException): ResponseEntity<ErrorResponse> {
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(
@@ -51,7 +60,7 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException::class)
     fun handleResponseStatusException(ex: ResponseStatusException): ResponseEntity<ErrorResponse> {
-        return ResponseEntity.status(ex.statusCode).body(ErrorResponse(ex.reason ?: ex.message))
+        return ResponseEntity.status(ex.statusCode).body(ErrorResponse(ex.reason ?: ex.message ?: "Unknown"))
     }
 
     @ExceptionHandler(Exception::class)
