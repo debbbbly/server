@@ -1,17 +1,53 @@
 spring:
-  datasource:
-    url: jdbc:h2:mem:testdb
-    driverClassName: org.h2.Driver
-    username: sa
-    password: password
+  task:
+    scheduling:
+      enabled: false
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        default_schema: public
   liquibase:
     change-log: classpath:/db/changelog/db.changelog-master.yaml
-  redis:
-    host: localhost
-    port: 6379
+    default-schema: public
+    pgvector:
+      change-log: classpath:/db/pgvector/changelog/db.changelog-master.yaml
+      default-schema: public
+  ai:
+    openai:
+      api-key: test-openai-key
+      chat:
+        options:
+          model: gpt-4o-mini
+          temperature: 1
+
 livekit:
   url: http://localhost:7880
   api-key: test-key
   api-secret: test-secret
+  egress:
+    layouts:
+      landscape: ""
+      portrait: ""
+
+auth:
+  url: http://localhost:9999
+  public-url: http://localhost:9999
+  jwt-secret: test-jwt-secret-at-least-32-chars-long-xxxxxx
+  service-role-key: test-service-role-key
+
+s3:
+  default:
+    endpoint: http://localhost:9000
+    public-endpoint: http://localhost:9000
+    region: us-east-1
+    access-key: test-access-key
+    secret: test-secret-key
+    bucket: test-bucket
+
+pusher:
+  app-id: test-app-id
+  key: test-key
+  secret: test-secret
+  cluster: mt1
