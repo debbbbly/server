@@ -1,5 +1,7 @@
 # Debbly
 
+![Debbly](screenshot.png)
+
 This is the Kotlin/Spring Boot backend for online video debating platform "Debbly" — think **Twitch, but for debates**.
 
 ## What is Debbly?
