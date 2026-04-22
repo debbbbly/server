@@ -17,7 +17,7 @@ The backend handles user authentication via self hosted Supabase Auth (GoTrue), 
 ### Testing
 - **Run all tests**: `./mvnw test`
 - **Run specific test**: `./mvnw test -Dtest=ClassName`
-- **Test with profile**: Tests automatically use `test` profile with H2 database
+- **Test with profile**: Tests automatically use `test` profile. Integration tests spin up PostgreSQL and Redis via Testcontainers; unit tests use plain JUnit/Mockito.
 
 ### Database Management
 - **Liquibase update**: `./mvnw liquibase:update` - Apply database migrations
@@ -34,23 +34,28 @@ The backend handles user authentication via self hosted Supabase Auth (GoTrue), 
 
 ### Key Modules
 All modules are under `src/main/kotlin/com/debbly/server/`:
-- **ai/**: OpenAI integration for moderation and embeddings
+- **analytics/**: Usage and engagement analytics
 - **auth/**: Supabase Auth (GoTrue), JWT configuration
 - **category/**: Debate categories management
+- **challenge/**: User-to-user debate challenges
 - **chat/**: Live chat during debates with rate limiting
 - **claim/**: Claims, stances, and topics (includes `claim/topic/` submodule)
 - **config/**: Spring Boot configuration (database, caching, AI, etc.)
 - **embedding/**: Vector embeddings storage and similarity search (pgvector)
+- **event/**: Domain event definitions and publishing
 - **followers/**: User follow relationships
+- **home/**: Home feed and discovery
 - **infra/**: Infrastructure utilities (error handling)
-- **livekit/**: LiveKit room token generation and management
+- **livekit/**: LiveKit room token generation, room management, and webhook handling
 - **match/**: Matchmaking queue and match management
+- **moderation/**: OpenAI-powered content moderation (claims, usernames, chat, etc.)
 - **pusher/**: Real-time event messaging via Pusher
 - **settings/**: User preferences and app settings
 - **stage/**: Live debate room/stage management with caching
 - **storage/**: S3 file storage (avatars, recordings)
 - **user/**: User management with caching
 - **util/**: Utility functions
+- **viewer/**: Viewer session tracking for live stages
 
 ### Data Layer
 - **PostgreSQL**: Primary database with Liquibase migrations
@@ -82,7 +87,7 @@ All modules are under `src/main/kotlin/com/debbly/server/`:
 - **Topic extraction**: Automatically extracts debate topics from user-submitted claims
 
 ### Testing Strategy
-- Uses H2 in-memory database for tests
-- JUnit 5 with Spring Boot Test
+- Integration tests use Testcontainers (PostgreSQL + Redis) via `AbstractIntegrationTest`
+- Unit tests use JUnit 5 and Mockito (see `MockitoHelpers.kt`)
 - Test files located in `src/test/kotlin/`
-- Apply `@ActiveProfiles("test")` for integration tests
+- Apply `@ActiveProfiles("test")` for integration tests; real Liquibase migrations run against the Postgres container
