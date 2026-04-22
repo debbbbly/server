@@ -34,9 +34,7 @@ class ChatService(
 ) {
 
     fun sendMessage(chatId: String, user: UserModel, message: String): SendMessageOutcome? {
-        if (user.banned) throw ForbiddenException("Your account is limited")
-        if (!rateLimiter.tryConsume(user.userId)) return null
-        if (chatRepository.isMuted(chatId, user.userId)) throw ForbiddenException("You are muted in this chat")
+        if (!checkCanSend(chatId, user)) return null
 
         val moderation = moderationApiService.moderateChatMessage(message)
         val saved = saveMessage(
@@ -45,17 +43,27 @@ class ChatService(
             username = user.username,
             message = moderation.message
         )
+        broadcastMessage(chatId, saved)
 
-        val pusherPayload = ChannelMessageResponse(
+        return SendMessageOutcome(saved, moderation.wasModerated)
+    }
+
+    private fun checkCanSend(chatId: String, user: UserModel): Boolean {
+        if (user.banned) throw ForbiddenException("Your account is limited")
+        if (!rateLimiter.tryConsume(user.userId)) return false
+        if (chatRepository.isMuted(chatId, user.userId)) throw ForbiddenException("You are muted in this chat")
+        return true
+    }
+
+    private fun broadcastMessage(chatId: String, saved: ChatMessage) {
+        val payload = ChannelMessageResponse(
             messageId = saved.messageId,
             userId = saved.userId,
             username = saved.username,
             message = saved.message,
             timestamp = saved.timestamp.toString()
         )
-        pusherService.sendChannelMessage(chatId, CHAT_EVENT, PusherMessage.message(CHAT_MESSAGE, pusherPayload))
-
-        return SendMessageOutcome(saved, moderation.wasModerated)
+        pusherService.sendChannelMessage(chatId, CHAT_EVENT, PusherMessage.message(CHAT_MESSAGE, payload))
     }
 
     fun muteUser(chatId: String, requesterId: String, targetUserId: String) {
