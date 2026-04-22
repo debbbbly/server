@@ -59,6 +59,7 @@ local/dev.sh
 local/loki.yaml
 local/promtail.yaml
 local/.env.local
+local/egress.yaml
 
 ### Personal Notes ###
 prompt.md
