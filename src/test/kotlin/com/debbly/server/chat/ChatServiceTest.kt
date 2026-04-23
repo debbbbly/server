@@ -3,10 +3,10 @@ package com.debbly.server.chat
 import com.debbly.server.IdService
 import com.debbly.server.chat.model.ChatMessage
 import com.debbly.server.chat.repository.ChatRepository
-import com.debbly.server.event.repository.EventCachedRepository
-import com.debbly.server.event.model.EventStatus
-import com.debbly.server.event.repository.EventEntity
 import com.debbly.server.claim.model.ClaimStance
+import com.debbly.server.event.model.EventStatus
+import com.debbly.server.event.repository.EventCachedRepository
+import com.debbly.server.event.repository.EventEntity
 import com.debbly.server.infra.error.ForbiddenException
 import com.debbly.server.mock
 import com.debbly.server.moderation.ChatModerationResult
@@ -15,26 +15,18 @@ import com.debbly.server.pusher.model.ChannelMessageResponse
 import com.debbly.server.pusher.model.PusherEventName.CHAT_EVENT
 import com.debbly.server.pusher.model.PusherMessage
 import com.debbly.server.pusher.model.PusherMessageType.CHAT_MESSAGE
+import com.debbly.server.pusher.model.SendMessageResult
 import com.debbly.server.pusher.service.PusherService
 import com.debbly.server.stage.model.StageModel
+import com.debbly.server.stage.model.StageType
 import com.debbly.server.stage.repository.StageCachedRepository
 import com.debbly.server.stage.repository.entities.StageStatus
 import com.debbly.server.stage.repository.entities.StageVisibility
-import com.debbly.server.stage.model.StageType
 import com.debbly.server.user.model.UserModel
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.mockito.kotlin.any
-import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.eq
-import org.mockito.kotlin.never
-import org.mockito.kotlin.verify
-import org.mockito.kotlin.whenever
+import org.mockito.kotlin.*
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -80,7 +72,7 @@ class ChatServiceTest {
 
         assertEquals("msg1", outcome.message.messageId)
         assertEquals("🚫🚫", outcome.message.message)
-        assertTrue(outcome.wasModerated)
+        assertEquals(SendMessageResult.MODERATED, outcome.result)
         verify(chatRepository).save(outcome.message)
 
         val pusherCaptor = argumentCaptor<PusherMessage>()
@@ -96,11 +88,11 @@ class ChatServiceTest {
     }
 
     @Test
-    fun `sendMessage with clean message returns wasModerated=false and keeps original text`() {
+    fun `sendMessage with clean message returns SENT and null originalMessage`() {
         val outcome = service.sendMessage("chat1", user, "hello")!!
 
         assertEquals("hello", outcome.message.message)
-        assertFalse(outcome.wasModerated)
+        assertEquals(SendMessageResult.SENT, outcome.result)
     }
 
     @Test

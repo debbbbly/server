@@ -10,6 +10,7 @@ import com.debbly.server.pusher.model.ChannelMessageResponse
 import com.debbly.server.pusher.model.PusherEventName.CHAT_EVENT
 import com.debbly.server.pusher.model.PusherMessage
 import com.debbly.server.pusher.model.PusherMessageType.CHAT_MESSAGE
+import com.debbly.server.pusher.model.SendMessageResult
 import com.debbly.server.pusher.service.PusherService
 import com.debbly.server.stage.repository.StageCachedRepository
 import com.debbly.server.user.model.UserModel
@@ -17,8 +18,8 @@ import org.springframework.stereotype.Service
 import java.time.Clock
 
 data class SendMessageOutcome(
+    val result: SendMessageResult,
     val message: ChatMessage,
-    val wasModerated: Boolean
 )
 
 @Service
@@ -48,7 +49,11 @@ class ChatService(
         )
         broadcastMessage(chatId, saved)
 
-        return SendMessageOutcome(saved, moderation.wasModerated)
+        return if (moderation.wasModerated) {
+            SendMessageOutcome(SendMessageResult.MODERATED, saved)
+        } else {
+            SendMessageOutcome(SendMessageResult.SENT, saved)
+        }
     }
 
     private fun checkCanSend(chatId: String, user: UserModel): Boolean {

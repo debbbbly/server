@@ -7,6 +7,7 @@ import com.debbly.server.infra.error.ForbiddenException
 import com.debbly.server.infra.error.GlobalExceptionHandler
 import com.debbly.server.infra.error.UnauthorizedException
 import com.debbly.server.mock
+import com.debbly.server.pusher.model.SendMessageResult
 import com.debbly.server.user.model.UserModel
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -55,11 +56,11 @@ class ChatControllerTest {
     }
 
     @Test
-    fun `POST messages returns 200 with response body`() {
+    fun `POST messages returns 200 with SENT result when message is unchanged`() {
         whenever(authService.authenticate("ext-u1")).thenReturn(user)
         val saved = ChatMessage("msg1", "chat1", "u1", "alice", "hi", Instant.parse("2025-01-01T00:00:00Z"))
         whenever(chatService.sendMessage(eq("chat1"), eq(user), eq("hi")))
-            .thenReturn(SendMessageOutcome(message = saved, wasModerated = false))
+            .thenReturn(SendMessageOutcome(SendMessageResult.SENT, saved, originalMessage = null))
 
         mvc.perform(
             post("/chats/chat1/messages")
@@ -67,9 +68,29 @@ class ChatControllerTest {
                 .content("""{"message":"hi"}""")
         )
             .andExpect(status().isOk)
+            .andExpect(jsonPath("$.result").value("SENT"))
             .andExpect(jsonPath("$.messageId").value("msg1"))
             .andExpect(jsonPath("$.message").value("hi"))
-            .andExpect(jsonPath("$.moderated").value(false))
+            .andExpect(jsonPath("$.originalMessage").doesNotExist())
+    }
+
+    @Test
+    fun `POST messages returns 200 with MODERATED result and originalMessage when rewritten`() {
+        whenever(authService.authenticate("ext-u1")).thenReturn(user)
+        val saved = ChatMessage("msg1", "chat1", "u1", "alice", "🚫🚫", Instant.parse("2025-01-01T00:00:00Z"))
+        whenever(chatService.sendMessage(eq("chat1"), eq(user), eq("bad words")))
+            .thenReturn(SendMessageOutcome(SendMessageResult.MODERATED, saved, originalMessage = "bad words"))
+
+        mvc.perform(
+            post("/chats/chat1/messages")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"message":"bad words"}""")
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.result").value("MODERATED"))
+            .andExpect(jsonPath("$.messageId").value("msg1"))
+            .andExpect(jsonPath("$.message").value("🚫🚫"))
+            .andExpect(jsonPath("$.originalMessage").value("bad words"))
     }
 
     @Test

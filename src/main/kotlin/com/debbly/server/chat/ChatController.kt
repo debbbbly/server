@@ -43,9 +43,9 @@ class ChatController(
 
         return ResponseEntity.ok(
             SendMessageResponse(
+                result = outcome.result,
                 messageId = outcome.message.messageId,
                 message = outcome.message.message,
-                moderated = outcome.wasModerated
             )
         )
     }

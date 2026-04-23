@@ -21,10 +21,12 @@ data class ChannelHistoryResponse(
     val messages: List<ChannelMessageResponse>
 )
 
+enum class SendMessageResult { SENT, MODERATED }
+
 data class SendMessageResponse(
+    val result: SendMessageResult,
     val messageId: String,
-    val message: String,
-    val moderated: Boolean
+    val message: String
 )
 
 data class PresenceUserInfo(
