@@ -32,6 +32,9 @@ class ChatService(
     private val stageCachedRepository: StageCachedRepository,
     private val eventCachedRepository: EventCachedRepository
 ) {
+    companion object {
+        const val CHAT_BOT_USER_ID = "chat_bot"
+    }
 
     fun sendMessage(chatId: String, user: UserModel, message: String): SendMessageOutcome? {
         if (!checkCanSend(chatId, user)) return null

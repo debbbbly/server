@@ -585,3 +585,18 @@ databaseChangeLog:
               - column: { name: username, value: "fake-quince" }
               - column: { name: username_normalized, value: "fake-quince" }
               - column: { name: created_at, valueDate: "2026-02-28T00:00:00" }
+
+  - changeSet:
+      id: 13
+      author: claude
+      comment: "Seed chatbot user for slash-command replies"
+      changes:
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: user_id, value: "chat_bot" }
+              - column: { name: external_user_id, value: "chat-bot" }
+              - column: { name: email, value: "chat_bot@debbly.local" }
+              - column: { name: username, value: "chat_bot" }
+              - column: { name: username_normalized, value: "chat_bot" }
+              - column: { name: created_at, valueDate: "2026-04-22T00:00:00" }
