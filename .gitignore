@@ -68,3 +68,4 @@ prompt.md
 .claude/settings.local.json
 .claude/skills/use-railway
 .agents/
+/skills-lock.json
