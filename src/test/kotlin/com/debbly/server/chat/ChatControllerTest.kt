@@ -18,10 +18,7 @@ import org.mockito.kotlin.whenever
 import org.springframework.core.MethodParameter
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
@@ -60,7 +57,7 @@ class ChatControllerTest {
         whenever(authService.authenticate("ext-u1")).thenReturn(user)
         val saved = ChatMessage("msg1", "chat1", "u1", "alice", "hi", Instant.parse("2025-01-01T00:00:00Z"))
         whenever(chatService.sendMessage(eq("chat1"), eq(user), eq("hi")))
-            .thenReturn(SendMessageOutcome(SendMessageResult.SENT, saved, originalMessage = null))
+            .thenReturn(SendMessageOutcome(SendMessageResult.SENT, saved))
 
         mvc.perform(
             post("/chats/chat1/messages")
@@ -75,11 +72,11 @@ class ChatControllerTest {
     }
 
     @Test
-    fun `POST messages returns 200 with MODERATED result and originalMessage when rewritten`() {
+    fun `POST messages returns 200 with MODERATED result`() {
         whenever(authService.authenticate("ext-u1")).thenReturn(user)
         val saved = ChatMessage("msg1", "chat1", "u1", "alice", "🚫🚫", Instant.parse("2025-01-01T00:00:00Z"))
         whenever(chatService.sendMessage(eq("chat1"), eq(user), eq("bad words")))
-            .thenReturn(SendMessageOutcome(SendMessageResult.MODERATED, saved, originalMessage = "bad words"))
+            .thenReturn(SendMessageOutcome(SendMessageResult.MODERATED, saved))
 
         mvc.perform(
             post("/chats/chat1/messages")
@@ -90,7 +87,6 @@ class ChatControllerTest {
             .andExpect(jsonPath("$.result").value("MODERATED"))
             .andExpect(jsonPath("$.messageId").value("msg1"))
             .andExpect(jsonPath("$.message").value("🚫🚫"))
-            .andExpect(jsonPath("$.originalMessage").value("bad words"))
     }
 
     @Test
